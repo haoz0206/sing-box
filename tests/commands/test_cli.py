@@ -29,6 +29,7 @@ from sb_manager.application.profile_recommendation import (
     ProtocolVariant,
 )
 from sb_manager.application.profile_removal import ProfileRemovalScope
+from sb_manager.application.service_logs import ServiceLogCondition
 from sb_manager.application.state_recovery import RecoveryAvailability
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
@@ -86,6 +87,21 @@ def _write_fake_systemctl(tmp_path: Path) -> Path:
     )
     binary.chmod(0o755)
     return binary
+
+
+def _write_fake_log_reader(tmp_path: Path, *, name: str, output: str) -> tuple[Path, Path]:
+    binary = tmp_path / name
+    arguments = tmp_path / f"{name}-arguments.txt"
+    binary.write_text(
+        "#!/usr/bin/env python3\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        f"Path({str(arguments)!r}).write_text(' '.join(sys.argv[1:]), encoding='utf-8')\n"
+        f"sys.stdout.write({output!r})\n",
+        encoding="utf-8",
+    )
+    binary.chmod(0o755)
+    return binary, arguments
 
 
 def _write_fake_privilege_runner(tmp_path: Path) -> Path:
@@ -230,6 +246,56 @@ def test_cli_composes_safe_profile_template_cloning(tmp_path: Path) -> None:
     assert clone.status is ProfileStatus.DRAFT
     assert clone.protocol_material is None
     assert clone.listen_port is None
+
+
+def test_cli_composes_systemd_and_openrc_service_log_drill_down(tmp_path: Path) -> None:
+    journalctl, journal_arguments = _write_fake_log_reader(
+        tmp_path,
+        name="journalctl",
+        output="systemd service line\n",
+    )
+    systemd_app = create_app(
+        [
+            "--state-file",
+            str(tmp_path / "systemd-state.json"),
+            "--runtime",
+            "systemd",
+            "--runtime-log-binary",
+            str(journalctl),
+        ]
+    )
+
+    assert systemd_app.service_log_reader is not None
+    systemd_report = systemd_app.service_log_reader.read_recent(limit=20)
+    assert systemd_report.condition is ServiceLogCondition.AVAILABLE
+    assert systemd_report.lines == ("systemd service line",)
+    assert journal_arguments.read_text(encoding="utf-8") == (
+        "--unit sing-box.service --lines 20 --no-pager --output short-iso --quiet"
+    )
+
+    logread, openrc_arguments = _write_fake_log_reader(
+        tmp_path,
+        name="logread",
+        output="unrelated daemon\ncustom-sing-box service line\n",
+    )
+    openrc_app = create_app(
+        [
+            "--state-file",
+            str(tmp_path / "openrc-state.json"),
+            "--runtime",
+            "openrc",
+            "--service-name",
+            "custom-sing-box",
+            "--runtime-log-binary",
+            str(logread),
+        ]
+    )
+
+    assert openrc_app.service_log_reader is not None
+    openrc_report = openrc_app.service_log_reader.read_recent(limit=20)
+    assert openrc_report.condition is ServiceLogCondition.AVAILABLE
+    assert openrc_report.lines == ("custom-sing-box service line",)
+    assert openrc_arguments.read_text(encoding="utf-8") == ""
 
 
 def test_cli_composes_an_exact_core_update_path() -> None:

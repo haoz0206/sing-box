@@ -19,8 +19,10 @@ from sb_manager.application.diagnostics_center import (
     DiagnosticsCenter,
     DiagnosticsCenterReport,
 )
+from sb_manager.application.service_logs import ServiceLogReader
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
+from sb_manager.ui.screens.service_logs import ServiceLogsScreen
 
 
 class DiagnosticsCenterScreen(Screen[None]):
@@ -34,11 +36,13 @@ class DiagnosticsCenterScreen(Screen[None]):
         *,
         config_adopter: ConfigAdopter | None,
         core_updater: CoreUpdater | None,
+        service_log_reader: ServiceLogReader | None,
     ) -> None:
         super().__init__()
         self.diagnostics_center = diagnostics_center
         self.config_adopter = config_adopter
         self.core_updater = core_updater
+        self.service_log_reader = service_log_reader
         self.report: DiagnosticsCenterReport | None = None
         self.error: str | None = None
 
@@ -89,6 +93,8 @@ class DiagnosticsCenterScreen(Screen[None]):
                 id="refresh-diagnostics-center",
                 disabled=True,
             )
+            if self.service_log_reader is not None:
+                yield Button("查看近期服务日志", id="open-service-logs")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -170,6 +176,11 @@ class DiagnosticsCenterScreen(Screen[None]):
             and self.core_updater is not None
         ):
             self.app.push_screen(CoreUpdateFormScreen(self.core_updater))
+
+    @on(Button.Pressed, "#open-service-logs")
+    def open_service_logs(self) -> None:
+        if self.service_log_reader is not None:
+            self.app.push_screen(ServiceLogsScreen(self.service_log_reader))
 
     @staticmethod
     def _summary(report: DiagnosticsCenterReport) -> str:

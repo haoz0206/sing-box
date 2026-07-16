@@ -311,6 +311,10 @@ Release gate adds:
   domains and IP endpoints, public and TLS names, successful/partial/failed
   resolution, one bounded worker lifetime, Textual presentation, and production
   composition without external-network test requirements;
+- service-log drill-down for 1–500 line bounds, native systemd and OpenRC
+  command contracts, command/permission/empty states, persisted and generic
+  credential redaction, control-sequence cleaning, non-markup Textual
+  presentation, refresh, retry, and both production compositions;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

@@ -20,9 +20,14 @@ from sb_manager.application.host_diagnostics import (
     HostCondition,
     HostDiagnosticsReport,
 )
+from sb_manager.application.service_logs import (
+    ServiceLogCondition,
+    ServiceLogReport,
+)
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
 
 REFRESHED_INSPECTION_COUNT = 2
+REFRESHED_SERVICE_LOG_COUNT = 2
 
 
 class FixedDiagnosticsCenter:
@@ -39,6 +44,19 @@ class FixedDiagnosticsCenter:
 class FailingDiagnosticsCenter:
     def inspect(self) -> DiagnosticsCenterReport:
         raise RuntimeError("unexpected diagnostics failure")
+
+
+class RecordingServiceLogReader:
+    def __init__(self, *reports: ServiceLogReport) -> None:
+        self.reports = reports
+        self.calls = 0
+        self.limits: list[int] = []
+
+    def read_recent(self, *, limit: int = 200) -> ServiceLogReport:
+        self.limits.append(limit)
+        report = self.reports[min(self.calls, len(self.reports) - 1)]
+        self.calls += 1
+        return report
 
 
 class HealthyHostDiagnostics:
@@ -372,3 +390,93 @@ async def test_dashboard_runtime_summary_uses_single_diagnostics_action() -> Non
         assert app.query_one("#runtime-status", Static).content == "服务状态：运行正常"
         assert len(app.query("#open-diagnostics-center")) == 1
         assert len(app.query("#view-diagnostics")) == 0
+
+
+async def test_operator_drills_into_bounded_redacted_service_logs_and_refreshes() -> None:
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.AVAILABLE,
+            source_label="systemd journal",
+            lines=(
+                "2026-07-17 sing-box started",
+                "2026-07-17 rejected uuid=[已脱敏]",
+            ),
+            diagnostics="",
+            redacted_occurrences=1,
+            limit=200,
+        ),
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd journal",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        ),
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        log_action = app.screen.query_one("#open-service-logs", Button)
+        assert str(log_action.label) == "查看近期服务日志"
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-title", Static).content == "近期服务日志"
+        assert app.screen.query_one("#service-logs-safety", Static).content == (
+            "只读 · 最多 200 行 · 自动清理控制字符并脱敏"
+        )
+        assert app.screen.query_one("#service-logs-source", Static).content == (
+            "来源：systemd journal · 已脱敏 1 处"
+        )
+        assert app.screen.query_one("#service-logs-content", Static).content == (
+            "2026-07-17 sing-box started\n2026-07-17 rejected uuid=[已脱敏]"
+        )
+
+        await pilot.click("#refresh-service-logs")
+        await pilot.pause()
+
+        assert logs.calls == REFRESHED_SERVICE_LOG_COUNT
+        assert logs.limits == [200, 200]
+        assert app.screen.query_one("#service-logs-content", Static).content == (
+            "近期没有可显示的 sing-box 服务日志。"
+        )
+
+
+async def test_service_log_drill_down_explains_unavailable_source_and_keeps_retry() -> None:
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.UNAVAILABLE,
+            source_label="OpenRC syslog",
+            lines=(),
+            diagnostics="logread: permission denied",
+            redacted_occurrences=0,
+            limit=200,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-source", Static).content == "来源：OpenRC syslog"
+        assert app.screen.query_one("#service-logs-content", Static).content == (
+            "无法读取服务日志：logread: permission denied"
+        )
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is False

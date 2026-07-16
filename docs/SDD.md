@@ -250,9 +250,14 @@ addresses and TLS server names from the same desired-state snapshot. It skips
 literal IP endpoints, resolves all domains inside one disposable worker with a
 bounded total runtime, retains successful addresses beside per-domain failures,
 and treats unresolved or unavailable DNS as attention rather than host mutation
-failure. Certificate expiry, port ownership, apply history, and redacted raw-log
-drill-down are delivered as later complete checks rather than UI-side subprocess
-parsing.
+failure. The service-log drill-down uses a separate read-only runtime-log seam
+for bounded systemd journal or OpenRC syslog capture. One application disclosure
+boundary reapplies the line bound, removes control sequences, caps line length,
+redacts persisted protocol material plus common credential forms, and returns
+typed available, empty, or unavailable results. Textual loads and refreshes the
+default 200-line view in a worker with markup disabled; it never parses commands,
+follows logs, escalates privileges, or changes the service. Certificate expiry,
+port ownership, and apply history remain later complete checks.
 
 Actionable findings may carry one typed navigation action. The report exposes
 only the action belonging to its highest-priority finding, and the Textual
@@ -661,6 +666,12 @@ Current implementation status (2026-07-17):
   endpoints, preserves mixed success/failure evidence, and reports invalid,
   unresolved, or unavailable DNS as attention without obscuring higher-priority
   configuration, core, or runtime actions;
+- bounded service-log drill-down: the diagnostics center can open and refresh
+  the latest 200 systemd journal or OpenRC syslog lines through an init-neutral
+  read-only seam; adapter timeouts, command failure, missing access, and empty
+  logs remain typed, while one application policy removes terminal controls,
+  caps lines, and redacts both persisted and pattern-recognized credentials
+  before Textual renders non-markup content;
 - listening-port editing: profile details prefill the current port and accept a
   fixed value or an empty automatic selection; plans separate actual-port and
   selection-policy changes, reject desired-state/host conflicts, recheck under
@@ -745,6 +756,8 @@ Current implementation status (2026-07-17):
   failed with exact recovery instructions.
 - Unit and behavior tests need neither root nor network.
 - TUI acceptance tests drive public user actions with Textual Pilot.
+- Recent service logs are bounded, control-cleaned, and credential-redacted
+  before the TUI receives them; unavailable log access never changes the host.
 - Runtime and artifact adapters pass shared contract suites.
 - Supported protocols pass desired-state-to-config and connection-information
   behavior examples.

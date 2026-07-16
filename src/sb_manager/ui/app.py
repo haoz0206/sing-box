@@ -67,6 +67,7 @@ from sb_manager.application.profile_removal import (
     ProfileRemovalNotFoundError,
     ProfileRemover,
 )
+from sb_manager.application.service_logs import ServiceLogReader
 from sb_manager.application.state_recovery import (
     RecoveryAvailability,
     StateRecoveryManager,
@@ -910,6 +911,7 @@ class ManagerAppHostTools:
     )
     config_adopter: ConfigAdopter | None = None
     state_recovery_manager: StateRecoveryManager | None = None
+    service_log_reader: ServiceLogReader | None = None
 
 
 class ManagerApp(App[None]):
@@ -945,6 +947,7 @@ class ManagerApp(App[None]):
         self.profile_recommendation_advisor = tools.profile_recommendation_advisor
         self.config_adopter = tools.config_adopter
         self.state_recovery_manager = tools.state_recovery_manager
+        self.service_log_reader = tools.service_log_reader
         self._dashboard_ready = False
 
     def compose(self) -> ComposeResult:
@@ -1179,6 +1182,7 @@ class ManagerApp(App[None]):
                     self.diagnostics_center,
                     config_adopter=self.config_adopter,
                     core_updater=self.core_updater,
+                    service_log_reader=self.service_log_reader,
                 )
             )
 

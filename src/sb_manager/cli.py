@@ -15,6 +15,7 @@ from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.json_state_recovery import JsonStateRecoverySource
+from sb_manager.adapters.openrc_logs import OpenRCLogSource
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
 from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
 from sb_manager.adapters.privileged_config_target import (
@@ -27,6 +28,7 @@ from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSo
 from sb_manager.adapters.sing_box_core_status import SingBoxCoreStatusInspector
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
 from sb_manager.adapters.socket_ports import SocketPortSource
+from sb_manager.adapters.systemd_logs import SystemdJournalLogSource
 from sb_manager.adapters.systemd_runtime import SystemdRuntime
 from sb_manager.adapters.trojan_material import SecureTrojanMaterialSource
 from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
@@ -52,6 +54,7 @@ from sb_manager.application.profile_cloning import ProfileCloningService
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
+from sb_manager.application.service_logs import ServiceLogService
 from sb_manager.application.state_recovery import StateRecoveryService
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
@@ -67,6 +70,7 @@ from sb_manager.protocols.catalog import (
 from sb_manager.seams.config_target import ConfigurationTargetInspector
 from sb_manager.seams.configuration_applier import ConfigurationApplier
 from sb_manager.seams.runtime import Runtime, RuntimeKind
+from sb_manager.seams.runtime_logs import RuntimeLogSource
 from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCatalog
 from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
@@ -90,6 +94,24 @@ def create_runtime(
         )
     return OpenRCRuntime(
         binary=binary or "rc-service",
+        service_name=service_name or "sing-box",
+    )
+
+
+def create_runtime_log_source(
+    *,
+    runtime_kind: RuntimeKind,
+    binary: str | Path | None = None,
+    service_name: str | None = None,
+) -> RuntimeLogSource:
+    """Select the read-only log adapter matching the configured init system."""
+    if runtime_kind is RuntimeKind.SYSTEMD:
+        return SystemdJournalLogSource(
+            binary=binary or "journalctl",
+            service_name=service_name or "sing-box.service",
+        )
+    return OpenRCLogSource(
+        binary=binary or "logread",
         service_name=service_name or "sing-box",
     )
 
@@ -212,6 +234,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         help="systemctl 或 rc-service 可执行文件",
     )
     parser.add_argument(
+        "--runtime-log-binary",
+        type=Path,
+        help="journalctl 或 logread 可执行文件",
+    )
+    parser.add_argument(
         "--service-name",
         help="服务单元名称",
     )
@@ -235,9 +262,15 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     manager = Manager(state_store=state_store, mutation_lock=mutation_lock)
+    runtime_kind = RuntimeKind(arguments.runtime)
     runtime = create_runtime(
-        runtime_kind=RuntimeKind(arguments.runtime),
+        runtime_kind=runtime_kind,
         binary=arguments.runtime_binary,
+        service_name=arguments.service_name,
+    )
+    runtime_log_source = create_runtime_log_source(
+        runtime_kind=runtime_kind,
+        binary=arguments.runtime_log_binary,
         service_name=arguments.service_name,
     )
     applier: ConfigurationApplier
@@ -341,6 +374,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             state_recovery_manager=StateRecoveryService(
                 source=JsonStateRecoverySource(arguments.state_file),
                 mutation_lock=mutation_lock,
+            ),
+            service_log_reader=ServiceLogService(
+                state_store=state_store,
+                log_source=runtime_log_source,
             ),
         ),
     )
