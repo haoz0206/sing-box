@@ -18,6 +18,10 @@ from sb_manager.seams.config_target import (
     ConfigTargetInspectionError,
     ConfigurationTargetInspector,
 )
+from sb_manager.seams.generated_configuration import (
+    GeneratedConfigurationInspectionError,
+    GeneratedConfigurationInspector,
+)
 from sb_manager.seams.state_store import StateStore
 
 
@@ -41,6 +45,7 @@ class DiagnosticCode(str, Enum):
 
     DESIRED_STATE = "desired-state"
     LIVE_CONFIGURATION = "live-configuration"
+    GENERATED_CONFIGURATION = "generated-configuration"
     CONFIG_TARGET = "config-target"
     PRIVILEGED_HELPER = "privileged-helper"
     CORE = "core"
@@ -120,11 +125,13 @@ class DiagnosticsCenterService:
         *,
         state_store: StateStore,
         config_inspector: ConfigurationTargetInspector,
+        generated_configuration_inspector: GeneratedConfigurationInspector | None = None,
         host_readiness: HostReadiness,
         host_diagnostics: HostDiagnostics,
     ) -> None:
         self._state_store = state_store
         self._config_inspector = config_inspector
+        self._generated_configuration_inspector = generated_configuration_inspector
         self._host_readiness = host_readiness
         self._host_diagnostics = host_diagnostics
 
@@ -133,6 +140,7 @@ class DiagnosticsCenterService:
         items = [desired_state]
         if installation is not None:
             items.append(self._inspect_live_configuration(installation))
+        unavailable_core = None
         try:
             readiness = self._host_readiness.inspect()
         except (OSError, RuntimeError, ValueError) as error:
@@ -178,6 +186,28 @@ class DiagnosticsCenterService:
                 )
                 for item in readiness.items
             )
+            unavailable_core = next(
+                (
+                    item
+                    for item in readiness.items
+                    if item.code is HostReadinessItemCode.CORE
+                    and item.state is not ReadinessState.READY
+                ),
+                None,
+            )
+        if self._generated_configuration_inspector is not None and installation is not None:
+            if unavailable_core is not None:
+                generated_configuration_item = DiagnosticItem(
+                    code=DiagnosticCode.GENERATED_CONFIGURATION,
+                    condition=DiagnosticCondition.ACTION_REQUIRED,
+                    title="生成配置语义检查",
+                    summary="sing-box 核心不可用，尚未检查生成配置",
+                    diagnostics=unavailable_core.diagnostics,
+                    guidance="先安装或修复 sing-box 核心，再重新运行语义检查。",
+                )
+            else:
+                generated_configuration_item = self._inspect_generated_configuration(installation)
+            items.append(generated_configuration_item)
         try:
             runtime = self._host_diagnostics.inspect()
         except (OSError, RuntimeError, ValueError) as error:
@@ -210,6 +240,45 @@ class DiagnosticsCenterService:
                 )
             )
         return DiagnosticsCenterReport(items=tuple(items))
+
+    def _inspect_generated_configuration(
+        self,
+        installation: ManagedInstallation,
+    ) -> DiagnosticItem:
+        inspector = self._generated_configuration_inspector
+        if inspector is None:
+            raise AssertionError("Generated configuration inspector is not configured")
+        try:
+            observation = inspector.inspect(installation)
+        except GeneratedConfigurationInspectionError as error:
+            return DiagnosticItem(
+                code=DiagnosticCode.GENERATED_CONFIGURATION,
+                condition=DiagnosticCondition.ACTION_REQUIRED,
+                title="生成配置语义检查",
+                summary="无法检查 desired state 生成的 sing-box 配置",
+                diagnostics=str(error),
+                guidance=("确认 sing-box 核心和临时目录可用后重新检查。在验证结果未知时不要应用。"),
+            )
+        return DiagnosticItem(
+            code=DiagnosticCode.GENERATED_CONFIGURATION,
+            condition=(
+                DiagnosticCondition.HEALTHY
+                if observation.valid
+                else DiagnosticCondition.ACTION_REQUIRED
+            ),
+            title="生成配置语义检查",
+            summary=(
+                "当前 desired state 可生成有效的 sing-box 配置"
+                if observation.valid
+                else "当前 desired state 生成的 sing-box 配置无效"
+            ),
+            diagnostics=observation.diagnostics,
+            guidance=(
+                ""
+                if observation.valid
+                else "不要应用。修复受影响配置或恢复 desired-state 备份后重新检查。"
+            ),
+        )
 
     def _inspect_live_configuration(self, installation: ManagedInstallation) -> DiagnosticItem:
         try:

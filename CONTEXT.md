@@ -89,6 +89,13 @@ recommended operator action. A failed probe becomes its own check and does not
 erase independent evidence.
 _Avoid_: Raw log dump, runtime status page, readiness wizard
 
+**Generated configuration inspection**:
+A read-only projection of one desired-state snapshot into a disposable complete
+sing-box document followed by the configured semantic validator. It reports
+valid, invalid, or unavailable evidence without applying the document, and
+redacts persisted protocol material from validator diagnostics.
+_Avoid_: Live configuration identity, apply dry-run, displaying generated JSON
+
 **Live configuration identity**:
 The read-only SHA-256 observation of the configured sing-box target, compared
 with the exact replacement precondition recorded in desired state. It can prove

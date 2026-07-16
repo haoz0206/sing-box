@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from sb_manager.adapters.generated_configuration import ProjectedGeneratedConfigurationInspector
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.cli import create_protocol_catalog
 from sb_manager.domain.installation import (
+    ManagedInstallation,
     ManagedProfile,
     PortSelection,
     ProfileStatus,
@@ -18,11 +20,33 @@ from sb_manager.domain.installation import (
 from sb_manager.privileged.config_policy import ManagedConfigurationPolicy
 from sb_manager.protocols.catalog import ProtocolCatalog
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
+from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import (
     GrpcTransportIntent,
     TransportIntent,
     WebSocketTransportIntent,
 )
+
+
+@pytest.mark.integration
+def test_generated_configuration_inspector_uses_real_sing_box_check(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    catalog = create_protocol_catalog(
+        sing_box_binary=real_sing_box_binary,
+        reality_server_name="www.cloudflare.com",
+    )
+    inspector = ProjectedGeneratedConfigurationInspector(
+        projector=ManagedConfigurationProjector(protocol_catalog=catalog),
+        stager=ConfigurationStager(parent=tmp_path),
+        validator=SingBoxConfigValidator(binary=real_sing_box_binary),
+    )
+
+    observation = inspector.inspect(ManagedInstallation(schema_version=1, revision=0, profiles=()))
+
+    assert observation.valid is True
+    assert observation.diagnostics == "sing-box check completed successfully"
 
 
 @pytest.fixture(scope="session")

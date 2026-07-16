@@ -24,6 +24,10 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.domain.protocol_material import RealityMaterial
 from sb_manager.seams.config_target import ConfigTargetInspectionError, LiveConfigObservation
+from sb_manager.seams.generated_configuration import (
+    GeneratedConfigurationInspectionError,
+    GeneratedConfigurationObservation,
+)
 
 
 class FixedConfigurationTargetInspector:
@@ -37,6 +41,19 @@ class FixedConfigurationTargetInspector:
 class FailingConfigurationTargetInspector:
     def inspect(self) -> LiveConfigObservation:
         raise ConfigTargetInspectionError("helper inspection timed out")
+
+
+class FixedGeneratedConfigurationInspector:
+    def __init__(self, observation: GeneratedConfigurationObservation) -> None:
+        self.observation = observation
+
+    def inspect(self, installation: ManagedInstallation) -> GeneratedConfigurationObservation:
+        return self.observation
+
+
+class FailingGeneratedConfigurationInspector:
+    def inspect(self, installation: ManagedInstallation) -> GeneratedConfigurationObservation:
+        raise GeneratedConfigurationInspectionError("sing-box check timed out")
 
 
 class FixedHostReadiness:
@@ -86,6 +103,193 @@ def ready_item(code: HostReadinessItemCode, title: str) -> HostReadinessItem:
 
 def empty_config_inspector() -> FixedConfigurationTargetInspector:
     return FixedConfigurationTargetInspector(LiveConfigObservation(exists=False, sha256=None))
+
+
+def test_invalid_generated_configuration_requires_action_without_hiding_other_evidence() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
+            GeneratedConfigurationObservation(
+                valid=False,
+                diagnostics="inbound[0].tls: missing certificate provider",
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert tuple(item.code for item in report.items) == (
+        DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
+        DiagnosticCode.GENERATED_CONFIGURATION,
+        DiagnosticCode.RUNTIME,
+    )
+    generated = report.items[2]
+    assert generated.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert generated.summary == "当前 desired state 生成的 sing-box 配置无效"
+    assert generated.diagnostics == "inbound[0].tls: missing certificate provider"
+    assert generated.guidance == ("不要应用。修复受影响配置或恢复 desired-state 备份后重新检查。")
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
+def test_valid_generated_configuration_is_reported_as_healthy() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
+            GeneratedConfigurationObservation(
+                valid=True,
+                diagnostics="sing-box check completed successfully",
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    generated = center.inspect().items[2]
+
+    assert generated.code is DiagnosticCode.GENERATED_CONFIGURATION
+    assert generated.condition is DiagnosticCondition.HEALTHY
+    assert generated.summary == "当前 desired state 可生成有效的 sing-box 配置"
+    assert generated.diagnostics == "sing-box check completed successfully"
+    assert generated.guidance == ""
+
+
+def test_generated_configuration_probe_failure_is_actionable_and_keeps_runtime_evidence() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        generated_configuration_inspector=FailingGeneratedConfigurationInspector(),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    generated = report.items[2]
+    assert generated.code is DiagnosticCode.GENERATED_CONFIGURATION
+    assert generated.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert generated.summary == "无法检查 desired state 生成的 sing-box 配置"
+    assert generated.diagnostics == "sing-box check timed out"
+    assert generated.guidance == (
+        "确认 sing-box 核心和临时目录可用后重新检查。在验证结果未知时不要应用。"
+    )
+    assert report.items[-1].code is DiagnosticCode.RUNTIME
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
+def test_unavailable_core_action_precedes_generated_configuration_probe_failure() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        generated_configuration_inspector=FailingGeneratedConfigurationInspector(),
+        host_readiness=FixedHostReadiness(
+            HostReadinessReport(
+                items=(
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.PRIVILEGED_HELPER,
+                        state=ReadinessState.READY,
+                        title="最小权限 helper",
+                        summary="最小权限 helper 可用",
+                        diagnostics="ready",
+                        guidance="",
+                    ),
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.CORE,
+                        state=ReadinessState.ACTION_REQUIRED,
+                        title="sing-box 核心",
+                        summary="sing-box 核心尚不可用",
+                        diagnostics="sing-box not found",
+                        guidance="选择可信版本并安装 sing-box 核心",
+                    ),
+                )
+            )
+        ),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert report.recommended_action == "选择可信版本并安装 sing-box 核心"
+    assert report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
+    assert tuple(item.code for item in report.items)[-2:] == (
+        DiagnosticCode.GENERATED_CONFIGURATION,
+        DiagnosticCode.RUNTIME,
+    )
+
+
+def test_generated_configuration_is_not_misreported_invalid_when_core_is_unavailable() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
+            GeneratedConfigurationObservation(
+                valid=False,
+                diagnostics="sing-box executable not found",
+            )
+        ),
+        host_readiness=FixedHostReadiness(
+            HostReadinessReport(
+                items=(
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.CORE,
+                        state=ReadinessState.ACTION_REQUIRED,
+                        title="sing-box 核心",
+                        summary="sing-box 核心尚不可用",
+                        diagnostics="sing-box not found",
+                        guidance="选择可信版本并安装 sing-box 核心",
+                    ),
+                )
+            )
+        ),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    generated = center.inspect().items[-2]
+
+    assert generated.code is DiagnosticCode.GENERATED_CONFIGURATION
+    assert generated.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert generated.summary == "sing-box 核心不可用，尚未检查生成配置"
+    assert generated.diagnostics == "sing-box not found"
+    assert generated.guidance == "先安装或修复 sing-box 核心，再重新运行语义检查。"
 
 
 def test_recorded_live_configuration_identity_is_reported_as_healthy() -> None:

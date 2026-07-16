@@ -303,9 +303,12 @@ def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -
         DiagnosticCode.CONFIG_TARGET,
         DiagnosticCode.PRIVILEGED_HELPER,
         DiagnosticCode.CORE,
+        DiagnosticCode.GENERATED_CONFIGURATION,
         DiagnosticCode.RUNTIME,
     )
     assert report.items[0].condition is DiagnosticCondition.HEALTHY
+    assert report.items[-2].condition is DiagnosticCondition.HEALTHY
+    assert report.items[-2].diagnostics == "sing-box check completed successfully"
     assert report.items[-1].condition is DiagnosticCondition.HEALTHY
 
 

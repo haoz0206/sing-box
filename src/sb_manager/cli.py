@@ -7,6 +7,9 @@ from pathlib import Path
 from sb_manager.adapters.anytls_material import SecureAnyTlsMaterialSource
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
+from sb_manager.adapters.generated_configuration import (
+    ProjectedGeneratedConfigurationInspector,
+)
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
@@ -29,6 +32,7 @@ from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
 from sb_manager.application.config_adoption import ConfigAdoptionService
+from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.core_update import CoreUpdateService
 from sb_manager.application.diagnostics_center import DiagnosticsCenterService
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
@@ -230,6 +234,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     )
     applier: ConfigurationApplier
     config_inspector: ConfigurationTargetInspector
+    config_validator = SingBoxConfigValidator(binary=sing_box_binary)
     privileged_config_inspector = PrivilegedConfigurationTargetInspector(
         helper_command=privileged_helper_command
     )
@@ -244,7 +249,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         applier = ApplyCoordinator(
             config_path=arguments.config_file,
             stager=ConfigurationStager(parent=arguments.staging_dir),
-            validator=SingBoxConfigValidator(binary=sing_box_binary),
+            validator=config_validator,
             runtime=runtime,
         )
     protocol_catalog = create_protocol_catalog(
@@ -280,6 +285,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             diagnostics_center=DiagnosticsCenterService(
                 state_store=state_store,
                 config_inspector=config_inspector,
+                generated_configuration_inspector=ProjectedGeneratedConfigurationInspector(
+                    projector=ManagedConfigurationProjector(protocol_catalog=protocol_catalog),
+                    stager=ConfigurationStager(parent=arguments.staging_dir),
+                    validator=config_validator,
+                ),
                 host_readiness=host_readiness,
                 host_diagnostics=host_diagnostics,
             ),

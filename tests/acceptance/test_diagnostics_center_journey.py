@@ -160,6 +160,46 @@ def missing_core_report() -> DiagnosticsCenterReport:
     )
 
 
+def invalid_generated_configuration_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.GENERATED_CONFIGURATION,
+                condition=DiagnosticCondition.ACTION_REQUIRED,
+                title="生成配置语义检查",
+                summary="当前 desired state 生成的 sing-box 配置无效",
+                diagnostics="inbound[0].tls: missing certificate provider",
+                guidance="不要应用。修复受影响配置或恢复 desired-state 备份后重新检查。",
+            ),
+        )
+    )
+
+
+async def test_operator_sees_generated_configuration_failure_and_recovery_guidance() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(invalid_generated_configuration_report())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert (
+            app.screen.query_one("#diagnostic-generated-configuration-title", Static).content
+            == "[需处理] 生成配置语义检查"
+        )
+        assert (
+            app.screen.query_one("#diagnostic-generated-configuration-details", Static).content
+            == "inbound[0].tls: missing certificate provider"
+        )
+        assert (
+            app.screen.query_one("#diagnostic-generated-configuration-guidance", Static).content
+            == "下一步：不要应用。修复受影响配置或恢复 desired-state 备份后重新检查。"
+        )
+
+
 async def test_operator_opens_config_adoption_from_diagnostics_recommendation() -> None:
     adopter = RecordingConfigAdopter()
     app = ManagerApp(

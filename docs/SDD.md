@@ -214,10 +214,16 @@ operator action. The next slice reuses the active direct or privileged
 configuration-target inspector to compare only its SHA-256 with the desired
 state replacement precondition. It distinguishes an empty target, an untracked
 existing target, a matching identity, a missing recorded target, external
-drift, and an unavailable probe without reading configuration content. Domain
-resolution, certificate expiry, semantic generated-config validation, port
-ownership, apply history, and redacted raw-log drill-down are delivered as
-later complete checks rather than UI-side subprocess parsing.
+drift, and an unavailable probe without reading configuration content. The
+generated-configuration slice reprojects the same complete document used by
+apply into disposable staging and runs the configured `sing-box check` adapter
+without mutating the host. Projection failures, semantic rejection, and an
+unavailable check remain distinct evidence; persisted protocol material is
+redacted from validator diagnostics. Core readiness precedes this check in
+recommendation priority so a missing core is never misreported as invalid
+configuration. Domain resolution, certificate expiry, port ownership, apply
+history, and redacted raw-log drill-down are delivered as later complete checks
+rather than UI-side subprocess parsing.
 
 Actionable findings may carry one typed navigation action. The report exposes
 only the action belonging to its highest-priority finding, and the Textual
@@ -597,6 +603,11 @@ Current implementation status (2026-07-17):
   form only after the privileged helper is ready; actions follow report
   priority, disappear when their destination is unavailable, and never bypass
   the destination workflow's plan or confirmation;
+- generated configuration inspection: every production diagnostics run uses
+  the complete managed projector, disposable staging, and the configured
+  `sing-box check` validator; valid, invalid, unavailable, and unprojectable
+  outcomes remain typed, protocol material is redacted from diagnostics, and a
+  missing core retains priority as the operator's actual prerequisite;
 - listening-port editing: profile details prefill the current port and accept a
   fixed value or an empty automatic selection; plans separate actual-port and
   selection-policy changes, reject desired-state/host conflicts, recheck under
