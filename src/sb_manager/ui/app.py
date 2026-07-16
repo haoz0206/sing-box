@@ -13,6 +13,7 @@ from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
+from sb_manager.application.diagnostics_center import DiagnosticsCenter
 from sb_manager.application.host_diagnostics import (
     HostCondition,
     HostDiagnostics,
@@ -59,6 +60,7 @@ from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
+from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
@@ -897,6 +899,7 @@ class ManagerAppHostTools:
     """Host observation and profile lifecycle capabilities available to the TUI."""
 
     host_diagnostics: HostDiagnostics | None = None
+    diagnostics_center: DiagnosticsCenter | None = None
     host_readiness: HostReadiness | None = None
     profile_details_reader: ProfileDetailsReader | None = None
     profile_editor: ProfileEditor | None = None
@@ -930,6 +933,7 @@ class ManagerApp(App[None]):
         self.profile_applier = profile_applier
         self.core_updater = core_updater
         self.host_diagnostics = tools.host_diagnostics
+        self.diagnostics_center = tools.diagnostics_center
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
         self.host_readiness = tools.host_readiness
         self.host_readiness_report: HostReadinessReport | None = None
@@ -1027,7 +1031,9 @@ class ManagerApp(App[None]):
         yield Footer()
 
     def _host_action_buttons(self, installation: ManagedInstallation) -> Iterator[Button]:
-        if self.host_diagnostics is not None:
+        if self.diagnostics_center is not None:
+            yield Button("打开诊断中心", id="open-diagnostics-center")
+        elif self.host_diagnostics is not None:
             yield Button("查看诊断", id="view-diagnostics", disabled=True)
         if self.host_readiness is not None:
             yield Button("查看准备度", id="view-readiness", disabled=True)
@@ -1056,7 +1062,8 @@ class ManagerApp(App[None]):
             else "服务状态：需要检查"
         )
         self.query_one("#runtime-status", Static).update(status)
-        self.query_one("#view-diagnostics", Button).disabled = False
+        if self.diagnostics_center is None:
+            self.query_one("#view-diagnostics", Button).disabled = False
         self._update_dashboard_next_action()
 
     @work(thread=True, exclusive=True)
@@ -1107,6 +1114,11 @@ class ManagerApp(App[None]):
     def open_host_diagnostics(self) -> None:
         if self.host_diagnostics_report is not None:
             self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report))
+
+    @on(Button.Pressed, "#open-diagnostics-center")
+    def open_diagnostics_center(self) -> None:
+        if self.diagnostics_center is not None:
+            self.push_screen(DiagnosticsCenterScreen(self.diagnostics_center))
 
     @on(Button.Pressed, "#view-readiness")
     def open_host_readiness(self) -> None:

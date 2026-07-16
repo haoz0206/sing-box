@@ -4,6 +4,10 @@ from pathlib import Path
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.application.core_update import PlanCoreUpdateRequest
+from sb_manager.application.diagnostics_center import (
+    DiagnosticCode,
+    DiagnosticCondition,
+)
 from sb_manager.application.host_readiness import HostReadinessItemCode, ReadinessState
 from sb_manager.application.manager import (
     AcmeTlsRequest,
@@ -277,6 +281,23 @@ def test_cli_composes_transactional_applied_profile_editing(tmp_path: Path) -> N
     assert installation.profiles[0].server_address == "new.example.com"
     inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
     assert inbound["users"][0]["name"] == "平板"
+
+
+def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -> None:
+    app, _, _ = _create_isolated_app(tmp_path)
+
+    assert app.diagnostics_center is not None
+    report = app.diagnostics_center.inspect()
+
+    assert tuple(item.code for item in report.items) == (
+        DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.CONFIG_TARGET,
+        DiagnosticCode.PRIVILEGED_HELPER,
+        DiagnosticCode.CORE,
+        DiagnosticCode.RUNTIME,
+    )
+    assert report.items[0].condition is DiagnosticCondition.HEALTHY
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
 
 
 def test_cli_refuses_unmanaged_config_until_exact_adoption_is_confirmed(

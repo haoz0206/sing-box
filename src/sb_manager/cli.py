@@ -30,6 +30,7 @@ from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.core_update import CoreUpdateService
+from sb_manager.application.diagnostics_center import DiagnosticsCenterService
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
 from sb_manager.application.host_readiness import (
     HostAccessMode,
@@ -262,18 +263,25 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         core_activator=PrivilegedCoreActivator(helper_command=privileged_helper_command),
         incoming_directory=arguments.privileged_incoming_dir,
     )
+    host_diagnostics = RuntimeHostDiagnostics(runtime=runtime)
+    host_readiness = HostReadinessService(
+        access_mode=access_mode,
+        config_inspector=config_inspector,
+        privileged_inspector=privileged_config_inspector,
+        core_inspector=SingBoxCoreStatusInspector(binary=sing_box_binary),
+    )
     return ManagerApp(
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
         host_tools=ManagerAppHostTools(
-            host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
-            host_readiness=HostReadinessService(
-                access_mode=access_mode,
-                config_inspector=config_inspector,
-                privileged_inspector=privileged_config_inspector,
-                core_inspector=SingBoxCoreStatusInspector(binary=sing_box_binary),
+            host_diagnostics=host_diagnostics,
+            diagnostics_center=DiagnosticsCenterService(
+                state_store=state_store,
+                host_readiness=host_readiness,
+                host_diagnostics=host_diagnostics,
             ),
+            host_readiness=host_readiness,
             profile_details_reader=ProfileDetailsService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,

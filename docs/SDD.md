@@ -194,6 +194,14 @@ Presents actionable checks rather than raw logs first:
 
 Raw logs remain available as a drill-down view with secrets redacted.
 
+The first diagnostics-center slice aggregates desired-state consistency, host
+readiness, core/helper/config-target evidence, and runtime health behind one
+read-only `inspect()` interface. It assigns one stable severity model, keeps
+independent evidence when a probe fails, and chooses the highest-priority
+operator action. Domain resolution, certificate expiry, generated-config
+validation, port ownership, apply history, and redacted raw-log drill-down are
+delivered as later complete checks rather than UI-side subprocess parsing.
+
 ### 5.8 Settings
 
 Owns language, color/accessibility preferences, update channel, paths, and
@@ -505,7 +513,7 @@ the release acceptance criteria. It is not translated function by function.
 - Hysteria2, TUIC, AnyTLS, Shadowsocks, Trojan, VMess/VLESS transports.
 - Each protocol delivered as a complete UI-to-config vertical slice.
 
-Current implementation status (2026-07-16):
+Current implementation status (2026-07-17):
 
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
@@ -547,6 +555,12 @@ Current implementation status (2026-07-16):
   observation in a Textual worker, reports applied/draft counts and the safest
   next action, and exposes typed diagnostics plus recovery guidance without
   parsing subprocess output in the UI;
+- diagnostics center: an on-demand Textual workflow aggregates desired-state
+  identity/material/fingerprint consistency, configuration target, minimum
+  privilege helper, configured core, and runtime health through one deep
+  read-only application interface; it isolates failed probes, prioritizes
+  action-required over attention checks, presents one recommended action, and
+  supports background rechecks without duplicating dashboard actions;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed

@@ -72,3 +72,10 @@ stable profile. Changing only a public server address updates desired state;
 renaming an applied profile transactionally replaces the complete live
 configuration because the name is present in generated sing-box user records.
 _Avoid_: Patch generated JSON, recreate profile, rotate credentials
+
+**Diagnostics center**:
+One read-only, prioritized report that combines manager desired-state
+consistency, host readiness, and runtime health into stable checks and one
+recommended operator action. A failed probe becomes its own check and does not
+erase independent evidence.
+_Avoid_: Raw log dump, runtime status page, readiness wizard
