@@ -357,7 +357,7 @@ async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> 
 
         assert app.screen.query_one("#runtime-status", Static).content == ("服务状态：运行正常")
         assert app.screen.query_one("#profile-summary", Static).content == (
-            "配置：1 已应用 · 1 草案"
+            "配置：1 在线 · 0 已暂停 · 1 草案"
         )
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
             "建议：先审阅并应用 1 个草案"
@@ -708,7 +708,7 @@ async def test_operator_sees_applied_status_after_reopening_the_tui() -> None:
 
     async with app.run_test():
         assert app.screen.query_one("#profile-0", Static).content == (
-            "手机 · VLESS Reality · 已应用 · 端口 4433"
+            "手机 · VLESS Reality · 在线 · 端口 4433"
         )
 
 

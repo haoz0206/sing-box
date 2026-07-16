@@ -57,6 +57,29 @@ def test_json_state_store_survives_reopen(tmp_path: Path) -> None:
     assert JsonFileStateStore(state_path).load() == expected
 
 
+def test_json_state_store_persists_paused_applied_profile(tmp_path: Path) -> None:
+    state_path = tmp_path / "state.json"
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="暂停中的配置",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+    )
+    expected = ManagedInstallation(
+        schema_version=1,
+        revision=3,
+        profiles=(paused,),
+        expected_config_sha256="a" * 64,
+    )
+
+    JsonFileStateStore(state_path).save(expected)
+
+    assert JsonFileStateStore(state_path).load() == expected
+
+
 def test_json_state_store_rejects_an_unsupported_schema(tmp_path: Path) -> None:
     state_path = tmp_path / "state.json"
     state_path.write_text(
@@ -138,6 +161,7 @@ def test_json_state_store_migrates_legacy_reality_material(tmp_path: Path) -> No
 
     profile = JsonFileStateStore(state_path).load().profiles[0]
 
+    assert profile.enabled is True
     assert profile.protocol_material == RealityMaterial(
         user_uuid="bf000d23-0752-40b4-affe-68f7707a9661",
         private_key="private-key-value",

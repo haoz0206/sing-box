@@ -110,7 +110,7 @@ class ProfileRemovalService:
             expected_revision=installation.revision,
             scope=(
                 ProfileRemovalScope.LIVE_CONFIGURATION
-                if profile.status is ProfileStatus.APPLIED
+                if profile.status is ProfileStatus.APPLIED and profile.enabled
                 else ProfileRemovalScope.DESIRED_STATE_ONLY
             ),
             remaining_profile_count=len(remaining),

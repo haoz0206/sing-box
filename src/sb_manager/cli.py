@@ -46,6 +46,7 @@ from sb_manager.application.host_readiness import (
 )
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
+from sb_manager.application.profile_availability import ProfileAvailabilityService
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
@@ -315,6 +316,13 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             profile_remover=ProfileRemovalService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,
+                applier=applier,
+                apply_lock=mutation_lock,
+            ),
+            profile_availability_manager=ProfileAvailabilityService(
+                state_store=state_store,
+                protocol_catalog=protocol_catalog,
+                port_source=port_source,
                 applier=applier,
                 apply_lock=mutation_lock,
             ),

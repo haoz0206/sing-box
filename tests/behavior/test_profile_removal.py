@@ -147,6 +147,31 @@ def test_draft_profile_removal_plan_is_read_only_and_desired_state_only() -> Non
     assert state_store.load().profiles == (draft,)
 
 
+def test_paused_applied_profile_removal_changes_only_desired_state() -> None:
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="已暂停",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+    )
+    remover = ProfileRemovalService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(paused,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    plan = remover.plan_removal("profile-1")
+
+    assert plan.status is ProfileStatus.APPLIED
+    assert plan.scope is ProfileRemovalScope.DESIRED_STATE_ONLY
+
+
 def test_profile_removal_requires_confirmation_before_lock_or_mutation() -> None:
     draft = ManagedProfile(
         profile_id="profile-1",

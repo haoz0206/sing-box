@@ -213,6 +213,7 @@ class ProfileEditingService:
             scope=(
                 ProfileEditScope.LIVE_CONFIGURATION
                 if profile.status is ProfileStatus.APPLIED
+                and profile.enabled
                 and {"profile_name", "listen_port"}.intersection(changed_fields)
                 else ProfileEditScope.DESIRED_STATE_ONLY
             ),

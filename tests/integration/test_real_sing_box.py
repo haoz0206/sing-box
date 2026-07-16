@@ -199,6 +199,47 @@ def test_real_sing_box_accepts_configuration_after_final_profile_removal(
 
 
 @pytest.mark.integration
+def test_real_sing_box_accepts_paused_and_resumed_profile_projections(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    catalog = create_protocol_catalog(
+        sing_box_binary=real_sing_box_binary,
+        reality_server_name="www.cloudflare.com",
+    )
+    materialized = catalog.materialize(
+        ManagedProfile(
+            profile_name="availability-fixture",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=18443,
+            port_selection=PortSelection.FIXED,
+            status=ProfileStatus.DRAFT,
+            profile_id="profile-1",
+        ),
+        listen_port=18443,
+    )
+    projector = ManagedConfigurationProjector(protocol_catalog=catalog)
+    projections = {
+        "paused": projector.project((replace(materialized.profile, enabled=False),)),
+        "resumed": projector.project((materialized.profile,)),
+    }
+
+    for availability, document in projections.items():
+        config_path = tmp_path / f"{availability}-profile.json"
+        config_path.write_text(json.dumps(document), encoding="utf-8")
+
+        result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
+
+        assert result.valid, result.diagnostics
+        ManagedConfigurationPolicy().validate(document)
+
+    assert projections["paused"]["inbounds"] == []
+    resumed_inbounds = projections["resumed"]["inbounds"]
+    assert isinstance(resumed_inbounds, list)
+    assert resumed_inbounds[0]["tag"] == "profile-1"
+
+
+@pytest.mark.integration
 def test_real_sing_box_accepts_reprojected_applied_profile_edit(
     real_sing_box_binary: Path,
     tmp_path: Path,

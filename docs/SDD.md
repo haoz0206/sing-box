@@ -167,6 +167,18 @@ mutation remains outside this workflow. Automatic selection excludes ports
 already declared by other profiles, and a successful result presents the
 actual selected port to the operator.
 
+Applied-profile availability is independent from its applied lifecycle status.
+An online profile contributes one inbound to the complete managed projection;
+a paused profile retains stable identity, credentials, endpoint, listen port,
+and selection policy but contributes no inbound. Pause/resume plans are pure,
+revision-bound, previewed, and explicitly confirmed. Confirmation rechecks the
+reviewed profile under the shared mutation lock and reuses complete projection,
+fingerprint preconditions, validation, atomic commit, runtime health checks,
+and rollback. Fixed-port resume checks availability during preview and again
+under the lock; automatic resume may choose a new actual port only under that
+lock. Drafts use first apply, while paused edits and removals are desired-state
+only.
+
 ### 5.4 Profile wizard
 
 The wizard uses progressive disclosure:
@@ -624,6 +636,12 @@ Current implementation status (2026-07-17):
   the shared lock, and transactionally reproject applied profiles while draft
   or policy-only changes remain desired-state-only; the TUI preserves exact
   validation, stale-port, transaction, rollback, and unknown-result guidance;
+- profile pause/resume: profile details expose the current online/paused state
+  and a revision-bound transition preview; confirmation preserves profile
+  identity and material, transactionally reprojects the complete configuration,
+  rechecks fixed ports or selects an automatic port under the shared lock, and
+  commits desired state only after host success; transaction failures retain
+  typed validation, precondition, commit, rollback, and recovery evidence;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed

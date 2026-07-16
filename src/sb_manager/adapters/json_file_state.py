@@ -140,6 +140,7 @@ class ProfileData(TypedDict):
     listen_port: int | None
     port_selection: str
     status: str
+    enabled: bool
     reality_material: RealityMaterialData | None
     protocol_material: ProtocolMaterialData | None
     server_address: str | None
@@ -244,6 +245,7 @@ class JsonFileStateStore:
                     listen_port=profile.listen_port,
                     port_selection=profile.port_selection.value,
                     status=profile.status.value,
+                    enabled=profile.enabled,
                     reality_material=None,
                     protocol_material=JsonFileStateStore._material_to_data(
                         profile.protocol_material
@@ -269,6 +271,7 @@ class JsonFileStateStore:
             listen_port=data["listen_port"],
             port_selection=PortSelection(data["port_selection"]),
             status=ProfileStatus(data["status"]),
+            enabled=data.get("enabled", True),
             protocol_material=(
                 JsonFileStateStore._material_from_data(tagged_material_data)
                 if tagged_material_data is not None

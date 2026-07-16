@@ -23,7 +23,7 @@ class ManagedConfigurationProjector:
         inbounds: list[dict[str, object]] = []
         certificate_providers: list[dict[str, object]] = []
         for profile in profiles:
-            if profile.status is not ProfileStatus.APPLIED:
+            if profile.status is not ProfileStatus.APPLIED or not profile.enabled:
                 continue
             if profile.listen_port is None:
                 raise ConfigurationProjectionError(

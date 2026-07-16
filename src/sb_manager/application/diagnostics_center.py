@@ -468,7 +468,8 @@ class DiagnosticsCenterService:
         applied_profiles = tuple(
             profile for profile in installation.profiles if profile.status is ProfileStatus.APPLIED
         )
-        applied_count = len(applied_profiles)
+        active_count = sum(profile.enabled for profile in applied_profiles)
+        paused_count = len(applied_profiles) - active_count
         draft_count = sum(
             profile.status is ProfileStatus.DRAFT for profile in installation.profiles
         )
@@ -515,7 +516,8 @@ class DiagnosticsCenterService:
                 title="manager desired state",
                 summary=(
                     f"desired state revision {installation.revision} 可读取，"
-                    f"{applied_count} 个已应用配置，{draft_count} 个草案"
+                    f"{active_count} 个在线配置，{paused_count} 个已暂停配置，"
+                    f"{draft_count} 个草案"
                 ),
                 diagnostics="desired state 可读取",
                 guidance="",

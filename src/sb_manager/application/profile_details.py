@@ -31,6 +31,7 @@ class ProfileDetails:
     listen_port: int | None
     server_address: str | None
     connection_info: ProfileConnectionInfo | None
+    enabled: bool = True
 
 
 class ProfileDetailsReader(Protocol):
@@ -71,4 +72,5 @@ class ProfileDetailsService:
             listen_port=profile.listen_port,
             server_address=profile.server_address,
             connection_info=connection_info,
+            enabled=profile.enabled,
         )

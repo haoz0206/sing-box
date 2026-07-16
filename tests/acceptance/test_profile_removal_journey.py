@@ -246,7 +246,9 @@ async def test_successful_profile_removal_returns_to_recomposed_dashboard() -> N
         await pilot.click("#profile-removal-return-dashboard")
 
         assert app.screen.query_one("#empty-state-title", Static).content == "尚未创建代理配置"
-        assert app.screen.query_one("#profile-summary", Static).content == "配置：0 已应用 · 0 草案"
+        assert app.screen.query_one("#profile-summary", Static).content == (
+            "配置：0 在线 · 0 已暂停 · 0 草案"
+        )
 
 
 async def test_operator_confirms_applied_profile_shutdown_and_sees_healthy_result() -> None:

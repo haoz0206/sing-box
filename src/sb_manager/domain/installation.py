@@ -45,6 +45,7 @@ class ManagedProfile:
     listen_port: int | None
     port_selection: PortSelection
     status: ProfileStatus
+    enabled: bool = True
     profile_id: str = ""
     protocol_material: ProtocolMaterial | None = None
     server_address: str | None = None

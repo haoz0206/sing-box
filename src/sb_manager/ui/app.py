@@ -38,6 +38,15 @@ from sb_manager.application.profile_apply import (
     ApplyProfileResult,
     ProfileApplier,
 )
+from sb_manager.application.profile_availability import (
+    PlanProfileAvailabilityRequest,
+    ProfileAvailability,
+    ProfileAvailabilityDraftError,
+    ProfileAvailabilityManager,
+    ProfileAvailabilityNoChangeError,
+    ProfileAvailabilityNotFoundError,
+    ProfileResumePortUnavailableError,
+)
 from sb_manager.application.profile_details import (
     ProfileDetails,
     ProfileDetailsError,
@@ -62,6 +71,10 @@ from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
+from sb_manager.ui.screens.profile_availability import (
+    ProfileAvailabilityErrorScreen,
+    ProfileAvailabilityPlanScreen,
+)
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
 
@@ -225,11 +238,13 @@ class ProfileDetailsScreen(Screen[None]):
         *,
         profile_editor: ProfileEditor | None = None,
         profile_remover: ProfileRemover | None = None,
+        profile_availability_manager: ProfileAvailabilityManager | None = None,
     ) -> None:
         super().__init__()
         self.details = details
         self.profile_editor = profile_editor
         self.profile_remover = profile_remover
+        self.profile_availability_manager = profile_availability_manager
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -240,7 +255,11 @@ class ProfileDetailsScreen(Screen[None]):
                 f"协议：{PROTOCOL_LABELS[self.details.protocol]}",
                 id="profile-details-protocol",
             )
-            status = "已应用" if self.details.status is ProfileStatus.APPLIED else "草案"
+            status = (
+                ("已应用 · 在线" if self.details.enabled else "已应用 · 已暂停")
+                if self.details.status is ProfileStatus.APPLIED
+                else "草案"
+            )
             yield Static(f"状态：{status}", id="profile-details-status")
             if connection_info := self.details.connection_info:
                 yield Static(
@@ -259,6 +278,15 @@ class ProfileDetailsScreen(Screen[None]):
                 )
             if self.profile_editor is not None:
                 yield Button("编辑配置", id="edit-profile", variant="primary")
+            if (
+                self.profile_availability_manager is not None
+                and self.details.status is ProfileStatus.APPLIED
+            ):
+                yield Button(
+                    "暂停配置" if self.details.enabled else "恢复配置",
+                    id="change-profile-availability",
+                    variant="warning",
+                )
             if self.profile_remover is not None:
                 yield Button("移除此配置", id="remove-profile", variant="error")
         yield Footer()
@@ -281,6 +309,33 @@ class ProfileDetailsScreen(Screen[None]):
             self.app.push_screen(ProfileDetailsErrorScreen())
             return
         self.app.push_screen(screen)
+
+    @on(Button.Pressed, "#change-profile-availability")
+    def open_profile_availability(self) -> None:
+        if self.profile_availability_manager is None:
+            return
+        target = ProfileAvailability.PAUSED if self.details.enabled else ProfileAvailability.ACTIVE
+        try:
+            plan = self.profile_availability_manager.plan_change(
+                PlanProfileAvailabilityRequest(
+                    profile_id=self.details.profile_id,
+                    target=target,
+                )
+            )
+        except (
+            ProfileAvailabilityDraftError,
+            ProfileAvailabilityNoChangeError,
+            ProfileAvailabilityNotFoundError,
+            ProfileResumePortUnavailableError,
+        ) as error:
+            self.app.push_screen(ProfileAvailabilityErrorScreen(str(error)))
+            return
+        self.app.push_screen(
+            ProfileAvailabilityPlanScreen(
+                self.profile_availability_manager,
+                plan=plan,
+            )
+        )
 
 
 class ProfileDetailsErrorScreen(Screen[None]):
@@ -904,6 +959,7 @@ class ManagerAppHostTools:
     profile_details_reader: ProfileDetailsReader | None = None
     profile_editor: ProfileEditor | None = None
     profile_remover: ProfileRemover | None = None
+    profile_availability_manager: ProfileAvailabilityManager | None = None
     config_adopter: ConfigAdopter | None = None
 
 
@@ -912,11 +968,6 @@ class ManagerApp(App[None]):
 
     TITLE = "Sing-box Manager"
     SUB_TITLE = "安全地搭建和维护你的代理服务"
-
-    STATUS_LABELS: ClassVar[dict[ProfileStatus, str]] = {
-        ProfileStatus.DRAFT: "草案",
-        ProfileStatus.APPLIED: "已应用",
-    }
 
     CSS_PATH = "theme.tcss"
 
@@ -940,13 +991,19 @@ class ManagerApp(App[None]):
         self.profile_details_reader = tools.profile_details_reader
         self.profile_editor = tools.profile_editor
         self.profile_remover = tools.profile_remover
+        self.profile_availability_manager = tools.profile_availability_manager
         self.config_adopter = tools.config_adopter
 
     def compose(self) -> ComposeResult:
         yield Header()
         installation = self.manager.get_installation()
-        applied_profiles = sum(
-            profile.status is ProfileStatus.APPLIED for profile in installation.profiles
+        active_profiles = sum(
+            profile.status is ProfileStatus.APPLIED and profile.enabled
+            for profile in installation.profiles
+        )
+        paused_profiles = sum(
+            profile.status is ProfileStatus.APPLIED and not profile.enabled
+            for profile in installation.profiles
         )
         draft_profiles = sum(
             profile.status is ProfileStatus.DRAFT for profile in installation.profiles
@@ -966,7 +1023,8 @@ class ManagerApp(App[None]):
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
                 yield Static(
-                    f"配置：{applied_profiles} 已应用 · {draft_profiles} 草案",
+                    f"配置：{active_profiles} 在线 · {paused_profiles} 已暂停 · "
+                    f"{draft_profiles} 草案",
                     id="profile-summary",
                 )
                 yield Static(next_action, id="dashboard-next-action")
@@ -982,7 +1040,11 @@ class ManagerApp(App[None]):
                             (
                                 profile.profile_name,
                                 PROTOCOL_LABELS[profile.protocol],
-                                self.STATUS_LABELS[profile.status],
+                                (
+                                    ("在线" if profile.enabled else "已暂停")
+                                    if profile.status is ProfileStatus.APPLIED
+                                    else "草案"
+                                ),
                                 port,
                             )
                         ),
@@ -1016,7 +1078,7 @@ class ManagerApp(App[None]):
                 yield Static("尚未创建代理配置", id="empty-state-title")
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
-                yield Static("配置：0 已应用 · 0 草案", id="profile-summary")
+                yield Static("配置：0 在线 · 0 已暂停 · 0 草案", id="profile-summary")
                 yield Static(next_action, id="dashboard-next-action")
                 yield from self._host_action_buttons(installation)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
@@ -1186,6 +1248,7 @@ class ManagerApp(App[None]):
                 details,
                 profile_editor=self.profile_editor,
                 profile_remover=self.profile_remover,
+                profile_availability_manager=self.profile_availability_manager,
             )
         )
 

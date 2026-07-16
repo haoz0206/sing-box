@@ -15,6 +15,10 @@ from sb_manager.application.manager import (
     WebSocketTransportRequest,
 )
 from sb_manager.application.profile_apply import ApplyProfileRequest
+from sb_manager.application.profile_availability import (
+    PlanProfileAvailabilityRequest,
+    ProfileAvailability,
+)
 from sb_manager.application.profile_editing import (
     PlanProfileEditRequest,
     ProfileEditScope,
@@ -241,6 +245,60 @@ def test_cli_composes_transactional_applied_profile_removal(tmp_path: Path) -> N
     assert result.committed_revision == EXPECTED_REMOVED_REVISION
     assert JsonFileStateStore(state_path).load().profiles == ()
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"] == []
+
+
+def test_cli_composes_transactional_profile_pause_and_resume(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    profile_plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="手机",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=listen_port,
+        )
+    )
+    app.manager.save_profile_draft(profile_plan)
+    assert app.profile_applier is not None
+    app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert app.profile_availability_manager is not None
+    pause_plan = app.profile_availability_manager.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id="profile-1",
+            target=ProfileAvailability.PAUSED,
+        )
+    )
+    pause_result = app.profile_availability_manager.apply_change(
+        pause_plan,
+        confirmed=True,
+    )
+
+    assert pause_result.committed_revision == pause_plan.expected_revision + 1
+    assert JsonFileStateStore(state_path).load().profiles[0].enabled is False
+    assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"] == []
+
+    resume_plan = app.profile_availability_manager.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id="profile-1",
+            target=ProfileAvailability.ACTIVE,
+        )
+    )
+    resume_result = app.profile_availability_manager.apply_change(
+        resume_plan,
+        confirmed=True,
+    )
+
+    assert resume_result.committed_revision == resume_plan.expected_revision + 1
+    assert JsonFileStateStore(state_path).load().profiles[0].enabled is True
+    assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == (
+        "profile-1"
+    )
 
 
 def test_cli_composes_transactional_applied_profile_editing(tmp_path: Path) -> None:

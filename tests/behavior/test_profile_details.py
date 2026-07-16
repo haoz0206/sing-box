@@ -51,6 +51,7 @@ def test_applied_profile_details_rebuild_connection_information_from_desired_sta
     assert details.profile_id == "phone-profile"
     assert details.profile_name == "手机"
     assert details.status is ProfileStatus.APPLIED
+    assert details.enabled is True
     assert details.connection_info is not None
     assert details.connection_info.server_address == "vpn.example.com"
     assert details.connection_info.server_port == LISTEN_PORT

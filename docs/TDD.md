@@ -284,6 +284,12 @@ Release gate adds:
   host availability, policy-only scope, confirmation-time recheck, automatic
   selection under lock, transactional projection, typed stale-port TUI
   guidance, production composition, and real sing-box reprojection;
+- profile availability plans for active/paused/no-op/draft states, explicit
+  confirmation, revision and reviewed-content conflicts, fixed-port TOCTOU,
+  automatic-port reselection under lock, material preservation, zero-inbound
+  pause projection, failed-host state preservation, typed transaction and
+  recovery presentation, legacy-state compatibility, production composition,
+  and real sing-box pause/resume validation;
 - diagnostics-center aggregation for healthy evidence, corrupt or inconsistent
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after

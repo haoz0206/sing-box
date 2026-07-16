@@ -82,6 +82,14 @@ Changing only automatic/fixed policy for the same actual port does not refresh
 the service.
 _Avoid_: Firewall mutation, editing generated inbound JSON, unchecked port swap
 
+**Profile availability**:
+Whether one previously applied profile currently participates in the complete
+managed configuration. An active profile contributes an inbound; a paused
+profile retains its stable identity, credentials, endpoint, and port intent but
+does not contribute an inbound. A confirmed transition commits desired state
+only after the complete host transaction succeeds.
+_Avoid_: Draft status, profile removal, stopping the whole sing-box service
+
 **Diagnostics center**:
 One read-only, prioritized report that combines manager desired-state
 consistency, host readiness, and runtime health into stable checks and one

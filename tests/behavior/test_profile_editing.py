@@ -524,6 +524,40 @@ def test_applied_profile_name_edit_requires_a_live_configuration_transaction() -
     assert plan.scope is ProfileEditScope.LIVE_CONFIGURATION
 
 
+def test_paused_profile_name_edit_changes_only_desired_state() -> None:
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="旧名称",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+        server_address="proxy.example.com",
+    )
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(paused,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="新名称",
+            server_address="proxy.example.com",
+            listen_port=4433,
+        )
+    )
+
+    assert plan.changed_fields == ("profile_name",)
+    assert plan.scope is ProfileEditScope.DESIRED_STATE_ONLY
+
+
 def test_profile_edit_requires_confirmation_before_lock_or_mutation() -> None:
     draft = ManagedProfile(
         profile_id="profile-1",
