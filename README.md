@@ -10,7 +10,7 @@
 
 - Textual 引导式 TUI：配置列表、协议引导、计划预览、二次确认与类型化结果；
 - 版本化 desired state、原子 JSON 保存、修订冲突保护和上一版备份；
-- VLESS Reality、VLESS TLS WebSocket/gRPC、Shadowsocks 2022、Hysteria2、Trojan、AnyTLS 与 TUIC 的引导、凭据生成、连接 URI 和多 profile 配置；
+- VLESS Reality、VLESS/VMess TLS WebSocket/gRPC、Shadowsocks 2022、Hysteria2、Trojan、AnyTLS 与 TUIC 的引导、凭据生成、连接 URI 和多 profile 配置；
 - sing-box 1.14 共享 ACME certificate provider 与运维证书文件 TLS 策略；
 - 独占 manager lock、隔离 staging、恢复备份与原子配置提交；
 - `sing-box check -c` 类型化验证适配器；
@@ -18,7 +18,7 @@
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-当前尚未完成权限提升代理、sing-box 安装/升级、Caddy/制品工作流，以及 VMess 等 M6 能力。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+当前尚未完成权限提升代理、sing-box 安装/升级和 Caddy/制品工作流。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 

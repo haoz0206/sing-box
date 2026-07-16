@@ -58,6 +58,13 @@ class VlessMaterial:
     user_uuid: str
 
 
+@dataclass(frozen=True, slots=True)
+class VmessMaterial:
+    """Generated UUID for one VMess profile."""
+
+    user_uuid: str
+
+
 ProtocolMaterial: TypeAlias = (
     RealityMaterial
     | ShadowsocksMaterial
@@ -66,4 +73,5 @@ ProtocolMaterial: TypeAlias = (
     | AnyTlsMaterial
     | TuicMaterial
     | VlessMaterial
+    | VmessMaterial
 )

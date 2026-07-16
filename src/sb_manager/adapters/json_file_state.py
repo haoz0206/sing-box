@@ -22,6 +22,7 @@ from sb_manager.domain.protocol_material import (
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
+    VmessMaterial,
 )
 from sb_manager.seams.state_store import UnsupportedStateSchemaError
 from sb_manager.tls.catalog import (
@@ -84,6 +85,11 @@ class TaggedVlessMaterialData(TypedDict):
     user_uuid: str
 
 
+class TaggedVmessMaterialData(TypedDict):
+    kind: Literal["vmess-tls"]
+    user_uuid: str
+
+
 ProtocolMaterialData = (
     TaggedRealityMaterialData
     | TaggedShadowsocksMaterialData
@@ -92,6 +98,7 @@ ProtocolMaterialData = (
     | TaggedAnyTlsMaterialData
     | TaggedTuicMaterialData
     | TaggedVlessMaterialData
+    | TaggedVmessMaterialData
 )
 
 
@@ -329,6 +336,11 @@ class JsonFileStateStore:
                 kind="vless-tls",
                 user_uuid=material.user_uuid,
             )
+        elif isinstance(material, VmessMaterial):
+            data = TaggedVmessMaterialData(
+                kind="vmess-tls",
+                user_uuid=material.user_uuid,
+            )
         elif material is None:
             data = None
         else:
@@ -355,8 +367,10 @@ class JsonFileStateStore:
             material = AnyTlsMaterial(password=data["password"])
         elif data["kind"] == "tuic":
             material = TuicMaterial(user_uuid=data["user_uuid"], password=data["password"])
-        else:
+        elif data["kind"] == "vless-tls":
             material = VlessMaterial(user_uuid=data["user_uuid"])
+        else:
+            material = VmessMaterial(user_uuid=data["user_uuid"])
         return material
 
     @staticmethod

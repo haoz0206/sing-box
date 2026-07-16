@@ -19,6 +19,7 @@ from sb_manager.domain.protocol_material import (
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
+    VmessMaterial,
 )
 from sb_manager.protocols.reality import RealityMaterial
 from sb_manager.seams.state_store import UnsupportedStateSchemaError
@@ -304,6 +305,39 @@ def test_json_state_store_round_trips_vless_tls_and_websocket_intents(tmp_path: 
                 ),
                 transport_intent=WebSocketTransportIntent(
                     path="/proxy",
+                    host="vpn.example.com",
+                ),
+            ),
+        ),
+    )
+    state_path = tmp_path / "state.json"
+
+    JsonFileStateStore(state_path).save(expected)
+
+    assert JsonFileStateStore(state_path).load() == expected
+
+
+def test_json_state_store_round_trips_vmess_tls_and_websocket_intents(tmp_path: Path) -> None:
+    expected = ManagedInstallation(
+        schema_version=1,
+        revision=8,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-8",
+                profile_name="旧客户端兼容",
+                protocol=ProtocolKind.VMESS_TLS,
+                listen_port=443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                protocol_material=VmessMaterial(user_uuid="bf000d23-0752-40b4-affe-68f7707a9661"),
+                server_address="edge.example.com",
+                tls_intent=AcmeTlsIntent(
+                    server_name="vpn.example.com",
+                    email="operator@example.com",
+                    data_directory=tmp_path / "acme",
+                ),
+                transport_intent=WebSocketTransportIntent(
+                    path="/vmess",
                     host="vpn.example.com",
                 ),
             ),

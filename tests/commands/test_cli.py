@@ -23,6 +23,7 @@ from sb_manager.domain.protocol_material import (
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
+    VmessMaterial,
 )
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.ui.app import ManagerApp
@@ -353,3 +354,37 @@ def test_cli_composes_a_complete_vless_tls_websocket_apply_path(tmp_path: Path) 
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["transport"] == {"type": "ws", "path": "/proxy"}
     assert document["certificate_providers"][0]["tag"] == "tls-profile-1"
+
+
+def test_cli_composes_a_complete_vmess_tls_websocket_apply_path(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="旧客户端兼容",
+            protocol=ProtocolKind.VMESS_TLS,
+            listen_port=listen_port,
+            server_address="edge.example.com",
+            tls=AcmeTlsRequest(
+                server_name="vpn.example.com",
+                email="operator@example.com",
+            ),
+            transport=WebSocketTransportRequest(
+                path="/vmess",
+                host="vpn.example.com",
+            ),
+        )
+    )
+    app.manager.save_profile_draft(plan)
+
+    assert app.profile_applier is not None
+    result = app.profile_applier.apply_profile(
+        ApplyProfileRequest(profile_id="profile-1", expected_revision=1, confirmed=True)
+    )
+
+    assert result.committed_revision == EXPECTED_APPLIED_REVISION
+    profile = JsonFileStateStore(state_path).load().profiles[0]
+    assert isinstance(profile.protocol_material, VmessMaterial)
+    inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
+    assert inbound["type"] == "vmess"
+    assert inbound["users"][0]["alterId"] == 0

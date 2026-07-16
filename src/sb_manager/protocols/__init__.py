@@ -37,6 +37,12 @@ from sb_manager.protocols.vless_tls import (
     VlessTlsInboundSpec,
     VlessTlsProtocol,
 )
+from sb_manager.protocols.vmess_tls import (
+    VmessTlsConnectionInfo,
+    VmessTlsConnectionSpec,
+    VmessTlsInboundSpec,
+    VmessTlsProtocol,
+)
 
 __all__ = [
     "AnyTlsConnectionInfo",
@@ -68,6 +74,10 @@ __all__ = [
     "VlessTlsConnectionSpec",
     "VlessTlsInboundSpec",
     "VlessTlsProtocol",
+    "VmessTlsConnectionInfo",
+    "VmessTlsConnectionSpec",
+    "VmessTlsInboundSpec",
+    "VmessTlsProtocol",
 ]
 from sb_manager.protocols.anytls import (
     AnyTlsConnectionInfo,

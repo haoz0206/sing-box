@@ -13,6 +13,7 @@ from sb_manager.domain.protocol_material import (
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
+    VmessMaterial,
 )
 from sb_manager.protocols.anytls import (
     AnyTlsConnectionSpec,
@@ -45,6 +46,11 @@ from sb_manager.protocols.vless_tls import (
     VlessTlsInboundSpec,
     VlessTlsProtocol,
 )
+from sb_manager.protocols.vmess_tls import (
+    VmessTlsConnectionSpec,
+    VmessTlsInboundSpec,
+    VmessTlsProtocol,
+)
 from sb_manager.seams.anytls_material import AnyTlsMaterialSource
 from sb_manager.seams.hysteria2_material import Hysteria2MaterialSource
 from sb_manager.seams.reality_material import RealityMaterialSource
@@ -52,6 +58,7 @@ from sb_manager.seams.shadowsocks_material import ShadowsocksMaterialSource
 from sb_manager.seams.trojan_material import TrojanMaterialSource
 from sb_manager.seams.tuic_material import TuicMaterialSource
 from sb_manager.seams.vless_material import VlessMaterialSource
+from sb_manager.seams.vmess_material import VmessMaterialSource
 from sb_manager.tls.catalog import TlsCatalog
 from sb_manager.transports.catalog import TransportCatalog
 
@@ -495,6 +502,77 @@ class VlessTlsHandler:
         if profile.server_address is not None:
             specific = protocol.build_connection_info(
                 VlessTlsConnectionSpec(
+                    profile_name=profile.profile_name,
+                    server_address=profile.server_address,
+                    server_port=listen_port,
+                    user_uuid=material.user_uuid,
+                    tls=tls.client,
+                    transport=transport.client,
+                )
+            )
+            connection_info = ProfileConnectionInfo(
+                server_address=specific.server_address,
+                server_port=specific.server_port,
+                share_uri=specific.share_uri,
+            )
+        return MaterializedProfile(
+            profile=applied_profile,
+            inbound=inbound,
+            connection_info=connection_info,
+            certificate_providers=tls.certificate_providers,
+        )
+
+
+class VmessTlsHandler:
+    """Own VMess material, TLS, transport, and connection behavior."""
+
+    kind = ProtocolKind.VMESS_TLS
+
+    def __init__(
+        self,
+        *,
+        material_source: VmessMaterialSource,
+        tls_catalog: TlsCatalog,
+        transport_catalog: TransportCatalog,
+    ) -> None:
+        self._material_source = material_source
+        self._tls_catalog = tls_catalog
+        self._transport_catalog = transport_catalog
+
+    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+        material = profile.protocol_material
+        if material is None:
+            if profile.status is ProfileStatus.APPLIED:
+                raise IncompleteAppliedProfileError(profile.profile_id)
+            material = self._material_source.generate()
+        if not isinstance(material, VmessMaterial):
+            raise ProtocolMaterialMismatchError(profile.profile_id)
+        if profile.tls_intent is None or profile.transport_intent is None:
+            raise IncompleteAppliedProfileError(f"{profile.profile_id}: TLS/transport intent")
+
+        tls = self._tls_catalog.materialize(profile.tls_intent, tag=f"tls-{profile.profile_id}")
+        transport = self._transport_catalog.materialize(profile.transport_intent)
+        applied_profile = replace(
+            profile,
+            listen_port=listen_port,
+            status=ProfileStatus.APPLIED,
+            protocol_material=material,
+        )
+        protocol = VmessTlsProtocol()
+        inbound = protocol.build_inbound(
+            VmessTlsInboundSpec(
+                tag=profile.profile_id,
+                profile_name=profile.profile_name,
+                listen_port=listen_port,
+                user_uuid=material.user_uuid,
+                tls=tls.server,
+                transport=transport.server,
+            )
+        )
+        connection_info = None
+        if profile.server_address is not None:
+            specific = protocol.build_connection_info(
+                VmessTlsConnectionSpec(
                     profile_name=profile.profile_name,
                     server_address=profile.server_address,
                     server_port=listen_port,

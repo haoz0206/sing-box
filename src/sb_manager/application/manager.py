@@ -35,6 +35,7 @@ class GeneratedValue(str, Enum):
     TUIC_UUID = "tuic-uuid"
     TUIC_PASSWORD = "tuic-password"
     VLESS_UUID = "vless-uuid"
+    VMESS_UUID = "vmess-uuid"
     TLS_CERTIFICATE = "tls-certificate"
 
 
@@ -66,6 +67,10 @@ GENERATED_VALUES_BY_PROTOCOL: dict[ProtocolKind, tuple[GeneratedValue, ...]] = {
         GeneratedValue.VLESS_UUID,
         GeneratedValue.TLS_CERTIFICATE,
     ),
+    ProtocolKind.VMESS_TLS: (
+        GeneratedValue.VMESS_UUID,
+        GeneratedValue.TLS_CERTIFICATE,
+    ),
 }
 
 TLS_REQUIRED_PROTOCOLS = frozenset(
@@ -75,8 +80,11 @@ TLS_REQUIRED_PROTOCOLS = frozenset(
         ProtocolKind.ANYTLS,
         ProtocolKind.TUIC,
         ProtocolKind.VLESS_TLS,
+        ProtocolKind.VMESS_TLS,
     )
 )
+
+TRANSPORTED_PROTOCOLS = frozenset((ProtocolKind.VLESS_TLS, ProtocolKind.VMESS_TLS))
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,7 +202,7 @@ class Manager:
                     issues.append(
                         ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱")
                     )
-        if request.protocol is ProtocolKind.VLESS_TLS:
+        if request.protocol in TRANSPORTED_PROTOCOLS:
             if request.transport is None:
                 issues.append(ValidationIssue(field="transport", message="请选择传输方式"))
             elif isinstance(request.transport, WebSocketTransportRequest) and not (

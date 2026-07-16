@@ -12,6 +12,7 @@ from sb_manager.domain.protocol_material import (
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
+    VmessMaterial,
 )
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
@@ -23,6 +24,7 @@ from sb_manager.protocols.catalog import (
     TrojanHandler,
     TuicHandler,
     VlessTlsHandler,
+    VmessTlsHandler,
 )
 from sb_manager.tls.catalog import AcmeTlsHandler, AcmeTlsIntent, TlsCatalog
 from sb_manager.transports.catalog import TransportCatalog, WebSocketTransportIntent
@@ -70,6 +72,11 @@ class FixedTuicMaterialSource:
 class FixedVlessMaterialSource:
     def generate(self) -> VlessMaterial:
         return VlessMaterial(user_uuid="bf000d23-0752-40b4-affe-68f7707a9661")
+
+
+class FixedVmessMaterialSource:
+    def generate(self) -> VmessMaterial:
+        return VmessMaterial(user_uuid="bf000d23-0752-40b4-affe-68f7707a9661")
 
 
 def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
@@ -328,3 +335,36 @@ def test_catalog_materializes_vless_tls_websocket_across_deep_catalogs(tmp_path)
     assert materialized.certificate_providers[0]["tag"] == "tls-profile-7"
     assert materialized.connection_info is not None
     assert "type=ws" in materialized.connection_info.share_uri
+
+
+def test_catalog_materializes_vmess_tls_websocket_across_deep_catalogs(tmp_path) -> None:
+    handler = VmessTlsHandler(
+        material_source=FixedVmessMaterialSource(),
+        tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
+        transport_catalog=TransportCatalog(),
+    )
+    profile = ManagedProfile(
+        profile_id="profile-8",
+        profile_name="旧客户端兼容",
+        protocol=ProtocolKind.VMESS_TLS,
+        listen_port=443,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+        server_address="edge.example.com",
+        tls_intent=AcmeTlsIntent(
+            server_name="vpn.example.com",
+            email="operator@example.com",
+            data_directory=tmp_path / "acme",
+        ),
+        transport_intent=WebSocketTransportIntent(path="/vmess", host="vpn.example.com"),
+    )
+
+    materialized = ProtocolCatalog((handler,)).materialize(profile, listen_port=443)
+
+    assert materialized.profile.protocol_material == VmessMaterial(
+        user_uuid="bf000d23-0752-40b4-affe-68f7707a9661"
+    )
+    assert materialized.inbound["users"][0]["alterId"] == 0
+    assert materialized.inbound["transport"] == {"type": "ws", "path": "/vmess"}
+    assert materialized.connection_info is not None
+    assert materialized.connection_info.share_uri.startswith("vmess://")

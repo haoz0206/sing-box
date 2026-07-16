@@ -123,6 +123,26 @@ VLESS_GRPC_PROFILE = GuidedProfileDefinition(
     uses_acme=True,
     uses_grpc=True,
 )
+VMESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
+    protocol=ProtocolKind.VMESS_TLS,
+    form_id="vmess-websocket-form",
+    title_id="vmess-websocket-form-title",
+    guidance_id="vmess-websocket-guidance",
+    title="配置 VMess TLS WebSocket",
+    guidance="仅用于旧客户端兼容，使用 alterId 0 和现代 UUID 认证。",
+    uses_acme=True,
+    uses_websocket=True,
+)
+VMESS_GRPC_PROFILE = GuidedProfileDefinition(
+    protocol=ProtocolKind.VMESS_TLS,
+    form_id="vmess-grpc-form",
+    title_id="vmess-grpc-form-title",
+    guidance_id="vmess-grpc-guidance",
+    title="配置 VMess TLS gRPC",
+    guidance="旧客户端兼容的 VMess，使用标准 gRPC 传输。",
+    uses_acme=True,
+    uses_grpc=True,
+)
 
 
 class ApplyResultScreen(Screen[None]):
@@ -290,6 +310,7 @@ class PlanPreviewScreen(Screen[None]):
         GeneratedValue.TUIC_UUID: "TUIC UUID",
         GeneratedValue.TUIC_PASSWORD: "TUIC 认证密码",
         GeneratedValue.VLESS_UUID: "VLESS UUID",
+        GeneratedValue.VMESS_UUID: "VMess UUID",
         GeneratedValue.TLS_CERTIFICATE: "TLS 证书",
     }
     PROTOCOL_LABELS: ClassVar[dict[ProtocolKind, str]] = {
@@ -300,6 +321,7 @@ class PlanPreviewScreen(Screen[None]):
         ProtocolKind.ANYTLS: "AnyTLS",
         ProtocolKind.TUIC: "TUIC",
         ProtocolKind.VLESS_TLS: "VLESS TLS",
+        ProtocolKind.VMESS_TLS: "VMess TLS",
     }
 
     def __init__(
@@ -524,6 +546,11 @@ class ProtocolSelectionScreen(Screen[None]):
                 id="protocol-vless-websocket",
             )
             yield Button("VLESS TLS · gRPC", id="protocol-vless-grpc")
+            yield Button(
+                "VMess TLS · 旧客户端兼容",
+                id="protocol-vmess-websocket",
+            )
+            yield Button("VMess TLS · gRPC 兼容", id="protocol-vmess-grpc")
         yield Footer()
 
     @on(Button.Pressed, "#protocol-vless-reality")
@@ -572,6 +599,18 @@ class ProtocolSelectionScreen(Screen[None]):
             GuidedProfileScreen(self.manager, VLESS_GRPC_PROFILE, self.profile_applier)
         )
 
+    @on(Button.Pressed, "#protocol-vmess-websocket")
+    def open_vmess_websocket_form(self) -> None:
+        self.app.push_screen(
+            GuidedProfileScreen(self.manager, VMESS_WEBSOCKET_PROFILE, self.profile_applier)
+        )
+
+    @on(Button.Pressed, "#protocol-vmess-grpc")
+    def open_vmess_grpc_form(self) -> None:
+        self.app.push_screen(
+            GuidedProfileScreen(self.manager, VMESS_GRPC_PROFILE, self.profile_applier)
+        )
+
 
 class ManagerApp(App[None]):
     """Guided terminal manager for sing-box."""
@@ -587,6 +626,7 @@ class ManagerApp(App[None]):
         ProtocolKind.ANYTLS: "AnyTLS",
         ProtocolKind.TUIC: "TUIC",
         ProtocolKind.VLESS_TLS: "VLESS TLS",
+        ProtocolKind.VMESS_TLS: "VMess TLS",
     }
     STATUS_LABELS: ClassVar[dict[ProfileStatus, str]] = {
         ProfileStatus.DRAFT: "草案",
@@ -614,6 +654,8 @@ class ManagerApp(App[None]):
     #tuic-form,
     #vless-websocket-form,
     #vless-grpc-form,
+    #vmess-websocket-form,
+    #vmess-grpc-form,
     #plan-preview, #draft-saved, #apply-confirmation, #apply-result {
         width: 72;
         max-width: 90%;
@@ -631,6 +673,8 @@ class ManagerApp(App[None]):
     #tuic-form-title,
     #vless-websocket-form-title,
     #vless-grpc-form-title,
+    #vmess-websocket-form-title,
+    #vmess-grpc-form-title,
     #draft-saved-title {
         margin-bottom: 1;
         text-style: bold;
@@ -650,7 +694,7 @@ class ManagerApp(App[None]):
     }
 
     #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form,
-    #vless-websocket-form, #vless-grpc-form {
+    #vless-websocket-form, #vless-grpc-form, #vmess-websocket-form, #vmess-grpc-form {
         max-height: 90%;
     }
     """
