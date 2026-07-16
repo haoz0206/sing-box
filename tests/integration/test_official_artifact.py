@@ -8,11 +8,11 @@ from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.artifacts.installation import CoreDistributionInstaller
 from sb_manager.privileged.core_install import (
-    ActivateCoreRequest,
     PrivilegedCoreInstallPolicy,
     PrivilegedCoreInstallService,
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
+from sb_manager.seams.core_activator import CoreActivationRequest
 
 
 @pytest.mark.integration
@@ -43,7 +43,7 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
         lock_path=tmp_path / "install.lock",
     )
     activation = PrivilegedCoreInstallService(policy=policy).activate_core(
-        ActivateCoreRequest(
+        CoreActivationRequest(
             version=version,
             architecture=selected_architecture,
             sha256=artifact.sha256,

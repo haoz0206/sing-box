@@ -14,22 +14,13 @@ from sb_manager.privileged.incoming import (
     require_real_directory,
 )
 from sb_manager.seams.artifact_source import (
-    ArtifactArchitecture,
     CoreArtifactRequest,
     VerifiedCoreArtifact,
 )
+from sb_manager.seams.core_activator import CoreActivationRequest
 
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 SHA256_HEX_LENGTH = 64
-
-
-@dataclass(frozen=True, slots=True)
-class ActivateCoreRequest:
-    """Allowlisted values needed to identify one already trusted archive."""
-
-    version: str
-    architecture: ArtifactArchitecture
-    sha256: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +39,7 @@ class PrivilegedCoreInstallService:
     def __init__(self, *, policy: PrivilegedCoreInstallPolicy) -> None:
         self._policy = policy
 
-    def activate_core(self, request: ActivateCoreRequest) -> CoreActivation:
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
         self._validate_request(request)
         require_real_directory(self._policy.incoming_directory, role="Incoming artifact directory")
         prepare_private_directory(self._policy.working_directory)
@@ -86,7 +77,7 @@ class PrivilegedCoreInstallService:
                 shutil.rmtree(staged_directory, ignore_errors=True)
 
     @staticmethod
-    def _validate_request(request: ActivateCoreRequest) -> None:
+    def _validate_request(request: CoreActivationRequest) -> None:
         try:
             CoreArtifactRequest(
                 version=request.version,

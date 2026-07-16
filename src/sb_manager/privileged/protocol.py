@@ -6,8 +6,8 @@ from typing import Protocol
 
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.privileged.config_apply import ApplyConfigRequest
-from sb_manager.privileged.core_install import ActivateCoreRequest
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
+from sb_manager.seams.core_activator import CoreActivationRequest
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
 
 REQUEST_SCHEMA_VERSION = 1
@@ -36,7 +36,7 @@ class PrivilegedProtocolError(ValueError):
 
 
 class CoreActivator(Protocol):
-    def activate_core(self, request: ActivateCoreRequest) -> CoreActivation: ...
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation: ...
 
 
 class ConfigApplier(Protocol):
@@ -98,7 +98,7 @@ def execute_privileged_request(
     except ValueError as error:
         raise PrivilegedProtocolError(str(error)) from error
     activation = core_activator.activate_core(
-        ActivateCoreRequest(
+        CoreActivationRequest(
             version=version,
             architecture=architecture,
             sha256=sha256,

@@ -6,12 +6,12 @@ from pathlib import Path
 import pytest
 
 from sb_manager.privileged.core_install import (
-    ActivateCoreRequest,
     PrivilegedCoreInstallPolicy,
     PrivilegedCoreInstallService,
 )
 from sb_manager.privileged.errors import PrivilegedInputError
 from sb_manager.seams.artifact_source import ArtifactArchitecture, ArtifactIntegrityError
+from sb_manager.seams.core_activator import CoreActivationRequest
 
 VERSION = "1.14.0-alpha.45"
 ASSET_NAME = f"sing-box-{VERSION}-linux-amd64.tar.gz"
@@ -37,8 +37,8 @@ def policy(tmp_path: Path) -> PrivilegedCoreInstallPolicy:
     )
 
 
-def request(sha256: str) -> ActivateCoreRequest:
-    return ActivateCoreRequest(
+def request(sha256: str) -> CoreActivationRequest:
+    return CoreActivationRequest(
         version=VERSION,
         architecture=ArtifactArchitecture.AMD64,
         sha256=sha256,

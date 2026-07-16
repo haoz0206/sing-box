@@ -5,7 +5,6 @@ import pytest
 
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.privileged.config_apply import ApplyConfigRequest
-from sb_manager.privileged.core_install import ActivateCoreRequest
 from sb_manager.privileged.protocol import (
     PrivilegedProtocolError,
     PrivilegeRequiredError,
@@ -13,15 +12,16 @@ from sb_manager.privileged.protocol import (
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.core_activator import CoreActivationRequest
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult, CommitResult
 
 
 class RecordingCoreActivator:
     def __init__(self) -> None:
-        self.requests: list[ActivateCoreRequest] = []
+        self.requests: list[CoreActivationRequest] = []
 
-    def activate_core(self, request: ActivateCoreRequest) -> CoreActivation:
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
         self.requests.append(request)
         return CoreActivation(
             version=request.version,
@@ -76,7 +76,7 @@ def test_root_request_executes_one_allowlisted_operation_and_returns_redacted_js
     )
 
     assert activator.requests == [
-        ActivateCoreRequest(
+        CoreActivationRequest(
             version="1.14.0-alpha.45",
             architecture=ArtifactArchitecture.AMD64,
             sha256="a" * 64,
