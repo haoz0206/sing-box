@@ -49,16 +49,18 @@ class DiagnosticsCenterScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="diagnostics-center"):
-            yield Static("诊断中心", id="diagnostics-center-title")
+            yield Static("诊断中心", id="diagnostics-center-title", markup=False)
             yield Static(
                 "正在读取 desired state、主机准备度与运行状态…",
                 id="diagnostics-center-loading",
+                markup=False,
             )
-            yield Static("", id="diagnostics-center-summary", classes="hidden")
+            yield Static("", id="diagnostics-center-summary", classes="hidden", markup=False)
             yield Static(
                 "",
                 id="diagnostics-center-recommended-action",
                 classes="hidden",
+                markup=False,
             )
             yield Button(
                 "审查并接管现有配置",
@@ -72,21 +74,25 @@ class DiagnosticsCenterScreen(Screen[None]):
                     "",
                     id=f"diagnostic-{item_id}-title",
                     classes="hidden",
+                    markup=False,
                 )
                 yield Static(
                     "",
                     id=f"diagnostic-{item_id}-summary",
                     classes="hidden",
+                    markup=False,
                 )
                 yield Static(
                     "",
                     id=f"diagnostic-{item_id}-details",
                     classes="hidden",
+                    markup=False,
                 )
                 yield Static(
                     "",
                     id=f"diagnostic-{item_id}-guidance",
                     classes="hidden",
+                    markup=False,
                 )
             yield Button(
                 "重新检查",

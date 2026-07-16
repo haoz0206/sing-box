@@ -257,7 +257,15 @@ redacts persisted protocol material plus common credential forms, and returns
 typed available, empty, or unavailable results. Textual loads and refreshes the
 default 200-line view in a worker with markup disabled; it never parses commands,
 follows logs, escalates privileges, or changes the service. Certificate expiry,
-port ownership, and apply history remain later complete checks.
+and apply history remain later complete checks. The listener-ownership slice
+derives transport-specific expectations only from enabled, applied profiles,
+then reads Linux TCP/UDP socket tables and visible process descriptors through
+a dedicated read-only seam. Missing listeners and fully observed foreign owners
+require action; inaccessible tables, descriptor permissions, process races, or
+scan limits remain attention. A listener is attributed to sing-box only when
+every observed inode has complete ownership evidence. Draft and paused profiles
+do not imply runtime listeners, and Textual renders all dynamic diagnostic
+content with markup disabled.
 
 Actionable findings may carry one typed navigation action. The report exposes
 only the action belonging to its highest-priority finding, and the Textual
@@ -672,6 +680,11 @@ Current implementation status (2026-07-17):
   logs remain typed, while one application policy removes terminal controls,
   caps lines, and redacts both persisted and pattern-recognized credentials
   before Textual renders non-markup content;
+- listener ownership diagnostics: enabled, applied profiles produce exact TCP
+  and UDP endpoint expectations; a dependency-free Linux `/proc` adapter joins
+  IPv4/IPv6 socket inodes to visible process descriptors under hard scan limits,
+  while missing, confirmed foreign, confirmed sing-box, and incomplete evidence
+  remain distinct action-required, healthy, or attention outcomes;
 - listening-port editing: profile details prefill the current port and accept a
   fixed value or an empty automatic selection; plans separate actual-port and
   selection-policy changes, reject desired-state/host conflicts, recheck under

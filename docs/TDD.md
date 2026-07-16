@@ -315,6 +315,11 @@ Release gate adds:
   command contracts, command/permission/empty states, persisted and generic
   credential redaction, control-sequence cleaning, non-markup Textual
   presentation, refresh, retry, and both production compositions;
+- listener ownership diagnostics for protocol-specific TCP/UDP expectations,
+  draft/paused exclusion, missing and foreign listeners, incomplete ownership,
+  unavailable `/proc`, IPv4/IPv6 inode merging, UDP socket state, owner process
+  resolution, PID/descriptor scan limits, control-character cleaning,
+  non-markup Textual presentation, and production composition;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

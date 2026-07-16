@@ -208,6 +208,21 @@ def unresolved_domain_report() -> DiagnosticsCenterReport:
     )
 
 
+def unknown_listener_owner_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.LISTENER_OWNERSHIP,
+                condition=DiagnosticCondition.ATTENTION,
+                title="监听端口与进程归属",
+                summary="1 个监听端点的进程归属无法确认",
+                diagnostics="TCP 4433：[red]归属未知[/red]",
+                guidance="以能读取相关 /proc 进程描述符的权限重新检查。",
+            ),
+        )
+    )
+
+
 async def test_operator_sees_generated_configuration_failure_and_recovery_guidance() -> None:
     app = ManagerApp(
         host_tools=ManagerAppHostTools(
@@ -254,6 +269,31 @@ async def test_operator_sees_unresolved_domain_and_recovery_guidance() -> None:
         )
         assert app.screen.query_one("#diagnostic-domain-resolution-guidance", Static).content == (
             "下一步：检查域名拼写、A/AAAA 记录和本机 DNS。解析恢复后再签发证书或分享连接。"
+        )
+
+
+async def test_operator_sees_unknown_listener_owner_without_a_false_healthy_claim() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(unknown_listener_owner_report())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert (
+            app.screen.query_one("#diagnostic-listener-ownership-title", Static).content
+            == "[注意] 监听端口与进程归属"
+        )
+        assert (
+            app.screen.query_one("#diagnostic-listener-ownership-details", Static).content
+            == "TCP 4433：[red]归属未知[/red]"
+        )
+        assert (
+            app.screen.query_one("#diagnostic-listener-ownership-details", Static).render().plain
+            == "TCP 4433：[red]归属未知[/red]"
         )
 
 

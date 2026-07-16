@@ -22,6 +22,7 @@ from sb_manager.adapters.privileged_config_target import (
     PrivilegedConfigurationTargetInspector,
 )
 from sb_manager.adapters.privileged_core_activator import PrivilegedCoreActivator
+from sb_manager.adapters.proc_listeners import ProcListenerSource
 from sb_manager.adapters.reality_material import SingBoxRealityMaterialSource
 from sb_manager.adapters.secure_random import SecureRandomSource
 from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSource
@@ -47,6 +48,7 @@ from sb_manager.application.host_readiness import (
     HostAccessMode,
     HostReadinessService,
 )
+from sb_manager.application.listener_diagnostics import ListenerDiagnosticsService
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.application.profile_availability import ProfileAvailabilityService
@@ -333,6 +335,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                         validator=config_validator,
                     ),
                     domain_resolution=BoundedSocketDomainResolutionInspector(timeout_seconds=5),
+                    listener_diagnostics=ListenerDiagnosticsService(source=ProcListenerSource()),
                 ),
                 host_readiness=host_readiness,
                 host_diagnostics=host_diagnostics,

@@ -13,6 +13,7 @@ from sb_manager.application.host_readiness import (
     HostReadinessItemCode,
     ReadinessState,
 )
+from sb_manager.application.listener_diagnostics import ListenerDiagnostics
 from sb_manager.domain.installation import ManagedInstallation, ProfileStatus
 from sb_manager.seams.config_target import (
     ConfigTargetInspectionError,
@@ -51,6 +52,7 @@ class DiagnosticCode(str, Enum):
     LIVE_CONFIGURATION = "live-configuration"
     GENERATED_CONFIGURATION = "generated-configuration"
     DOMAIN_RESOLUTION = "domain-resolution"
+    LISTENER_OWNERSHIP = "listener-ownership"
     CONFIG_TARGET = "config-target"
     PRIVILEGED_HELPER = "privileged-helper"
     CORE = "core"
@@ -128,6 +130,7 @@ class DiagnosticsCenterInspectors:
 
     generated_configuration: GeneratedConfigurationInspector | None = None
     domain_resolution: DomainResolutionInspector | None = None
+    listener_diagnostics: ListenerDiagnostics | None = None
 
 
 _NO_ADDITIONAL_INSPECTORS = DiagnosticsCenterInspectors()
@@ -149,6 +152,7 @@ class DiagnosticsCenterService:
         self._config_inspector = config_inspector
         self._generated_configuration_inspector = inspectors.generated_configuration
         self._domain_resolution_inspector = inspectors.domain_resolution
+        self._listener_diagnostics = inspectors.listener_diagnostics
         self._host_readiness = host_readiness
         self._host_diagnostics = host_diagnostics
 
@@ -227,6 +231,18 @@ class DiagnosticsCenterService:
             items.append(generated_configuration_item)
         if self._domain_resolution_inspector is not None and installation is not None:
             items.append(self._inspect_domain_resolution(installation))
+        if self._listener_diagnostics is not None and installation is not None:
+            listener = self._listener_diagnostics.inspect(installation)
+            items.append(
+                DiagnosticItem(
+                    code=DiagnosticCode.LISTENER_OWNERSHIP,
+                    condition=DiagnosticCondition(listener.condition.value),
+                    title="监听端口与进程归属",
+                    summary=listener.summary,
+                    diagnostics=listener.diagnostics,
+                    guidance=listener.guidance,
+                )
+            )
         try:
             runtime = self._host_diagnostics.inspect()
         except (OSError, RuntimeError, ValueError) as error:

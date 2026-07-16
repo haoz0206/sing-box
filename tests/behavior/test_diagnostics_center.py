@@ -16,6 +16,10 @@ from sb_manager.application.host_readiness import (
     HostReadinessReport,
     ReadinessState,
 )
+from sb_manager.application.listener_diagnostics import (
+    ListenerDiagnosticCondition,
+    ListenerDiagnosticsReport,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -75,6 +79,14 @@ class FailingGeneratedConfigurationInspector:
         raise GeneratedConfigurationInspectionError("sing-box check timed out")
 
 
+class FixedListenerDiagnostics:
+    def __init__(self, report: ListenerDiagnosticsReport) -> None:
+        self.report = report
+
+    def inspect(self, installation: ManagedInstallation) -> ListenerDiagnosticsReport:
+        return self.report
+
+
 class FixedHostReadiness:
     def __init__(self, report: HostReadinessReport) -> None:
         self.report = report
@@ -122,6 +134,40 @@ def ready_item(code: HostReadinessItemCode, title: str) -> HostReadinessItem:
 
 def empty_config_inspector() -> FixedConfigurationTargetInspector:
     return FixedConfigurationTargetInspector(LiveConfigObservation(exists=False, sha256=None))
+
+
+def test_listener_ownership_evidence_is_preserved_as_a_typed_diagnostic_item() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            listener_diagnostics=FixedListenerDiagnostics(
+                ListenerDiagnosticsReport(
+                    condition=ListenerDiagnosticCondition.ATTENTION,
+                    summary="1 个监听端点的进程归属无法确认",
+                    diagnostics="TCP 4433：归属未知",
+                    guidance="以能读取 /proc 的权限重新检查。",
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    listener = next(item for item in report.items if item.code is DiagnosticCode.LISTENER_OWNERSHIP)
+    assert listener.condition is DiagnosticCondition.ATTENTION
+    assert listener.title == "监听端口与进程归属"
+    assert listener.summary == "1 个监听端点的进程归属无法确认"
+    assert listener.diagnostics == "TCP 4433：归属未知"
 
 
 def test_unresolved_public_domain_is_actionable_attention_without_hiding_runtime() -> None:
