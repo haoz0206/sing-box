@@ -6,13 +6,15 @@ from typing import Protocol
 from sb_manager.application.manager import StateRevisionConflictError
 from sb_manager.domain.installation import (
     ManagedInstallation,
+    ManagedProfile,
     ProfileStatus,
 )
-from sb_manager.protocols.catalog import ProfileConnectionInfo, ProtocolCatalog
+from sb_manager.protocols.catalog import MaterializedProfile, ProfileConnectionInfo, ProtocolCatalog
 from sb_manager.seams.apply_lock import ApplyLock
-from sb_manager.seams.configuration_applier import ConfigurationApplier
+from sb_manager.seams.configuration_applier import ConfigurationApplier, ConfigurationApplyError
 from sb_manager.seams.port_source import PortSource
 from sb_manager.seams.state_store import StateStore
+from sb_manager.tls.catalog import TlsMaterialError
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
 
 
@@ -26,6 +28,10 @@ class PortUnavailableError(RuntimeError):
 
 class ApplyConfirmationRequiredError(PermissionError):
     """An apply request must carry the operator's explicit confirmation."""
+
+
+class ProfileMaterializationError(ConfigurationApplyError):
+    """A profile cannot be converted into a candidate host configuration."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,10 +103,7 @@ class ProfileApplyService:
         elif not self._port_source.is_available(listen_port):
             raise PortUnavailableError(f"Port {listen_port} is not available")
 
-        candidate = self._protocol_catalog.materialize(
-            profile,
-            listen_port=listen_port,
-        )
+        candidate = self._materialize_profile(profile, listen_port=listen_port)
         projected_profiles = tuple(
             candidate.profile if existing.profile_id == profile.profile_id else existing
             for existing in installation.profiles
@@ -115,7 +118,7 @@ class ProfileApplyService:
             else:
                 if existing.listen_port is None:
                     raise RuntimeError(f"Applied profile has no port: {existing.profile_id}")
-                materialized = self._protocol_catalog.materialize(
+                materialized = self._materialize_profile(
                     existing,
                     listen_port=existing.listen_port,
                 )
@@ -144,3 +147,14 @@ class ProfileApplyService:
             committed_revision=committed_revision,
             connection_info=candidate.connection_info,
         )
+
+    def _materialize_profile(
+        self,
+        profile: ManagedProfile,
+        *,
+        listen_port: int,
+    ) -> MaterializedProfile:
+        try:
+            return self._protocol_catalog.materialize(profile, listen_port=listen_port)
+        except TlsMaterialError as error:
+            raise ProfileMaterializationError(str(error)) from error

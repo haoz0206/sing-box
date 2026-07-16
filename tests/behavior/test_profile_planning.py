@@ -6,13 +6,14 @@ from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
     Manager,
+    OperatorFileTlsRequest,
     PlanProfileRequest,
     PlanValidationError,
     ProfilePlan,
     ValidationIssue,
 )
 from sb_manager.domain.installation import PortSelection, ProtocolKind
-from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 
 
 def test_operator_can_plan_a_reality_profile_without_host_changes() -> None:
@@ -153,4 +154,61 @@ def test_operator_is_told_which_hysteria2_acme_fields_are_missing() -> None:
     assert caught.value.issues == (
         ValidationIssue(field="tls_server_name", message="请输入证书域名"),
         ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱"),
+    )
+
+
+def test_operator_can_plan_trusted_existing_tls_files_without_generating_a_certificate(
+    tmp_path: Path,
+) -> None:
+    tls_directory = tmp_path / "tls"
+    manager = Manager(trusted_tls_directory=tls_directory)
+
+    plan = manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="已有证书",
+            protocol=ProtocolKind.TROJAN,
+            listen_port=443,
+            tls=OperatorFileTlsRequest(
+                server_name="vpn.example.com",
+                certificate_path=tls_directory / "server.crt",
+                key_path=tls_directory / "server.key",
+            ),
+        )
+    )
+
+    assert plan.tls_intent == OperatorFileTlsIntent(
+        server_name="vpn.example.com",
+        certificate_path=tls_directory / "server.crt",
+        key_path=tls_directory / "server.key",
+    )
+    assert plan.generated_values == (GeneratedValue.TROJAN_PASSWORD,)
+
+
+def test_operator_tls_files_cannot_escape_the_trusted_directory(tmp_path: Path) -> None:
+    tls_directory = tmp_path / "tls"
+    manager = Manager(trusted_tls_directory=tls_directory)
+
+    with pytest.raises(PlanValidationError) as caught:
+        manager.plan_profile(
+            PlanProfileRequest(
+                profile_name="越界证书",
+                protocol=ProtocolKind.TROJAN,
+                listen_port=443,
+                tls=OperatorFileTlsRequest(
+                    server_name="vpn.example.com",
+                    certificate_path=tmp_path / "outside.crt",
+                    key_path=tls_directory / "../outside.key",
+                ),
+            )
+        )
+
+    assert caught.value.issues == (
+        ValidationIssue(
+            field="tls_certificate_path",
+            message=f"证书文件必须位于 {tls_directory}",
+        ),
+        ValidationIssue(
+            field="tls_key_path",
+            message=f"私钥文件必须位于 {tls_directory}",
+        ),
     )

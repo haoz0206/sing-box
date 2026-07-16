@@ -9,6 +9,7 @@ from sb_manager.application.profile_apply import (
     ApplyConfirmationRequiredError,
     ApplyProfileRequest,
     ProfileApplyService,
+    ProfileMaterializationError,
 )
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -27,7 +28,13 @@ from sb_manager.protocols.catalog import (
 from sb_manager.protocols.reality import RealityMaterial
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
-from sb_manager.tls.catalog import AcmeTlsHandler, AcmeTlsIntent, TlsCatalog
+from sb_manager.tls.catalog import (
+    AcmeTlsHandler,
+    AcmeTlsIntent,
+    OperatorFileTlsHandler,
+    OperatorFileTlsIntent,
+    TlsCatalog,
+)
 from sb_manager.transactions.apply import (
     ApplyOutcome,
     ApplyTransactionResult,
@@ -74,6 +81,17 @@ def hysteria2_catalog() -> ProtocolCatalog:
             Hysteria2Handler(
                 material_source=FixedHysteria2MaterialSource(),
                 tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
+            ),
+        )
+    )
+
+
+def hysteria2_catalog_with_file_tls() -> ProtocolCatalog:
+    return ProtocolCatalog(
+        (
+            Hysteria2Handler(
+                material_source=FixedHysteria2MaterialSource(),
+                tls_catalog=TlsCatalog((AcmeTlsHandler(), OperatorFileTlsHandler())),
             ),
         )
     )
@@ -228,6 +246,44 @@ def test_unconfirmed_profile_apply_is_rejected_before_external_effects() -> None
 
     assert applier.document is None
     assert apply_lock.acquisitions == 0
+    assert state_store.load() == initial
+
+
+def test_missing_operator_tls_files_are_an_actionable_apply_error(tmp_path: Path) -> None:
+    draft = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="已有证书",
+        protocol=ProtocolKind.HYSTERIA2,
+        listen_port=FIXED_LISTEN_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+        tls_intent=OperatorFileTlsIntent(
+            server_name="vpn.example.com",
+            certificate_path=tmp_path / "missing.crt",
+            key_path=tmp_path / "missing.key",
+        ),
+    )
+    initial = ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
+    state_store = MemoryStateStore(initial)
+    applier = RecordingSuccessfulApplier()
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=hysteria2_catalog_with_file_tls(),
+        port_source=FixedPortSource(),
+        applier=applier,
+        apply_lock=TrackingApplyLock(),
+    )
+
+    with pytest.raises(ProfileMaterializationError, match="TLS certificate file is unavailable"):
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id="profile-1",
+                expected_revision=1,
+                confirmed=True,
+            )
+        )
+
+    assert applier.document is None
     assert state_store.load() == initial
 
 

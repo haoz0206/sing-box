@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from textual.containers import VerticalScroll
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Input, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import Manager
@@ -18,7 +20,7 @@ from sb_manager.protocols.catalog import ProfileConnectionInfo
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
-from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import (
     ApplyOutcome,
     ApplyTransactionResult,
@@ -583,6 +585,55 @@ async def test_operator_can_create_a_tuic_acme_draft(tmp_path) -> None:
         await pilot.click("#save-draft")
         profile = app.manager.get_installation().profiles[0]
         assert profile.protocol is ProtocolKind.TUIC
+
+
+async def test_operator_can_choose_root_managed_tls_files_as_an_advanced_strategy() -> None:
+    trusted_tls_directory = Path("/etc/sing-box-manager/tls")
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        trusted_tls_directory=trusted_tls_directory,
+    )
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        app.screen.query_one("#protocol-trojan", Button).press()
+        await pilot.pause()
+
+        strategy = app.screen.query_one("#tls-strategy", Select)
+        strategy.value = "operator-files"
+        await pilot.pause()
+
+        assert app.screen.query_one("#tls-acme-fields").display is False
+        assert app.screen.query_one("#tls-file-fields").display is True
+        app.screen.query_one("#profile-name", Input).value = "已有证书入口"
+        app.screen.query_one("#server-address", Input).value = "vpn.example.com"
+        app.screen.query_one("#tls-server-name", Input).value = "vpn.example.com"
+        app.screen.query_one("#tls-certificate-path", Input).value = str(
+            trusted_tls_directory / "server.crt"
+        )
+        app.screen.query_one("#tls-key-path", Input).value = str(
+            trusted_tls_directory / "server.key"
+        )
+        app.screen.query_one("#listen-port", Input).value = "443"
+        app.screen.query_one("#preview-plan", Button).press()
+        await pilot.pause()
+
+        assert app.screen.query_one("#plan-tls", Static).content == (
+            "TLS：已有证书 · vpn.example.com · /etc/sing-box-manager/tls/server.crt"
+        )
+        assert app.screen.query_one("#plan-generated", Static).content == (
+            "自动生成：Trojan 认证密码"
+        )
+        await pilot.click("#save-draft")
+
+        assert app.manager.get_installation().profiles[0].tls_intent == (
+            OperatorFileTlsIntent(
+                server_name="vpn.example.com",
+                certificate_path=trusted_tls_directory / "server.crt",
+                key_path=trusted_tls_directory / "server.key",
+            )
+        )
 
 
 async def test_operator_can_create_a_vless_tls_websocket_draft(tmp_path) -> None:

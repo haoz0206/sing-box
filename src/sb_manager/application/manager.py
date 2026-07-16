@@ -2,6 +2,7 @@ from contextlib import nullcontext
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from typing import TypeAlias
 
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -12,7 +13,7 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.seams.apply_lock import ApplyLock
 from sb_manager.seams.state_store import StateStore
-from sb_manager.tls.catalog import AcmeTlsIntent, TlsIntent
+from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent, TlsIntent
 from sb_manager.transports.catalog import (
     GrpcTransportIntent,
     TransportIntent,
@@ -121,6 +122,18 @@ class AcmeTlsRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class OperatorFileTlsRequest:
+    """User-facing references to root-managed TLS files."""
+
+    server_name: str
+    certificate_path: Path
+    key_path: Path
+
+
+TlsRequest: TypeAlias = AcmeTlsRequest | OperatorFileTlsRequest
+
+
+@dataclass(frozen=True, slots=True)
 class WebSocketTransportRequest:
     """User-facing WebSocket transport inputs."""
 
@@ -146,7 +159,7 @@ class PlanProfileRequest:
     protocol: ProtocolKind
     listen_port: int | None
     server_address: str | None = None
-    tls: AcmeTlsRequest | None = None
+    tls: TlsRequest | None = None
     transport: TransportRequest | None = None
 
 
@@ -174,10 +187,12 @@ class Manager:
         state_store: StateStore | None = None,
         mutation_lock: ApplyLock | None = None,
         acme_data_directory: Path = Path("/var/lib/sing-box-manager/acme"),
+        trusted_tls_directory: Path = Path("/etc/sing-box-manager/tls"),
     ) -> None:
         self._state_store = state_store
         self._mutation_lock = mutation_lock
         self._acme_data_directory = acme_data_directory
+        self._trusted_tls_directory = trusted_tls_directory
 
     def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
         issues: list[ValidationIssue] = []
@@ -190,37 +205,17 @@ class Manager:
                     message="端口必须在 1 到 65535 之间",
                 )
             )
-        if request.protocol in TLS_REQUIRED_PROTOCOLS:
-            if request.tls is None:
-                issues.append(ValidationIssue(field="tls", message="请选择 TLS 证书方式"))
-            else:
-                if not request.tls.server_name.strip():
-                    issues.append(
-                        ValidationIssue(field="tls_server_name", message="请输入证书域名")
-                    )
-                if not request.tls.email.strip():
-                    issues.append(
-                        ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱")
-                    )
-        if request.protocol in TRANSPORTED_PROTOCOLS:
-            if request.transport is None:
-                issues.append(ValidationIssue(field="transport", message="请选择传输方式"))
-            elif isinstance(request.transport, WebSocketTransportRequest) and not (
-                request.transport.path.startswith("/")
-            ):
-                issues.append(
-                    ValidationIssue(field="websocket_path", message="WebSocket 路径必须以 / 开头")
-                )
-            elif isinstance(request.transport, GrpcTransportRequest) and not (
-                request.transport.service_name.strip()
-            ):
-                issues.append(
-                    ValidationIssue(field="grpc_service_name", message="请输入 gRPC 服务名")
-                )
+        issues.extend(self._validate_tls_request(request))
+        issues.extend(self._validate_transport_request(request))
         if issues:
             raise PlanValidationError(tuple(issues))
 
         base_revision = self._state_store.load().revision if self._state_store is not None else 0
+        generated_values = GENERATED_VALUES_BY_PROTOCOL[request.protocol]
+        if isinstance(request.tls, OperatorFileTlsRequest):
+            generated_values = tuple(
+                value for value in generated_values if value is not GeneratedValue.TLS_CERTIFICATE
+            )
         return ProfilePlan(
             profile_name=request.profile_name,
             protocol=request.protocol,
@@ -229,17 +224,25 @@ class Manager:
                 PortSelection.AUTOMATIC if request.listen_port is None else PortSelection.FIXED
             ),
             base_revision=base_revision,
-            generated_values=GENERATED_VALUES_BY_PROTOCOL[request.protocol],
+            generated_values=generated_values,
             mutates_host=False,
             server_address=(
                 request.server_address.strip() if request.server_address is not None else None
             )
             or None,
             tls_intent=(
-                AcmeTlsIntent(
-                    server_name=request.tls.server_name.strip(),
-                    email=request.tls.email.strip(),
-                    data_directory=self._acme_data_directory,
+                (
+                    AcmeTlsIntent(
+                        server_name=request.tls.server_name.strip(),
+                        email=request.tls.email.strip(),
+                        data_directory=self._acme_data_directory,
+                    )
+                    if isinstance(request.tls, AcmeTlsRequest)
+                    else OperatorFileTlsIntent(
+                        server_name=request.tls.server_name.strip(),
+                        certificate_path=request.tls.certificate_path,
+                        key_path=request.tls.key_path,
+                    )
                 )
                 if request.tls is not None
                 else None
@@ -262,6 +265,65 @@ class Manager:
                 )
             ),
         )
+
+    def _is_trusted_tls_path(self, path: Path) -> bool:
+        return (
+            path.is_absolute()
+            and ".." not in path.parts
+            and path != self._trusted_tls_directory
+            and path.is_relative_to(self._trusted_tls_directory)
+        )
+
+    def _validate_tls_request(self, request: PlanProfileRequest) -> list[ValidationIssue]:
+        if request.protocol not in TLS_REQUIRED_PROTOCOLS:
+            return (
+                [ValidationIssue(field="tls", message="该协议不使用 TLS 证书选项")]
+                if request.tls is not None
+                else []
+            )
+        if request.tls is None:
+            return [ValidationIssue(field="tls", message="请选择 TLS 证书方式")]
+        issues: list[ValidationIssue] = []
+        if not request.tls.server_name.strip():
+            issues.append(ValidationIssue(field="tls_server_name", message="请输入证书域名"))
+        if isinstance(request.tls, AcmeTlsRequest) and not request.tls.email.strip():
+            issues.append(ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱"))
+        if isinstance(request.tls, OperatorFileTlsRequest):
+            if not self._is_trusted_tls_path(request.tls.certificate_path):
+                issues.append(
+                    ValidationIssue(
+                        field="tls_certificate_path",
+                        message=f"证书文件必须位于 {self._trusted_tls_directory}",
+                    )
+                )
+            if not self._is_trusted_tls_path(request.tls.key_path):
+                issues.append(
+                    ValidationIssue(
+                        field="tls_key_path",
+                        message=f"私钥文件必须位于 {self._trusted_tls_directory}",
+                    )
+                )
+        return issues
+
+    @staticmethod
+    def _validate_transport_request(request: PlanProfileRequest) -> list[ValidationIssue]:
+        if request.protocol not in TRANSPORTED_PROTOCOLS:
+            return (
+                [ValidationIssue(field="transport", message="该协议不使用传输选项")]
+                if request.transport is not None
+                else []
+            )
+        if request.transport is None:
+            return [ValidationIssue(field="transport", message="请选择传输方式")]
+        if isinstance(request.transport, WebSocketTransportRequest) and not (
+            request.transport.path.startswith("/")
+        ):
+            return [ValidationIssue(field="websocket_path", message="WebSocket 路径必须以 / 开头")]
+        if isinstance(request.transport, GrpcTransportRequest) and not (
+            request.transport.service_name.strip()
+        ):
+            return [ValidationIssue(field="grpc_service_name", message="请输入 gRPC 服务名")]
+        return []
 
     def save_profile_draft(self, plan: ProfilePlan) -> None:
         lock = self._mutation_lock.acquire() if self._mutation_lock is not None else nullcontext()

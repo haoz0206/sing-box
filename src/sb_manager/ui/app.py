@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import ClassVar, cast
 
 from textual import on, work
@@ -22,9 +23,11 @@ from sb_manager.application.manager import (
     GeneratedValue,
     GrpcTransportRequest,
     Manager,
+    OperatorFileTlsRequest,
     PlanProfileRequest,
     PlanValidationError,
     ProfilePlan,
+    TlsRequest,
     TransportRequest,
     WebSocketTransportRequest,
 )
@@ -42,7 +45,7 @@ from sb_manager.domain.installation import (
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.core_activator import CoreActivationError
-from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 
@@ -57,7 +60,7 @@ class GuidedProfileDefinition:
     guidance_id: str
     title: str
     guidance: str
-    uses_acme: bool = False
+    uses_tls: bool = False
     uses_websocket: bool = False
     uses_grpc: bool = False
 
@@ -85,7 +88,7 @@ HYSTERIA2_PROFILE = GuidedProfileDefinition(
     guidance_id="hysteria2-guidance",
     title="配置 Hysteria2",
     guidance="适合移动网络。认证密码自动生成，TLS 证书通过 ACME 申请。",
-    uses_acme=True,
+    uses_tls=True,
 )
 TROJAN_PROFILE = GuidedProfileDefinition(
     protocol=ProtocolKind.TROJAN,
@@ -94,7 +97,7 @@ TROJAN_PROFILE = GuidedProfileDefinition(
     guidance_id="trojan-guidance",
     title="配置 Trojan",
     guidance="基于 TLS 的兼容协议。认证密码自动生成，证书通过 ACME 申请。",
-    uses_acme=True,
+    uses_tls=True,
 )
 ANYTLS_PROFILE = GuidedProfileDefinition(
     protocol=ProtocolKind.ANYTLS,
@@ -103,7 +106,7 @@ ANYTLS_PROFILE = GuidedProfileDefinition(
     guidance_id="anytls-guidance",
     title="配置 AnyTLS",
     guidance="用于缓解 TLS 嵌套指纹。认证密码自动生成，证书通过 ACME 申请。",
-    uses_acme=True,
+    uses_tls=True,
 )
 TUIC_PROFILE = GuidedProfileDefinition(
     protocol=ProtocolKind.TUIC,
@@ -112,7 +115,7 @@ TUIC_PROFILE = GuidedProfileDefinition(
     guidance_id="tuic-guidance",
     title="配置 TUIC",
     guidance="基于 QUIC 的低延迟协议。默认关闭可重放的 0-RTT。",
-    uses_acme=True,
+    uses_tls=True,
 )
 VLESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
     protocol=ProtocolKind.VLESS_TLS,
@@ -121,7 +124,7 @@ VLESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
     guidance_id="vless-websocket-guidance",
     title="配置 VLESS TLS WebSocket",
     guidance="适合需要 WebSocket 或 CDN 兼容入口的场景。",
-    uses_acme=True,
+    uses_tls=True,
     uses_websocket=True,
 )
 VLESS_GRPC_PROFILE = GuidedProfileDefinition(
@@ -131,7 +134,7 @@ VLESS_GRPC_PROFILE = GuidedProfileDefinition(
     guidance_id="vless-grpc-guidance",
     title="配置 VLESS TLS gRPC",
     guidance="适合需要标准 gRPC 传输兼容性的场景。",
-    uses_acme=True,
+    uses_tls=True,
     uses_grpc=True,
 )
 VMESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
@@ -141,7 +144,7 @@ VMESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
     guidance_id="vmess-websocket-guidance",
     title="配置 VMess TLS WebSocket",
     guidance="仅用于旧客户端兼容，使用 alterId 0 和现代 UUID 认证。",
-    uses_acme=True,
+    uses_tls=True,
     uses_websocket=True,
 )
 VMESS_GRPC_PROFILE = GuidedProfileDefinition(
@@ -151,7 +154,7 @@ VMESS_GRPC_PROFILE = GuidedProfileDefinition(
     guidance_id="vmess-grpc-guidance",
     title="配置 VMess TLS gRPC",
     guidance="旧客户端兼容的 VMess，使用标准 gRPC 传输。",
-    uses_acme=True,
+    uses_tls=True,
     uses_grpc=True,
 )
 
@@ -398,6 +401,17 @@ class PlanPreviewScreen(Screen[None]):
                     f"{self.plan.tls_intent.server_name} · {self.plan.tls_intent.email}",
                     id="plan-tls",
                 )
+            if isinstance(self.plan.tls_intent, OperatorFileTlsIntent):
+                yield Static(
+                    "TLS：已有证书 · "
+                    f"{self.plan.tls_intent.server_name} · "
+                    f"{self.plan.tls_intent.certificate_path}",
+                    id="plan-tls",
+                )
+                yield Static(
+                    f"私钥：{self.plan.tls_intent.key_path}",
+                    id="plan-tls-key",
+                )
             if isinstance(self.plan.transport_intent, WebSocketTransportIntent):
                 transport_summary = f"传输：WebSocket · {self.plan.transport_intent.path}"
                 if self.plan.transport_intent.host is not None:
@@ -430,6 +444,8 @@ class GuidedProfileScreen(Screen[None]):
         "listen_port": "#listen-port-error",
         "tls_server_name": "#tls-server-name-error",
         "tls_email": "#tls-email-error",
+        "tls_certificate_path": "#tls-certificate-path-error",
+        "tls_key_path": "#tls-key-path-error",
         "websocket_path": "#websocket-path-error",
         "grpc_service_name": "#grpc-service-name-error",
     }
@@ -449,7 +465,7 @@ class GuidedProfileScreen(Screen[None]):
         yield Header()
         form = (
             VerticalScroll(id=self.definition.form_id)
-            if self.definition.uses_acme
+            if self.definition.uses_tls
             else Vertical(id=self.definition.form_id)
         )
         with form:
@@ -463,13 +479,41 @@ class GuidedProfileScreen(Screen[None]):
                 placeholder="例如：vpn.example.com 或 203.0.113.10",
                 id="server-address",
             )
-            if self.definition.uses_acme:
+            if self.definition.uses_tls:
                 yield Label("TLS 证书域名", classes="field-label")
                 yield Input(placeholder="例如：vpn.example.com", id="tls-server-name")
                 yield Static("", id="tls-server-name-error", classes="field-error")
-                yield Label("ACME 联系邮箱", classes="field-label")
-                yield Input(placeholder="例如：operator@example.com", id="tls-email")
-                yield Static("", id="tls-email-error", classes="field-error")
+                yield Label("TLS 证书方式", classes="field-label")
+                yield Select(
+                    (
+                        ("自动申请 ACME · 推荐", "acme"),
+                        ("已有 root 管理的证书文件 · 高级", "operator-files"),
+                    ),
+                    value="acme",
+                    allow_blank=False,
+                    id="tls-strategy",
+                )
+                with Vertical(id="tls-acme-fields"):
+                    yield Label("ACME 联系邮箱", classes="field-label")
+                    yield Input(placeholder="例如：operator@example.com", id="tls-email")
+                    yield Static("", id="tls-email-error", classes="field-error")
+                with Vertical(id="tls-file-fields", classes="hidden"):
+                    yield Label("证书文件", classes="field-label")
+                    yield Input(
+                        placeholder="/etc/sing-box-manager/tls/server.crt",
+                        id="tls-certificate-path",
+                    )
+                    yield Static(
+                        "",
+                        id="tls-certificate-path-error",
+                        classes="field-error",
+                    )
+                    yield Label("私钥文件", classes="field-label")
+                    yield Input(
+                        placeholder="/etc/sing-box-manager/tls/server.key",
+                        id="tls-key-path",
+                    )
+                    yield Static("", id="tls-key-path-error", classes="field-error")
             if self.definition.uses_websocket:
                 yield Label("WebSocket 路径", classes="field-label")
                 yield Input(placeholder="例如：/proxy", id="websocket-path")
@@ -490,12 +534,21 @@ class GuidedProfileScreen(Screen[None]):
     def preview_plan(self) -> None:
         profile_name = self.query_one("#profile-name", Input).value
         server_address = self.query_one("#server-address", Input).value
-        tls = None
-        if self.definition.uses_acme:
-            tls = AcmeTlsRequest(
-                server_name=self.query_one("#tls-server-name", Input).value,
-                email=self.query_one("#tls-email", Input).value,
-            )
+        tls: TlsRequest | None = None
+        tls_strategy: object = None
+        if self.definition.uses_tls:
+            tls_strategy = self.query_one("#tls-strategy", Select).value
+            if tls_strategy == "operator-files":
+                tls = OperatorFileTlsRequest(
+                    server_name=self.query_one("#tls-server-name", Input).value,
+                    certificate_path=Path(self.query_one("#tls-certificate-path", Input).value),
+                    key_path=Path(self.query_one("#tls-key-path", Input).value),
+                )
+            else:
+                tls = AcmeTlsRequest(
+                    server_name=self.query_one("#tls-server-name", Input).value,
+                    email=self.query_one("#tls-email", Input).value,
+                )
         transport: TransportRequest | None = None
         if self.definition.uses_websocket:
             transport = WebSocketTransportRequest(
@@ -509,8 +562,13 @@ class GuidedProfileScreen(Screen[None]):
         port_text = self.query_one("#listen-port", Input).value
         listen_port = int(port_text) if port_text else None
         visible_error_fields = ["profile_name", "listen_port"]
-        if self.definition.uses_acme:
-            visible_error_fields.extend(("tls_server_name", "tls_email"))
+        if self.definition.uses_tls:
+            visible_error_fields.append("tls_server_name")
+            visible_error_fields.extend(
+                ("tls_certificate_path", "tls_key_path")
+                if tls_strategy == "operator-files"
+                else ("tls_email",)
+            )
         if self.definition.uses_websocket:
             visible_error_fields.append("websocket_path")
         if self.definition.uses_grpc:
@@ -534,6 +592,12 @@ class GuidedProfileScreen(Screen[None]):
                     self.query_one(error_selector, Static).update(issue.message)
             return
         self.app.push_screen(PlanPreviewScreen(self.manager, plan, self.profile_applier))
+
+    @on(Select.Changed, "#tls-strategy")
+    def switch_tls_strategy(self, event: Select.Changed) -> None:
+        use_operator_files = event.value == "operator-files"
+        self.query_one("#tls-acme-fields").display = not use_operator_files
+        self.query_one("#tls-file-fields").display = use_operator_files
 
 
 class ProtocolSelectionScreen(Screen[None]):
@@ -897,6 +961,10 @@ class ManagerApp(App[None]):
 
     .field-error {
         color: $error;
+    }
+
+    .hidden {
+        display: none;
     }
 
     Button {

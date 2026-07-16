@@ -495,8 +495,9 @@ Current implementation status (2026-07-16):
 
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
-- shared TLS strategies: sing-box 1.14 ACME certificate providers and
-  operator-provided certificate files;
+- shared TLS strategies: the guided TUI supports sing-box 1.14 ACME certificate
+  providers and an advanced root-managed certificate-file workflow constrained
+  to `/etc/sing-box-manager/tls`;
 - release integration: product-generated configurations for every supported
   protocol and the VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
   against official 1.14.0-alpha.45;
@@ -546,7 +547,9 @@ Current implementation status (2026-07-16):
 - The supported OS/core/protocol matrix is documented and tested at its stated
   level.
 
-## 14. Open decisions
+## 14. Deferred scope
 
-- Decide whether operator-provided TLS files enter the guided wizard or remain
-  an advanced workflow.
+- Caddy edge orchestration is deferred until after the first stable release.
+  The first stable release uses sing-box-native ACME or root-managed certificate
+  files; adding Caddy later requires its own artifact trust, transactional
+  validation, runtime, and rollback design.

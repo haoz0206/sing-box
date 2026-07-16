@@ -89,6 +89,23 @@ request should be rejected as invalid JSON, which proves authorization reached
 the helper without granting a shell. Never authorize `sb-manager`, Python,
 pip, a shell, or an operator-writable wrapper as root.
 
+To use the advanced operator-file TLS strategy, deploy reviewed PEM material
+under the fixed trusted directory. The private key must not be readable or
+writable by group or other users:
+
+```bash
+sudo install -o root -g root -m 0644 fullchain.pem \
+  /etc/sing-box-manager/tls/server.crt
+sudo install -o root -g root -m 0600 private-key.pem \
+  /etc/sing-box-manager/tls/server.key
+```
+
+Use `doas` instead of `sudo` on Alpine. The TUI stores only these paths in
+desired state and never reads or displays private-key contents. At apply time,
+the root helper rejects paths outside the trusted directory, symlinks,
+non-regular files, non-root ownership, writable certificate files, and any
+group/other access to a private key.
+
 ## Fixed host paths
 
 | Purpose | Path |

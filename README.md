@@ -22,7 +22,7 @@
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 的核心向导始终通过非交互 helper 激活，配置应用则可通过显式 privileged apply 模式调用它。Caddy 工作流仍未完成；引导式 TLS 表单目前只开放 ACME，运维证书文件已经由后端支持但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要 root-owned 安装/授权验收与受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 的核心向导始终通过非交互 helper 激活，配置应用则可通过显式 privileged apply 模式调用它。引导式 TLS 表单支持推荐的 sing-box ACME，以及固定 trusted 目录下 root 管理证书文件的高级路径。Caddy 边缘编排明确后移到首个稳定版之后。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实稳定发行前仍需要受支持发行版上的 live host 冒烟测试，以及上游稳定 sing-box 1.14，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 

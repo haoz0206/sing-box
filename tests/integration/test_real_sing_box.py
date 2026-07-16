@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,7 @@ from sb_manager.domain.installation import (
     ProtocolKind,
 )
 from sb_manager.privileged.config_policy import ManagedConfigurationPolicy
-from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transports.catalog import (
     GrpcTransportIntent,
     TransportIntent,
@@ -99,6 +100,55 @@ def test_real_sing_box_accepts_product_generated_configuration(
         document["certificate_providers"] = list(materialized.certificate_providers)
     ManagedConfigurationPolicy().validate(document)
     config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
+
+    assert result.valid, result.diagnostics
+
+
+@pytest.mark.integration
+def test_real_sing_box_accepts_trusted_operator_tls_files(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    fixture_directory = Path(__file__).parents[1] / "fixtures/tls"
+    trusted_tls_directory = tmp_path / "trusted-tls"
+    trusted_tls_directory.mkdir()
+    certificate = trusted_tls_directory / "server.crt"
+    key = trusted_tls_directory / "server.key"
+    shutil.copyfile(fixture_directory / "server.crt", certificate)
+    shutil.copyfile(fixture_directory / "server.key", key)
+    certificate.chmod(0o644)
+    key.chmod(0o600)
+    materialized = create_protocol_catalog(
+        sing_box_binary=real_sing_box_binary,
+        reality_server_name="www.cloudflare.com",
+    ).materialize(
+        ManagedProfile(
+            profile_name="operator-tls-fixture",
+            protocol=ProtocolKind.TROJAN,
+            listen_port=18443,
+            port_selection=PortSelection.FIXED,
+            status=ProfileStatus.DRAFT,
+            profile_id="profile-1",
+            tls_intent=OperatorFileTlsIntent(
+                server_name="proxy.example.com",
+                certificate_path=certificate,
+                key_path=key,
+            ),
+        ),
+        listen_port=18443,
+    )
+    document: dict[str, object] = {
+        "inbounds": [materialized.inbound],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+    ManagedConfigurationPolicy(
+        trusted_tls_directory=trusted_tls_directory,
+        expected_root_uid=os.geteuid(),
+    ).validate(document)
+    config_path = tmp_path / "operator-tls.json"
     config_path.write_text(json.dumps(document), encoding="utf-8")
 
     result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
