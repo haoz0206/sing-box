@@ -13,12 +13,18 @@ class SingBoxConfigValidator:
         self._binary = str(binary)
 
     def validate(self, config_path: Path) -> ConfigValidationResult:
-        completed = subprocess.run(
-            [self._binary, "check", "-c", str(config_path)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = subprocess.run(
+                [self._binary, "check", "-c", str(config_path)],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            return ConfigValidationResult(
+                valid=False,
+                diagnostics=f"sing-box executable not found: {self._binary}",
+            )
         return ConfigValidationResult(
             valid=completed.returncode == 0,
             diagnostics=(completed.stderr or completed.stdout).strip(),
