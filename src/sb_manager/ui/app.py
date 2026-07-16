@@ -62,6 +62,10 @@ from sb_manager.application.profile_removal import (
     ProfileRemovalNotFoundError,
     ProfileRemover,
 )
+from sb_manager.application.state_recovery import (
+    RecoveryAvailability,
+    StateRecoveryManager,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     PortSelection,
@@ -83,6 +87,10 @@ from sb_manager.ui.screens.profile_availability import (
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
+from sb_manager.ui.screens.state_recovery import (
+    StateRecoveryConfirmationScreen,
+    StateRecoveryPanel,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -870,6 +878,7 @@ class ManagerAppHostTools:
         default_factory=ProfileRecommendationService
     )
     config_adopter: ConfigAdopter | None = None
+    state_recovery_manager: StateRecoveryManager | None = None
 
 
 class ManagerApp(App[None]):
@@ -903,10 +912,30 @@ class ManagerApp(App[None]):
         self.profile_availability_manager = tools.profile_availability_manager
         self.profile_recommendation_advisor = tools.profile_recommendation_advisor
         self.config_adopter = tools.config_adopter
+        self.state_recovery_manager = tools.state_recovery_manager
+        self._dashboard_ready = False
 
     def compose(self) -> ComposeResult:
         yield Header()
-        installation = self.manager.get_installation()
+        recovery_report = (
+            self.state_recovery_manager.inspect()
+            if self.state_recovery_manager is not None
+            else None
+        )
+        if (
+            recovery_report is not None
+            and recovery_report.availability is not RecoveryAvailability.HEALTHY
+        ):
+            self._dashboard_ready = False
+            yield StateRecoveryPanel(recovery_report)
+            yield Footer()
+            return
+        installation = (
+            recovery_report.installation
+            if recovery_report is not None and recovery_report.installation is not None
+            else self.manager.get_installation()
+        )
+        self._dashboard_ready = True
         active_profiles = sum(
             profile.status is ProfileStatus.APPLIED and profile.enabled
             for profile in installation.profiles
@@ -1014,10 +1043,33 @@ class ManagerApp(App[None]):
             yield Button("检查并接管现有配置", id="adopt-existing-config")
 
     def on_mount(self) -> None:
+        if self._dashboard_ready:
+            self._start_host_inspections()
+
+    def _start_host_inspections(self) -> None:
         if self.host_diagnostics is not None:
             self.load_host_diagnostics()
         if self.host_readiness is not None:
             self.load_host_readiness()
+
+    @on(Button.Pressed, "#review-state-recovery")
+    async def open_state_recovery(self) -> None:
+        if self.state_recovery_manager is None:
+            return
+        report = self.state_recovery_manager.inspect()
+        if report.plan is None:
+            await self.recompose()
+            return
+        self.push_screen(
+            StateRecoveryConfirmationScreen(self.state_recovery_manager, report.plan),
+            self.finish_state_recovery,
+        )
+
+    async def finish_state_recovery(self, result: object | None) -> None:
+        if result is None:
+            return
+        await self.recompose()
+        self.call_after_refresh(self._start_host_inspections)
 
     @work(thread=True, exclusive=True)
     def load_host_diagnostics(self) -> None:

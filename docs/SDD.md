@@ -575,6 +575,14 @@ the release acceptance criteria. It is not translated function by function.
 
 Current implementation status (2026-07-17):
 
+- desired-state startup recovery: exact primary/backup byte snapshots are
+  classified behind a storage seam; only a corrupt primary plus a
+  current-schema readable backup produces a reviewable plan, explicit
+  confirmation rechecks both SHA-256 values under the shared mutation lock,
+  preserves the corrupt bytes under their full hash, atomically restores the
+  backup without rewriting `.bak`, and recomposes the normal dashboard;
+  unsupported future schemas and inaccessible or invalid backups remain
+  non-mutating guidance states;
 - purpose-first profile recommendation: adding a profile starts from four
   operator outcomes, returns three reasoned and caveated protocol variants from
   one pure application module, opens the existing guided form after selection,
@@ -715,6 +723,10 @@ Current implementation status (2026-07-17):
 
 ## 13. Release acceptance criteria
 
+- Corrupt desired state starts a bounded recovery page instead of terminating
+  the TUI; restoration requires a valid current-schema backup, explicit
+  confirmation, exact primary/backup hash rechecks, and preservation of the
+  corrupt bytes.
 - A new operator can create and apply the first profile without reading protocol
   documentation or editing JSON.
 - Every destructive action presents a plan and explicit confirmation.

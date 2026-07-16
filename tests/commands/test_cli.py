@@ -28,6 +28,7 @@ from sb_manager.application.profile_recommendation import (
     ProtocolVariant,
 )
 from sb_manager.application.profile_removal import ProfileRemovalScope
+from sb_manager.application.state_recovery import RecoveryAvailability
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -51,6 +52,7 @@ from sb_manager.ui.app import ManagerApp
 
 EXPECTED_APPLIED_REVISION = 2
 EXPECTED_REMOVED_REVISION = 3
+EXPECTED_RECOVERY_BACKUP_REVISION = 3
 
 
 def _write_fake_sing_box(tmp_path: Path) -> Path:
@@ -174,6 +176,24 @@ def test_cli_composes_the_tui_with_a_persistent_state_store(tmp_path: Path) -> N
     app.manager.save_profile_draft(plan)
 
     assert JsonFileStateStore(state_path).load().profiles[0].profile_name == "手机"
+
+
+def test_cli_composes_desired_state_recovery_with_the_shared_mutation_boundary(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "manager" / "state.json"
+    store = JsonFileStateStore(state_path)
+    store.save(ManagedInstallation(schema_version=1, revision=3, profiles=()))
+    store.save(ManagedInstallation(schema_version=1, revision=4, profiles=()))
+    state_path.write_text("corrupt", encoding="utf-8")
+
+    app = create_app(["--state-file", str(state_path)])
+
+    assert app.state_recovery_manager is not None
+    report = app.state_recovery_manager.inspect()
+    assert report.availability is RecoveryAvailability.RECOVERY_AVAILABLE
+    assert report.plan is not None
+    assert report.plan.backup_revision == EXPECTED_RECOVERY_BACKUP_REVISION
 
 
 def test_cli_composes_the_purpose_first_profile_advisor() -> None:

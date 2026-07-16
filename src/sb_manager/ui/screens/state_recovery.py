@@ -1,0 +1,120 @@
+"""Explicit confirmation screen for restoring one reviewed desired-state backup."""
+
+from typing import ClassVar
+
+from textual import on, work
+from textual.app import ComposeResult
+from textual.binding import BindingType
+from textual.containers import Vertical
+from textual.screen import Screen
+from textual.widget import Widget
+from textual.widgets import Button, Footer, Header, Static
+
+from sb_manager.application.state_recovery import (
+    RecoveryAvailability,
+    StateRecoveryError,
+    StateRecoveryManager,
+    StateRecoveryPlan,
+    StateRecoveryReport,
+)
+from sb_manager.seams.state_recovery import (
+    StateRecoveryCommit,
+    StateRecoverySourceError,
+)
+
+
+class StateRecoveryPanel(Widget):
+    """Render every non-healthy startup state without owning recovery policy."""
+
+    def __init__(self, report: StateRecoveryReport) -> None:
+        super().__init__(id="state-recovery")
+        self.report = report
+
+    def compose(self) -> ComposeResult:
+        if self.report.availability is RecoveryAvailability.RECOVERY_AVAILABLE:
+            assert self.report.plan is not None
+            yield Static("desired state 无法读取", id="state-recovery-title")
+            yield Static(
+                f"可恢复备份：revision {self.report.plan.backup_revision} · "
+                f"{self.report.plan.backup_profile_count} 个配置",
+                id="state-recovery-backup",
+            )
+            yield Static(
+                "恢复前会再次核对主文件和备份指纹，损坏原文件会被完整保留。",
+                id="state-recovery-guidance",
+            )
+            yield Button(
+                "审阅恢复计划",
+                id="review-state-recovery",
+                variant="warning",
+            )
+            return
+        if self.report.availability is RecoveryAvailability.UNSUPPORTED_SCHEMA:
+            yield Static("desired state 版本高于当前管理器", id="state-recovery-title")
+            yield Static(
+                f"检测到 schema {self.report.found_schema_version}。"
+                "请使用兼容版本的管理器打开，当前版本不会覆盖该文件。",
+                id="state-recovery-guidance",
+            )
+            return
+        yield Static("desired state 无法读取", id="state-recovery-title")
+        yield Static(
+            "没有找到可验证的备份。当前版本不会覆盖主文件，请从外部备份恢复或检查文件权限。",
+            id="state-recovery-guidance",
+        )
+
+
+class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
+    """Keep destructive file replacement behind a second explicit action."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
+
+    def __init__(
+        self,
+        recovery_manager: StateRecoveryManager,
+        plan: StateRecoveryPlan,
+    ) -> None:
+        super().__init__()
+        self.recovery_manager = recovery_manager
+        self.plan = plan
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="state-recovery-confirmation"):
+            yield Static("确认恢复 desired state", id="state-recovery-confirm-title")
+            yield Static(
+                f"备份：revision {self.plan.backup_revision} · "
+                f"{self.plan.backup_profile_count} 个配置",
+                id="state-recovery-confirm-backup",
+            )
+            yield Static(
+                "将用已审阅备份替换损坏主文件，损坏原文件会被完整归档。",
+                id="state-recovery-confirm-safety",
+            )
+            yield Static("", id="state-recovery-confirm-error", classes="hidden")
+            yield Button(
+                "确认并恢复",
+                id="confirm-state-recovery",
+                variant="warning",
+            )
+        yield Footer()
+
+    @on(Button.Pressed, "#confirm-state-recovery")
+    def confirm_recovery(self) -> None:
+        self.query_one("#confirm-state-recovery", Button).disabled = True
+        self.execute_recovery()
+
+    @work(thread=True, exclusive=True)
+    def execute_recovery(self) -> None:
+        try:
+            result = self.recovery_manager.recover(self.plan, confirmed=True)
+        except (StateRecoveryError, StateRecoverySourceError) as error:
+            self.app.call_from_thread(self.show_error, str(error))
+            return
+        self.app.call_from_thread(self.dismiss, result)
+
+    def show_error(self, diagnostics: str) -> None:
+        error = self.query_one("#state-recovery-confirm-error", Static)
+        error.update(f"恢复未执行：{diagnostics}")
+        error.remove_class("hidden")
+        self.query_one("#confirm-state-recovery", Button).disabled = False

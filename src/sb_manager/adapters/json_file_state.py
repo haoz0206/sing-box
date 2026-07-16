@@ -165,8 +165,12 @@ class JsonFileStateStore:
     def load(self) -> ManagedInstallation:
         if not self.path.exists():
             return ManagedInstallation.empty()
-        with self.path.open(encoding="utf-8") as state_file:
-            data = cast(InstallationData, json.load(state_file))
+        return self.load_payload(self.path.read_bytes())
+
+    @classmethod
+    def load_payload(cls, payload: bytes) -> ManagedInstallation:
+        """Decode one exact byte snapshot using the normal state schema."""
+        data = cast(InstallationData, json.loads(payload))
         if data["schema_version"] != CURRENT_SCHEMA_VERSION:
             raise UnsupportedStateSchemaError(
                 supported=CURRENT_SCHEMA_VERSION,
@@ -175,7 +179,7 @@ class JsonFileStateStore:
         return ManagedInstallation(
             schema_version=data["schema_version"],
             revision=data["revision"],
-            profiles=tuple(self._profile_from_data(profile) for profile in data["profiles"]),
+            profiles=tuple(cls._profile_from_data(profile) for profile in data["profiles"]),
             expected_config_sha256=data.get("expected_config_sha256"),
         )
 

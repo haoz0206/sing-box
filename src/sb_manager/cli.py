@@ -14,6 +14,7 @@ from sb_manager.adapters.generated_configuration import (
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
+from sb_manager.adapters.json_state_recovery import JsonStateRecoverySource
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
 from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
 from sb_manager.adapters.privileged_config_target import (
@@ -50,6 +51,7 @@ from sb_manager.application.profile_availability import ProfileAvailabilityServi
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
+from sb_manager.application.state_recovery import StateRecoveryService
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
     Hysteria2Handler,
@@ -329,6 +331,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             config_adopter=ConfigAdoptionService(
                 state_store=state_store,
                 config_inspector=config_inspector,
+                mutation_lock=mutation_lock,
+            ),
+            state_recovery_manager=StateRecoveryService(
+                source=JsonStateRecoverySource(arguments.state_file),
                 mutation_lock=mutation_lock,
             ),
         ),
