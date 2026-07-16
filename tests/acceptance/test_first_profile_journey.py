@@ -5,6 +5,10 @@ from textual.containers import VerticalScroll
 from textual.widgets import Button, Input, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.host_diagnostics import (
+    HostCondition,
+    HostDiagnosticsReport,
+)
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
@@ -116,6 +120,29 @@ class SlowProfileApplier(RecordingProfileApplier):
         return super().apply_profile(request)
 
 
+class HealthyHostDiagnostics:
+    def inspect(self) -> HostDiagnosticsReport:
+        return HostDiagnosticsReport(
+            condition=HostCondition.HEALTHY,
+            summary="sing-box 服务运行正常",
+            diagnostics="active",
+            recovery_instructions=(),
+        )
+
+
+class UnhealthyHostDiagnostics:
+    def inspect(self) -> HostDiagnosticsReport:
+        return HostDiagnosticsReport(
+            condition=HostCondition.UNHEALTHY,
+            summary="sing-box 服务未通过健康检查",
+            diagnostics="sing-box.service is inactive",
+            recovery_instructions=(
+                "运行 systemctl restart sing-box.service。",
+                "运行 systemctl status sing-box.service --no-pager。",
+            ),
+        )
+
+
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
     app = ManagerApp()
 
@@ -133,6 +160,72 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
 
         assert selection_title.content == "选择适合你的协议"
         assert str(reality_option.label) == "VLESS Reality · 推荐"
+
+
+async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="applied-profile",
+                profile_name="现有配置",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+            ManagedProfile(
+                profile_id="draft-profile",
+                profile_name="待应用配置",
+                protocol=ProtocolKind.SHADOWSOCKS,
+                listen_port=8388,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        host_diagnostics=HealthyHostDiagnostics(),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#runtime-status", Static).content == ("服务状态：运行正常")
+        assert app.screen.query_one("#profile-summary", Static).content == (
+            "配置：1 已应用 · 1 草案"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：先审阅并应用 1 个草案"
+        )
+
+
+async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics() -> None:
+    app = ManagerApp(host_diagnostics=UnhealthyHostDiagnostics())
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#runtime-status", Static).content == ("服务状态：需要检查")
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：先检查 sing-box 服务，再进行配置变更"
+        )
+        assert str(app.screen.query_one("#view-diagnostics", Button).label) == "查看诊断"
+
+        await pilot.click("#view-diagnostics")
+
+        assert app.screen.query_one("#diagnostics-title", Static).content == "主机诊断"
+        assert app.screen.query_one("#diagnostics-summary", Static).content == (
+            "sing-box 服务未通过健康检查"
+        )
+        assert app.screen.query_one("#diagnostics-details", Static).content == (
+            "sing-box.service is inactive"
+        )
+        assert app.screen.query_one("#diagnostics-recovery-0", Static).content == (
+            "1. 运行 systemctl restart sing-box.service。"
+        )
 
 
 async def test_operator_gets_a_guided_reality_form() -> None:

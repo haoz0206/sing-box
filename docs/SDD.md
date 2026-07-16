@@ -530,6 +530,10 @@ Current implementation status (2026-07-16):
 - persisted operator journey: reopening the TUI exposes an apply action for
   each draft and carries its stable profile ID plus current desired-state
   revision into the existing confirmation and background apply flow;
+- host diagnostics: the dashboard performs a read-only systemd/OpenRC health
+  observation in a Textual worker, reports applied/draft counts and the safest
+  next action, and exposes typed diagnostics plus recovery guidance without
+  parsing subprocess output in the UI;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

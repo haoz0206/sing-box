@@ -24,6 +24,7 @@ from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
 from sb_manager.application.core_update import CoreUpdateService
+from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.protocols.catalog import (
@@ -199,6 +200,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     manager = Manager(state_store=state_store, mutation_lock=mutation_lock)
+    runtime = create_runtime(
+        runtime_kind=RuntimeKind(arguments.runtime),
+        binary=arguments.runtime_binary,
+        service_name=arguments.service_name,
+    )
     applier: ConfigurationApplier
     if arguments.apply_mode == "privileged":
         applier = PrivilegedConfigurationApplier(
@@ -206,11 +212,6 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             helper_command=privileged_helper_command,
         )
     else:
-        runtime = create_runtime(
-            runtime_kind=RuntimeKind(arguments.runtime),
-            binary=arguments.runtime_binary,
-            service_name=arguments.service_name,
-        )
         applier = ApplyCoordinator(
             config_path=arguments.config_file,
             stager=ConfigurationStager(parent=arguments.staging_dir),
@@ -236,6 +237,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
+        host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
     )
 
 

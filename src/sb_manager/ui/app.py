@@ -18,6 +18,11 @@ from sb_manager.application.core_update import (
     CoreUpdateResult,
     PlanCoreUpdateRequest,
 )
+from sb_manager.application.host_diagnostics import (
+    HostCondition,
+    HostDiagnostics,
+    HostDiagnosticsReport,
+)
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
@@ -157,6 +162,35 @@ VMESS_GRPC_PROFILE = GuidedProfileDefinition(
     uses_tls=True,
     uses_grpc=True,
 )
+
+
+class HostDiagnosticsScreen(Screen[None]):
+    """Present one typed host observation with operator recovery guidance."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def __init__(self, report: HostDiagnosticsReport) -> None:
+        super().__init__()
+        self.report = report
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="host-diagnostics"):
+            yield Static("主机诊断", id="diagnostics-title")
+            yield Static(self.report.summary, id="diagnostics-summary")
+            yield Static(
+                self.report.diagnostics or "运行时未提供详细信息", id="diagnostics-details"
+            )
+            if self.report.recovery_instructions:
+                yield Static("建议的恢复步骤", id="diagnostics-recovery-title")
+                for index, instruction in enumerate(self.report.recovery_instructions):
+                    yield Static(
+                        f"{index + 1}. {instruction}",
+                        id=f"diagnostics-recovery-{index}",
+                    )
+            else:
+                yield Static("当前无需恢复操作。", id="diagnostics-recovery-empty")
+        yield Footer()
 
 
 class ApplyResultScreen(Screen[None]):
@@ -967,7 +1001,7 @@ class ManagerApp(App[None]):
     #vless-grpc-form,
     #vmess-websocket-form,
     #vmess-grpc-form,
-    #plan-preview, #draft-saved, #apply-confirmation, #apply-result,
+    #plan-preview, #draft-saved, #apply-confirmation, #apply-result, #host-diagnostics,
     #core-update-form, #core-update-plan, #core-update-result, #core-update-error {
         width: 72;
         max-width: 90%;
@@ -987,7 +1021,7 @@ class ManagerApp(App[None]):
     #vless-grpc-form-title,
     #vmess-websocket-form-title,
     #vmess-grpc-form-title,
-    #draft-saved-title {
+    #draft-saved-title, #diagnostics-title {
         margin-bottom: 1;
         text-style: bold;
     }
@@ -1020,18 +1054,49 @@ class ManagerApp(App[None]):
         manager: Manager | None = None,
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
+        host_diagnostics: HostDiagnostics | None = None,
     ) -> None:
         super().__init__()
         self.manager = manager or Manager(state_store=MemoryStateStore())
         self.profile_applier = profile_applier
         self.core_updater = core_updater
+        self.host_diagnostics = host_diagnostics
+        self.host_diagnostics_report: HostDiagnosticsReport | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
         installation = self.manager.get_installation()
+        applied_profiles = sum(
+            profile.status is ProfileStatus.APPLIED for profile in installation.profiles
+        )
+        draft_profiles = sum(
+            profile.status is ProfileStatus.DRAFT for profile in installation.profiles
+        )
+        runtime_status = (
+            "服务状态：正在检查…"
+            if self.host_diagnostics is not None
+            else "服务状态：未启用主机检查"
+        )
+        next_action = (
+            f"建议：先审阅并应用 {draft_profiles} 个草案"
+            if draft_profiles
+            else (
+                "建议：创建第一个配置"
+                if not installation.profiles
+                else "建议：配置已应用，确认服务状态"
+            )
+        )
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
                 yield Static("代理配置", id="profile-list-title")
+                yield Static(runtime_status, id="runtime-status")
+                yield Static(
+                    f"配置：{applied_profiles} 已应用 · {draft_profiles} 草案",
+                    id="profile-summary",
+                )
+                yield Static(next_action, id="dashboard-next-action")
+                if self.host_diagnostics is not None:
+                    yield Button("查看诊断", id="view-diagnostics", disabled=True)
                 for index, profile in enumerate(installation.profiles):
                     port = (
                         "自动选择端口"
@@ -1068,6 +1133,11 @@ class ManagerApp(App[None]):
         else:
             with Vertical(id="dashboard-empty"):
                 yield Static("尚未创建代理配置", id="empty-state-title")
+                yield Static(runtime_status, id="runtime-status")
+                yield Static("配置：0 已应用 · 0 草案", id="profile-summary")
+                yield Static(next_action, id="dashboard-next-action")
+                if self.host_diagnostics is not None:
+                    yield Button("查看诊断", id="view-diagnostics", disabled=True)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
                 yield Button(
                     "创建第一个配置",
@@ -1078,6 +1148,36 @@ class ManagerApp(App[None]):
                 if self.core_updater is not None:
                     yield Button("安装或升级 sing-box 核心", id="manage-core")
         yield Footer()
+
+    def on_mount(self) -> None:
+        if self.host_diagnostics is not None:
+            self.load_host_diagnostics()
+
+    @work(thread=True, exclusive=True)
+    def load_host_diagnostics(self) -> None:
+        if self.host_diagnostics is None:
+            return
+        report = self.host_diagnostics.inspect()
+        self.call_from_thread(self.show_host_diagnostics, report)
+
+    def show_host_diagnostics(self, report: HostDiagnosticsReport) -> None:
+        self.host_diagnostics_report = report
+        status = (
+            "服务状态：运行正常"
+            if report.condition is HostCondition.HEALTHY
+            else "服务状态：需要检查"
+        )
+        self.query_one("#runtime-status", Static).update(status)
+        self.query_one("#view-diagnostics", Button).disabled = False
+        if report.condition is HostCondition.UNHEALTHY:
+            self.query_one("#dashboard-next-action", Static).update(
+                "建议：先检查 sing-box 服务，再进行配置变更"
+            )
+
+    @on(Button.Pressed, "#view-diagnostics")
+    def open_host_diagnostics(self) -> None:
+        if self.host_diagnostics_report is not None:
+            self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report))
 
     @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:
