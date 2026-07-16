@@ -278,24 +278,36 @@ class ApplyConfirmationScreen(Screen[None]):
                 "将写入 sing-box 配置并刷新服务，失败时自动回滚。",
                 id="apply-confirm-warning",
             )
+            yield Static("", id="apply-progress")
             yield Button("确认并应用", id="confirm-apply", variant="error")
         yield Footer()
 
     @on(Button.Pressed, "#confirm-apply")
     def confirm_apply(self) -> None:
         profile = self.installation.profiles[-1]
-        try:
-            result = self.profile_applier.apply_profile(
-                ApplyProfileRequest(
-                    profile_id=profile.profile_id,
-                    expected_revision=self.installation.revision,
-                    confirmed=True,
-                )
+        self.query_one("#confirm-apply", Button).disabled = True
+        self.query_one("#apply-progress", Static).update(
+            "正在校验、提交并检查服务健康状态; 请勿关闭程序。"
+        )
+        self.execute_apply(
+            ApplyProfileRequest(
+                profile_id=profile.profile_id,
+                expected_revision=self.installation.revision,
+                confirmed=True,
             )
+        )
+
+    @work(thread=True, exclusive=True)
+    def execute_apply(self, request: ApplyProfileRequest) -> None:
+        try:
+            result = self.profile_applier.apply_profile(request)
         except ConfigurationApplyError as error:
-            self.app.push_screen(ApplyOperationalErrorScreen(str(error)))
+            self.app.call_from_thread(
+                self.app.push_screen,
+                ApplyOperationalErrorScreen(str(error)),
+            )
             return
-        self.app.push_screen(ApplyResultScreen(result))
+        self.app.call_from_thread(self.app.push_screen, ApplyResultScreen(result))
 
 
 class DraftSavedScreen(Screen[None]):

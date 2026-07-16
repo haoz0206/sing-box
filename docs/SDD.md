@@ -345,7 +345,10 @@ activation result.
 ADR-0004 defines a single-shot, root-only, no-network helper with versioned JSON
 requests and fixed root-owned paths. It exposes allowlisted domain operations,
 not arbitrary commands or destinations. The interactive manager stays
-unprivileged and relies on operator-managed sudo/doas/polkit authorization.
+unprivileged and relies on operator-managed sudo/doas authorization. Blocking
+configuration validation, helper execution, runtime refresh, and health checks
+run in a Textual thread worker; only progress and screen transitions run on the
+UI thread, and duplicate confirmation is disabled while work is active.
 
 ## 8. Python project layout
 

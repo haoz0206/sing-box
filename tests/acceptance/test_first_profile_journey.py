@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 from textual.containers import VerticalScroll
@@ -107,6 +108,12 @@ class UnavailableProfileApplier:
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         raise ConfigurationApplyError("sudo authorization denied")
+
+
+class SlowProfileApplier(RecordingProfileApplier):
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        time.sleep(0.2)
+        return super().apply_profile(request)
 
 
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
@@ -341,6 +348,28 @@ async def test_operator_explicitly_confirms_apply_and_sees_success() -> None:
             "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
             "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
         )
+
+
+async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation() -> None:
+    app = ManagerApp(profile_applier=SlowProfileApplier())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "后台应用"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+
+        assert app.screen.query_one("#apply-progress", Static).content == (
+            "正在校验、提交并检查服务健康状态; 请勿关闭程序。"
+        )
+        assert app.screen.query_one("#confirm-apply", Button).disabled is True
+        await pilot.pause(0.3)
+
+        assert app.screen.query_one("#apply-result-title", Static).content == "应用成功"
 
 
 async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None:
