@@ -125,13 +125,14 @@ def test_apply_config_request_cannot_select_host_policy_and_returns_outcome() ->
     assert json.loads(result) == {
         "schema_version": 1,
         "status": "applied",
-        "outcome": "applied",
-        "diagnostics": [
-            "configuration valid",
-            "configuration committed",
-            "service refreshed",
-            "service active",
-        ],
+        "transaction": {
+            "outcome": "applied",
+            "validation": {"valid": True, "diagnostics": "configuration valid"},
+            "commit": {"success": True, "diagnostics": "configuration committed"},
+            "runtime_refresh": {"success": True, "diagnostics": "service refreshed"},
+            "postcondition": {"healthy": True, "diagnostics": "service active"},
+            "rollback": None,
+        },
     }
 
 

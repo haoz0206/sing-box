@@ -61,6 +61,55 @@ def _write_fake_systemctl(tmp_path: Path) -> Path:
     return binary
 
 
+def _write_fake_privilege_runner(tmp_path: Path) -> Path:
+    runner = tmp_path / "privilege-runner"
+    runner.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os\n"
+        "import sys\n"
+        "if sys.argv[1] != '-n':\n"
+        "    raise SystemExit(2)\n"
+        "os.execv(sys.argv[2], sys.argv[2:])\n",
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    return runner
+
+
+def _write_fake_privileged_helper(
+    tmp_path: Path,
+    incoming_directory: Path,
+) -> tuple[Path, Path]:
+    helper = tmp_path / "privileged-helper"
+    log_path = tmp_path / "privileged-document.json"
+    response = {
+        "schema_version": 1,
+        "status": "applied",
+        "transaction": {
+            "outcome": "applied",
+            "validation": {"valid": True, "diagnostics": "configuration valid"},
+            "commit": {"success": True, "diagnostics": "configuration committed"},
+            "runtime_refresh": {"success": True, "diagnostics": "service refreshed"},
+            "postcondition": {"healthy": True, "diagnostics": "service active"},
+            "rollback": None,
+        },
+    }
+    helper.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json\n"
+        "import sys\n"
+        "from pathlib import Path\n"
+        "request = json.load(sys.stdin)\n"
+        f"incoming = Path({str(incoming_directory)!r})\n"
+        "config = incoming / f\"config-{request['sha256']}.json\"\n"
+        f"Path({str(log_path)!r}).write_text(config.read_text(), encoding='utf-8')\n"
+        f"print({json.dumps(response)!r})\n",
+        encoding="utf-8",
+    )
+    helper.chmod(0o755)
+    return helper, log_path
+
+
 def _create_isolated_app(tmp_path: Path) -> tuple[ManagerApp, Path, Path]:
     state_path = tmp_path / "state/state.json"
     config_path = tmp_path / "etc/sing-box/config.json"
@@ -126,6 +175,54 @@ def test_cli_composes_a_complete_isolated_apply_path(tmp_path: Path) -> None:
     assert installation.profiles[0].status is ProfileStatus.APPLIED
     assert installation.profiles[0].protocol_material is not None
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == "profile-1"
+
+
+def test_cli_routes_privileged_apply_through_helper_without_direct_host_write(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "state/state.json"
+    direct_config_path = tmp_path / "must-not-write/config.json"
+    incoming_directory = tmp_path / "incoming"
+    helper, helper_log = _write_fake_privileged_helper(tmp_path, incoming_directory)
+    app = create_app(
+        [
+            "--state-file",
+            str(state_path),
+            "--config-file",
+            str(direct_config_path),
+            "--apply-mode",
+            "privileged",
+            "--privilege-runner",
+            str(_write_fake_privilege_runner(tmp_path)),
+            "--privileged-helper-binary",
+            str(helper),
+            "--privileged-incoming-dir",
+            str(incoming_directory),
+        ]
+    )
+    listen_port = SocketPortSource().choose_available()
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="受限应用",
+            protocol=ProtocolKind.SHADOWSOCKS,
+            listen_port=listen_port,
+        )
+    )
+    app.manager.save_profile_draft(plan)
+
+    assert app.profile_applier is not None
+    result = app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert result.committed_revision == EXPECTED_APPLIED_REVISION
+    assert not direct_config_path.exists()
+    helper_document = json.loads(helper_log.read_text(encoding="utf-8"))
+    assert helper_document["inbounds"][0]["type"] == "shadowsocks"
 
 
 def test_cli_composes_a_complete_shadowsocks_apply_path(tmp_path: Path) -> None:

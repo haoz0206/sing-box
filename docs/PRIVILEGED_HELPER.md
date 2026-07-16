@@ -77,4 +77,14 @@ lock. On an active systemd host the helper uses
 `/sbin/rc-service sing-box`. It reuses the transactional validator, atomic
 commit, health check, and rollback behavior.
 
-The unprivileged TUI client and operator authorization packaging remain pending.
+The unprivileged TUI client is available through:
+
+```bash
+sb-manager --apply-mode privileged
+```
+
+It writes deterministic mode-`0600` incoming JSON, sends only its SHA-256 to
+the helper, restores the typed transaction response, and removes the incoming
+file. The privilege runner is always invoked with `-n`, so missing
+authorization fails instead of opening a hidden password prompt inside the TUI.
+Operator authorization packaging and supported-host execution remain pending.

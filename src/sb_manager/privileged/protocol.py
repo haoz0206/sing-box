@@ -142,22 +142,50 @@ def _required_sha256(request: dict[str, object]) -> str:
 
 
 def _serialize_config_result(result: ApplyTransactionResult) -> str:
-    diagnostics = [result.validation.diagnostics]
-    if result.commit is not None:
-        diagnostics.append(result.commit.diagnostics)
-    if result.runtime_refresh is not None:
-        diagnostics.append(result.runtime_refresh.diagnostics)
-    if result.postcondition is not None:
-        diagnostics.append(result.postcondition.diagnostics)
-    if result.rollback is not None:
-        diagnostics.append(result.rollback.diagnostics)
-        diagnostics.extend(result.rollback.recovery_instructions)
     return json.dumps(
         {
             "schema_version": REQUEST_SCHEMA_VERSION,
             "status": "applied" if result.outcome is ApplyOutcome.APPLIED else "rejected",
-            "outcome": result.outcome.value,
-            "diagnostics": [diagnostic for diagnostic in diagnostics if diagnostic],
+            "transaction": {
+                "outcome": result.outcome.value,
+                "validation": {
+                    "valid": result.validation.valid,
+                    "diagnostics": result.validation.diagnostics,
+                },
+                "commit": (
+                    {
+                        "success": result.commit.success,
+                        "diagnostics": result.commit.diagnostics,
+                    }
+                    if result.commit is not None
+                    else None
+                ),
+                "runtime_refresh": (
+                    {
+                        "success": result.runtime_refresh.success,
+                        "diagnostics": result.runtime_refresh.diagnostics,
+                    }
+                    if result.runtime_refresh is not None
+                    else None
+                ),
+                "postcondition": (
+                    {
+                        "healthy": result.postcondition.healthy,
+                        "diagnostics": result.postcondition.diagnostics,
+                    }
+                    if result.postcondition is not None
+                    else None
+                ),
+                "rollback": (
+                    {
+                        "success": result.rollback.success,
+                        "diagnostics": result.rollback.diagnostics,
+                        "recovery_instructions": list(result.rollback.recovery_instructions),
+                    }
+                    if result.rollback is not None
+                    else None
+                ),
+            },
         },
         sort_keys=True,
     )

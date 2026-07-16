@@ -9,6 +9,7 @@ from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
+from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
 from sb_manager.adapters.reality_material import SingBoxRealityMaterialSource
 from sb_manager.adapters.secure_random import SecureRandomSource
 from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSource
@@ -32,6 +33,7 @@ from sb_manager.protocols.catalog import (
     VlessTlsHandler,
     VmessTlsHandler,
 )
+from sb_manager.seams.configuration_applier import ConfigurationApplier
 from sb_manager.seams.runtime import Runtime, RuntimeKind
 from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCatalog
 from sb_manager.transactions.apply import ApplyCoordinator
@@ -139,6 +141,30 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         help="sing-box 可执行文件",
     )
     parser.add_argument(
+        "--apply-mode",
+        choices=("direct", "privileged"),
+        default="direct",
+        help="直接应用或通过最小权限 helper 应用",
+    )
+    parser.add_argument(
+        "--privilege-runner",
+        type=Path,
+        default=Path("/usr/bin/sudo"),
+        help="调用 root helper 的 sudo 或 doas 绝对路径",
+    )
+    parser.add_argument(
+        "--privileged-helper-binary",
+        type=Path,
+        default=Path("/opt/sing-box-manager/venv/bin/sb-manager-privileged"),
+        help="root-owned privileged helper 绝对路径",
+    )
+    parser.add_argument(
+        "--privileged-incoming-dir",
+        type=Path,
+        default=Path("/var/lib/sing-box-manager/incoming"),
+        help="与 privileged helper 共享的 incoming 目录",
+    )
+    parser.add_argument(
         "--runtime",
         choices=tuple(kind.value for kind in RuntimeKind),
         default=RuntimeKind.SYSTEMD.value,
@@ -164,17 +190,28 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     manager = Manager(state_store=state_store, mutation_lock=mutation_lock)
-    runtime = create_runtime(
-        runtime_kind=RuntimeKind(arguments.runtime),
-        binary=arguments.runtime_binary,
-        service_name=arguments.service_name,
-    )
-    applier = ApplyCoordinator(
-        config_path=arguments.config_file,
-        stager=ConfigurationStager(parent=arguments.staging_dir),
-        validator=SingBoxConfigValidator(binary=arguments.sing_box_binary),
-        runtime=runtime,
-    )
+    applier: ConfigurationApplier
+    if arguments.apply_mode == "privileged":
+        applier = PrivilegedConfigurationApplier(
+            incoming_directory=arguments.privileged_incoming_dir,
+            helper_command=(
+                str(arguments.privilege_runner),
+                "-n",
+                str(arguments.privileged_helper_binary),
+            ),
+        )
+    else:
+        runtime = create_runtime(
+            runtime_kind=RuntimeKind(arguments.runtime),
+            binary=arguments.runtime_binary,
+            service_name=arguments.service_name,
+        )
+        applier = ApplyCoordinator(
+            config_path=arguments.config_file,
+            stager=ConfigurationStager(parent=arguments.staging_dir),
+            validator=SingBoxConfigValidator(binary=arguments.sing_box_binary),
+            runtime=runtime,
+        )
     profile_applier = ProfileApplyService(
         state_store=state_store,
         protocol_catalog=create_protocol_catalog(

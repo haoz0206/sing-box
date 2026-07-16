@@ -16,6 +16,7 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.protocols.catalog import ProfileConnectionInfo
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import (
@@ -98,6 +99,12 @@ class CommitFailingProfileApplier:
             ),
             committed_revision=None,
         )
+
+
+class UnavailableProfileApplier:
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        raise ConfigurationApplyError("sudo authorization denied")
 
 
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
@@ -360,6 +367,32 @@ async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None
         )
         assert app.screen.query_one("#recovery-step-1", Static).content == (
             "2. 运行 systemctl restart sing-box.service。"
+        )
+
+
+async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown() -> None:
+    app = ManagerApp(profile_applier=UnavailableProfileApplier())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        await pilot.click("#protocol-vless-reality")
+        await pilot.click("#profile-name")
+        await pilot.press("手", "机")
+        await pilot.click("#listen-port")
+        await pilot.press("4", "4", "3", "3")
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+
+        assert app.screen.query_one("#apply-error-title", Static).content == (
+            "无法确认服务器变更结果"
+        )
+        assert app.screen.query_one("#apply-error-details", Static).content == (
+            "sudo authorization denied"
+        )
+        assert app.screen.query_one("#apply-error-safety", Static).content == (
+            "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。"
         )
 
 

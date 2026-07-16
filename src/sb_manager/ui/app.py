@@ -31,6 +31,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
@@ -219,6 +220,27 @@ class ApplyResultScreen(Screen[None]):
         yield Footer()
 
 
+class ApplyOperationalErrorScreen(Screen[None]):
+    """Explain an unknown host result without claiming that no mutation occurred."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def __init__(self, diagnostics: str) -> None:
+        super().__init__()
+        self.diagnostics = diagnostics
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="apply-operational-error"):
+            yield Static("无法确认服务器变更结果", id="apply-error-title")
+            yield Static(self.diagnostics, id="apply-error-details")
+            yield Static(
+                "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。",
+                id="apply-error-safety",
+            )
+        yield Footer()
+
+
 class ApplyConfirmationScreen(Screen[None]):
     """Require a second explicit action before host mutation."""
 
@@ -249,13 +271,17 @@ class ApplyConfirmationScreen(Screen[None]):
     @on(Button.Pressed, "#confirm-apply")
     def confirm_apply(self) -> None:
         profile = self.installation.profiles[-1]
-        result = self.profile_applier.apply_profile(
-            ApplyProfileRequest(
-                profile_id=profile.profile_id,
-                expected_revision=self.installation.revision,
-                confirmed=True,
+        try:
+            result = self.profile_applier.apply_profile(
+                ApplyProfileRequest(
+                    profile_id=profile.profile_id,
+                    expected_revision=self.installation.revision,
+                    confirmed=True,
+                )
             )
-        )
+        except ConfigurationApplyError as error:
+            self.app.push_screen(ApplyOperationalErrorScreen(str(error)))
+            return
         self.app.push_screen(ApplyResultScreen(result))
 
 

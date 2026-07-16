@@ -20,7 +20,7 @@
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback，但 unprivileged TUI client 尚未接入，Caddy 工作流也未完成。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 可通过显式 privileged apply 模式调用它。Caddy 工作流仍未完成；引导式 TLS 表单目前只开放 ACME，运维证书文件已经由后端支持但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要 root-owned 安装/授权验收与受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 
@@ -31,6 +31,14 @@ python -m venv .venv
 .venv/bin/pip install -e '.[dev]'
 .venv/bin/sb-manager
 ```
+
+在完成 [权限 helper 部署约束](docs/PRIVILEGED_HELPER.md) 后，主机应用应显式使用最小权限模式：
+
+```bash
+.venv/bin/sb-manager --apply-mode privileged
+```
+
+该模式以非交互 `-n` 调用默认 `/usr/bin/sudo` 和 root-owned helper。开发隔离根或已有完整权限的进程可继续使用默认 `direct` 模式。
 
 默认状态文件为 `~/.local/state/sing-box-manager/state.json`。开发或隔离测试时可指定其他位置：
 

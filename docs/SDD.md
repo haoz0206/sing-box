@@ -509,8 +509,12 @@ Current implementation status (2026-07-16):
 - privileged configuration seam: a SHA-256-only request selects a derived
   incoming filename and fixed config/core/runtime/lock policy, then reuses
   validation, atomic commit, health, and rollback transactions;
-- pending privileged work: the unprivileged TUI client and operator-owned
-  authorization packaging;
+- unprivileged client: explicit privileged apply mode stages deterministic
+  mode-`0600` JSON, sends a SHA-256-only request through a non-interactive
+  runner, strictly restores the typed transaction, and surfaces unknown host
+  results without committing desired state;
+- pending privileged work: operator-owned authorization packaging and
+  supported-host execution;
 - pending: the stable sing-box 1.14 release and execution of that harness on
   every supported host family.
 
