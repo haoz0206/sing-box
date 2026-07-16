@@ -14,6 +14,10 @@ from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
 )
+from sb_manager.application.profile_details import (
+    ProfileDetails,
+    ProfileDetailsNotFoundError,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -141,6 +145,29 @@ class UnhealthyHostDiagnostics:
                 "运行 systemctl status sing-box.service --no-pager。",
             ),
         )
+
+
+class FixedProfileDetailsReader:
+    def get_profile_details(self, profile_id: str) -> ProfileDetails:
+        assert profile_id == "profile-1"
+        return ProfileDetails(
+            profile_id="profile-1",
+            profile_name="手机",
+            protocol=ProtocolKind.VLESS_REALITY,
+            status=ProfileStatus.APPLIED,
+            listen_port=4433,
+            server_address="vpn.example.com",
+            connection_info=ProfileConnectionInfo(
+                server_address="vpn.example.com",
+                server_port=4433,
+                share_uri="vless://saved-connection-link",
+            ),
+        )
+
+
+class MissingProfileDetailsReader:
+    def get_profile_details(self, profile_id: str) -> ProfileDetails:
+        raise ProfileDetailsNotFoundError(profile_id)
 
 
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
@@ -416,6 +443,72 @@ async def test_operator_sees_applied_status_after_reopening_the_tui() -> None:
     async with app.run_test():
         assert app.screen.query_one("#profile-0", Static).content == (
             "手机 · VLESS Reality · 已应用 · 端口 4433"
+        )
+
+
+async def test_operator_can_reopen_an_applied_profile_and_retrieve_its_share_uri() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-1",
+                profile_name="手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_details_reader=FixedProfileDetailsReader(),
+    )
+
+    async with app.run_test() as pilot:
+        assert str(app.screen.query_one("#view-profile-0", Button).label) == "查看详情"
+
+        await pilot.click("#view-profile-0")
+
+        assert app.screen.query_one("#profile-details-title", Static).content == "配置详情"
+        assert app.screen.query_one("#profile-details-name", Static).content == "名称：手机"
+        assert app.screen.query_one("#profile-details-endpoint", Static).content == (
+            "服务器：vpn.example.com:4433"
+        )
+        assert app.screen.query_one("#profile-details-share-uri", Input).value == (
+            "vless://saved-connection-link"
+        )
+
+
+async def test_profile_detail_lookup_failure_is_presented_without_crashing_the_tui() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-1",
+                profile_name="已被其他会话删除",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_details_reader=MissingProfileDetailsReader(),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+
+        assert app.screen.query_one("#profile-details-error-title", Static).content == (
+            "无法打开配置详情"
+        )
+        assert app.screen.query_one("#profile-details-error-message", Static).content == (
+            "配置可能已被另一个会话修改，请返回后重新打开列表。"
         )
 
 

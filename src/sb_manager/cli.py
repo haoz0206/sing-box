@@ -27,6 +27,7 @@ from sb_manager.application.core_update import CoreUpdateService
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
+from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
     Hysteria2Handler,
@@ -218,12 +219,13 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             validator=SingBoxConfigValidator(binary=arguments.sing_box_binary),
             runtime=runtime,
         )
+    protocol_catalog = create_protocol_catalog(
+        sing_box_binary=arguments.sing_box_binary,
+        reality_server_name=arguments.reality_server_name,
+    )
     profile_applier = ProfileApplyService(
         state_store=state_store,
-        protocol_catalog=create_protocol_catalog(
-            sing_box_binary=arguments.sing_box_binary,
-            reality_server_name=arguments.reality_server_name,
-        ),
+        protocol_catalog=protocol_catalog,
         port_source=SocketPortSource(),
         applier=applier,
         apply_lock=mutation_lock,
@@ -238,6 +240,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         profile_applier=profile_applier,
         core_updater=core_updater,
         host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
+        profile_details_reader=ProfileDetailsService(
+            state_store=state_store,
+            protocol_catalog=protocol_catalog,
+        ),
     )
 
 

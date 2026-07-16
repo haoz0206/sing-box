@@ -41,6 +41,11 @@ from sb_manager.application.profile_apply import (
     ApplyProfileResult,
     ProfileApplier,
 )
+from sb_manager.application.profile_details import (
+    ProfileDetails,
+    ProfileDetailsError,
+    ProfileDetailsReader,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     PortSelection,
@@ -162,6 +167,16 @@ VMESS_GRPC_PROFILE = GuidedProfileDefinition(
     uses_tls=True,
     uses_grpc=True,
 )
+PROTOCOL_LABELS: dict[ProtocolKind, str] = {
+    ProtocolKind.VLESS_REALITY: "VLESS Reality",
+    ProtocolKind.SHADOWSOCKS: "Shadowsocks 2022",
+    ProtocolKind.HYSTERIA2: "Hysteria2",
+    ProtocolKind.TROJAN: "Trojan",
+    ProtocolKind.ANYTLS: "AnyTLS",
+    ProtocolKind.TUIC: "TUIC",
+    ProtocolKind.VLESS_TLS: "VLESS TLS",
+    ProtocolKind.VMESS_TLS: "VMess TLS",
+}
 
 
 class HostDiagnosticsScreen(Screen[None]):
@@ -190,6 +205,60 @@ class HostDiagnosticsScreen(Screen[None]):
                     )
             else:
                 yield Static("当前无需恢复操作。", id="diagnostics-recovery-empty")
+        yield Footer()
+
+
+class ProfileDetailsScreen(Screen[None]):
+    """Present durable profile identity and reusable client information."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def __init__(self, details: ProfileDetails) -> None:
+        super().__init__()
+        self.details = details
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-details"):
+            yield Static("配置详情", id="profile-details-title")
+            yield Static(f"名称：{self.details.profile_name}", id="profile-details-name")
+            yield Static(
+                f"协议：{PROTOCOL_LABELS[self.details.protocol]}",
+                id="profile-details-protocol",
+            )
+            status = "已应用" if self.details.status is ProfileStatus.APPLIED else "草案"
+            yield Static(f"状态：{status}", id="profile-details-status")
+            if connection_info := self.details.connection_info:
+                yield Static(
+                    f"服务器：{connection_info.server_address}:{connection_info.server_port}",
+                    id="profile-details-endpoint",
+                )
+                yield Label("连接链接")
+                yield Input(
+                    value=connection_info.share_uri,
+                    id="profile-details-share-uri",
+                )
+            else:
+                yield Static(
+                    "该配置尚无可用连接信息。应用草案并设置服务器地址后生成。",
+                    id="profile-details-no-connection",
+                )
+        yield Footer()
+
+
+class ProfileDetailsErrorScreen(Screen[None]):
+    """Keep stale or incomplete desired state from terminating the TUI."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-details-error"):
+            yield Static("无法打开配置详情", id="profile-details-error-title")
+            yield Static(
+                "配置可能已被另一个会话修改，请返回后重新打开列表。",
+                id="profile-details-error-message",
+            )
         yield Footer()
 
 
@@ -417,17 +486,6 @@ class PlanPreviewScreen(Screen[None]):
         GeneratedValue.VMESS_UUID: "VMess UUID",
         GeneratedValue.TLS_CERTIFICATE: "TLS 证书",
     }
-    PROTOCOL_LABELS: ClassVar[dict[ProtocolKind, str]] = {
-        ProtocolKind.VLESS_REALITY: "VLESS Reality",
-        ProtocolKind.SHADOWSOCKS: "Shadowsocks 2022",
-        ProtocolKind.HYSTERIA2: "Hysteria2",
-        ProtocolKind.TROJAN: "Trojan",
-        ProtocolKind.ANYTLS: "AnyTLS",
-        ProtocolKind.TUIC: "TUIC",
-        ProtocolKind.VLESS_TLS: "VLESS TLS",
-        ProtocolKind.VMESS_TLS: "VMess TLS",
-    }
-
     def __init__(
         self,
         manager: Manager,
@@ -451,7 +509,7 @@ class PlanPreviewScreen(Screen[None]):
             yield Static("确认变更计划", id="plan-title")
             yield Static(f"配置：{self.plan.profile_name}", id="plan-profile")
             yield Static(
-                f"协议：{self.PROTOCOL_LABELS[self.plan.protocol]}",
+                f"协议：{PROTOCOL_LABELS[self.plan.protocol]}",
                 id="plan-protocol",
             )
             yield Static(f"监听端口：{port_summary}", id="plan-port")
@@ -963,16 +1021,6 @@ class ManagerApp(App[None]):
     TITLE = "Sing-box Manager"
     SUB_TITLE = "安全地搭建和维护你的代理服务"
 
-    PROTOCOL_LABELS: ClassVar[dict[ProtocolKind, str]] = {
-        ProtocolKind.VLESS_REALITY: "VLESS Reality",
-        ProtocolKind.SHADOWSOCKS: "Shadowsocks 2022",
-        ProtocolKind.HYSTERIA2: "Hysteria2",
-        ProtocolKind.TROJAN: "Trojan",
-        ProtocolKind.ANYTLS: "AnyTLS",
-        ProtocolKind.TUIC: "TUIC",
-        ProtocolKind.VLESS_TLS: "VLESS TLS",
-        ProtocolKind.VMESS_TLS: "VMess TLS",
-    }
     STATUS_LABELS: ClassVar[dict[ProfileStatus, str]] = {
         ProfileStatus.DRAFT: "草案",
         ProfileStatus.APPLIED: "已应用",
@@ -1002,6 +1050,7 @@ class ManagerApp(App[None]):
     #vmess-websocket-form,
     #vmess-grpc-form,
     #plan-preview, #draft-saved, #apply-confirmation, #apply-result, #host-diagnostics,
+    #profile-details, #profile-details-error,
     #core-update-form, #core-update-plan, #core-update-result, #core-update-error {
         width: 72;
         max-width: 90%;
@@ -1021,7 +1070,8 @@ class ManagerApp(App[None]):
     #vless-grpc-form-title,
     #vmess-websocket-form-title,
     #vmess-grpc-form-title,
-    #draft-saved-title, #diagnostics-title {
+    #draft-saved-title, #diagnostics-title, #profile-details-title,
+    #profile-details-error-title {
         margin-bottom: 1;
         text-style: bold;
     }
@@ -1055,6 +1105,7 @@ class ManagerApp(App[None]):
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
         host_diagnostics: HostDiagnostics | None = None,
+        profile_details_reader: ProfileDetailsReader | None = None,
     ) -> None:
         super().__init__()
         self.manager = manager or Manager(state_store=MemoryStateStore())
@@ -1062,6 +1113,7 @@ class ManagerApp(App[None]):
         self.core_updater = core_updater
         self.host_diagnostics = host_diagnostics
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
+        self.profile_details_reader = profile_details_reader
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1107,13 +1159,20 @@ class ManagerApp(App[None]):
                         " · ".join(
                             (
                                 profile.profile_name,
-                                self.PROTOCOL_LABELS[profile.protocol],
+                                PROTOCOL_LABELS[profile.protocol],
                                 self.STATUS_LABELS[profile.status],
                                 port,
                             )
                         ),
                         id=f"profile-{index}",
                     )
+                    if self.profile_details_reader is not None:
+                        yield Button(
+                            "查看详情",
+                            name=profile.profile_id,
+                            id=f"view-profile-{index}",
+                            classes="view-profile-action",
+                        )
                     if profile.status is ProfileStatus.DRAFT and self.profile_applier is not None:
                         yield Button(
                             "应用草案",
@@ -1205,6 +1264,17 @@ class ManagerApp(App[None]):
                 profile_id=profile.profile_id,
             )
         )
+
+    @on(Button.Pressed, ".view-profile-action")
+    def open_profile_details(self, event: Button.Pressed) -> None:
+        if self.profile_details_reader is None or event.button.name is None:
+            return
+        try:
+            details = self.profile_details_reader.get_profile_details(event.button.name)
+        except ProfileDetailsError:
+            self.push_screen(ProfileDetailsErrorScreen())
+            return
+        self.push_screen(ProfileDetailsScreen(details))
 
     @on(Button.Pressed, "#manage-core")
     def open_core_update(self) -> None:

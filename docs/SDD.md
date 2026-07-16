@@ -534,6 +534,10 @@ Current implementation status (2026-07-16):
   observation in a Textual worker, reports applied/draft counts and the safest
   next action, and exposes typed diagnostics plus recovery guidance without
   parsing subprocess output in the UI;
+- durable profile details: an applied profile can be reopened after restart to
+  reconstruct its endpoint and share URI from persisted desired state through
+  a read-only application query; stale concurrent selections produce a typed
+  error screen instead of terminating the TUI;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on
