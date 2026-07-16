@@ -17,6 +17,7 @@ from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.adapters.systemd_runtime import SystemdRuntime
 from sb_manager.adapters.trojan_material import SecureTrojanMaterialSource
 from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
+from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.protocols.catalog import (
@@ -27,11 +28,13 @@ from sb_manager.protocols.catalog import (
     ShadowsocksHandler,
     TrojanHandler,
     TuicHandler,
+    VlessTlsHandler,
 )
 from sb_manager.seams.runtime import Runtime
 from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCatalog
 from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
+from sb_manager.transports.catalog import TransportCatalog
 from sb_manager.ui.app import ManagerApp
 
 
@@ -161,6 +164,16 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                             OperatorFileTlsHandler(),
                         )
                     ),
+                ),
+                VlessTlsHandler(
+                    material_source=SecureVlessMaterialSource(random_source=SecureRandomSource()),
+                    tls_catalog=TlsCatalog(
+                        (
+                            AcmeTlsHandler(),
+                            OperatorFileTlsHandler(),
+                        )
+                    ),
+                    transport_catalog=TransportCatalog(),
                 ),
             )
         ),

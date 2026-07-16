@@ -13,6 +13,7 @@ from sb_manager.domain.installation import (
 from sb_manager.seams.apply_lock import ApplyLock
 from sb_manager.seams.state_store import StateStore
 from sb_manager.tls.catalog import AcmeTlsIntent, TlsIntent
+from sb_manager.transports.catalog import TransportIntent, WebSocketTransportIntent
 
 MAX_LISTEN_PORT = 65_535
 
@@ -29,6 +30,7 @@ class GeneratedValue(str, Enum):
     ANYTLS_PASSWORD = "anytls-password"
     TUIC_UUID = "tuic-uuid"
     TUIC_PASSWORD = "tuic-password"
+    VLESS_UUID = "vless-uuid"
     TLS_CERTIFICATE = "tls-certificate"
 
 
@@ -56,10 +58,20 @@ GENERATED_VALUES_BY_PROTOCOL: dict[ProtocolKind, tuple[GeneratedValue, ...]] = {
         GeneratedValue.TUIC_PASSWORD,
         GeneratedValue.TLS_CERTIFICATE,
     ),
+    ProtocolKind.VLESS_TLS: (
+        GeneratedValue.VLESS_UUID,
+        GeneratedValue.TLS_CERTIFICATE,
+    ),
 }
 
 TLS_REQUIRED_PROTOCOLS = frozenset(
-    (ProtocolKind.HYSTERIA2, ProtocolKind.TROJAN, ProtocolKind.ANYTLS, ProtocolKind.TUIC)
+    (
+        ProtocolKind.HYSTERIA2,
+        ProtocolKind.TROJAN,
+        ProtocolKind.ANYTLS,
+        ProtocolKind.TUIC,
+        ProtocolKind.VLESS_TLS,
+    )
 )
 
 
@@ -97,6 +109,14 @@ class AcmeTlsRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class WebSocketTransportRequest:
+    """User-facing WebSocket transport inputs."""
+
+    path: str
+    host: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class PlanProfileRequest:
     """Validated operator intent needed to preview a profile."""
 
@@ -105,6 +125,7 @@ class PlanProfileRequest:
     listen_port: int | None
     server_address: str | None = None
     tls: AcmeTlsRequest | None = None
+    transport: WebSocketTransportRequest | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,6 +141,7 @@ class ProfilePlan:
     mutates_host: bool
     server_address: str | None = None
     tls_intent: TlsIntent | None = None
+    transport_intent: TransportIntent | None = None
 
 
 class Manager:
@@ -158,6 +180,13 @@ class Manager:
                     issues.append(
                         ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱")
                     )
+        if request.protocol is ProtocolKind.VLESS_TLS:
+            if request.transport is None:
+                issues.append(ValidationIssue(field="transport", message="请选择传输方式"))
+            elif not request.transport.path.startswith("/"):
+                issues.append(
+                    ValidationIssue(field="websocket_path", message="WebSocket 路径必须以 / 开头")
+                )
         if issues:
             raise PlanValidationError(tuple(issues))
 
@@ -185,6 +214,19 @@ class Manager:
                 if request.tls is not None
                 else None
             ),
+            transport_intent=(
+                WebSocketTransportIntent(
+                    path=request.transport.path.strip(),
+                    host=(
+                        request.transport.host.strip()
+                        if request.transport.host is not None
+                        else None
+                    )
+                    or None,
+                )
+                if request.transport is not None
+                else None
+            ),
         )
 
     def save_profile_draft(self, plan: ProfilePlan) -> None:
@@ -209,6 +251,7 @@ class Manager:
             profile_id=f"profile-{installation.revision + 1}",
             server_address=plan.server_address,
             tls_intent=plan.tls_intent,
+            transport_intent=plan.transport_intent,
         )
         state_store.save(
             ManagedInstallation(

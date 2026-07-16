@@ -18,10 +18,12 @@ from sb_manager.domain.protocol_material import (
     ShadowsocksMaterial,
     TrojanMaterial,
     TuicMaterial,
+    VlessMaterial,
 )
 from sb_manager.protocols.reality import RealityMaterial
 from sb_manager.seams.state_store import UnsupportedStateSchemaError
 from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.transports.catalog import WebSocketTransportIntent
 
 
 def test_json_state_store_survives_reopen(tmp_path: Path) -> None:
@@ -270,6 +272,39 @@ def test_json_state_store_round_trips_tuic_material_and_tls_intent(tmp_path: Pat
                     server_name="vpn.example.com",
                     email="operator@example.com",
                     data_directory=tmp_path / "acme",
+                ),
+            ),
+        ),
+    )
+    state_path = tmp_path / "state.json"
+
+    JsonFileStateStore(state_path).save(expected)
+
+    assert JsonFileStateStore(state_path).load() == expected
+
+
+def test_json_state_store_round_trips_vless_tls_and_websocket_intents(tmp_path: Path) -> None:
+    expected = ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="CDN 兼容",
+                protocol=ProtocolKind.VLESS_TLS,
+                listen_port=443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                protocol_material=VlessMaterial(user_uuid="bf000d23-0752-40b4-affe-68f7707a9661"),
+                server_address="edge.example.com",
+                tls_intent=AcmeTlsIntent(
+                    server_name="vpn.example.com",
+                    email="operator@example.com",
+                    data_directory=tmp_path / "acme",
+                ),
+                transport_intent=WebSocketTransportIntent(
+                    path="/proxy",
+                    host="vpn.example.com",
                 ),
             ),
         ),

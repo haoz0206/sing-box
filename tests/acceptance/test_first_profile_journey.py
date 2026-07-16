@@ -24,6 +24,7 @@ from sb_manager.transactions.apply import (
     CommitResult,
     RollbackResult,
 )
+from sb_manager.transports.catalog import WebSocketTransportIntent
 from sb_manager.ui.app import ManagerApp
 
 
@@ -549,6 +550,46 @@ async def test_operator_can_create_a_tuic_acme_draft(tmp_path) -> None:
         await pilot.click("#save-draft")
         profile = app.manager.get_installation().profiles[0]
         assert profile.protocol is ProtocolKind.TUIC
+
+
+async def test_operator_can_create_a_vless_tls_websocket_draft(tmp_path) -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        acme_data_directory=tmp_path / "acme",
+    )
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        option = app.screen.query_one("#protocol-vless-websocket", Button)
+        assert str(option.label) == "VLESS TLS · WebSocket/CDN"
+        option.press()
+        await pilot.pause()
+
+        assert app.screen.query_one("#vless-websocket-form-title", Static).content == (
+            "配置 VLESS TLS WebSocket"
+        )
+        app.screen.query_one("#profile-name", Input).value = "CDN 兼容"
+        app.screen.query_one("#server-address", Input).value = "edge.example.com"
+        app.screen.query_one("#tls-server-name", Input).value = "vpn.example.com"
+        app.screen.query_one("#tls-email", Input).value = "operator@example.com"
+        app.screen.query_one("#websocket-path", Input).value = "/proxy"
+        app.screen.query_one("#websocket-host", Input).value = "vpn.example.com"
+        app.screen.query_one("#listen-port", Input).value = "443"
+        app.screen.query_one("#preview-plan", Button).press()
+        await pilot.pause()
+
+        assert app.screen.query_one("#plan-protocol", Static).content == "协议：VLESS TLS"
+        assert app.screen.query_one("#plan-transport", Static).content == (
+            "传输：WebSocket · /proxy · Host vpn.example.com"
+        )
+        await pilot.click("#save-draft")
+        profile = app.manager.get_installation().profiles[0]
+        assert profile.protocol is ProtocolKind.VLESS_TLS
+        assert profile.transport_intent == WebSocketTransportIntent(
+            path="/proxy",
+            host="vpn.example.com",
+        )
 
 
 async def test_operator_sees_actionable_configuration_commit_failure() -> None:

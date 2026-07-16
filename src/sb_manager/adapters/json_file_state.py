@@ -21,12 +21,18 @@ from sb_manager.domain.protocol_material import (
     ShadowsocksMaterial,
     TrojanMaterial,
     TuicMaterial,
+    VlessMaterial,
 )
 from sb_manager.seams.state_store import UnsupportedStateSchemaError
 from sb_manager.tls.catalog import (
     AcmeTlsIntent,
     OperatorFileTlsIntent,
     TlsIntent,
+)
+from sb_manager.transports.catalog import (
+    GrpcTransportIntent,
+    TransportIntent,
+    WebSocketTransportIntent,
 )
 
 
@@ -73,6 +79,11 @@ class TaggedTuicMaterialData(TypedDict):
     password: str
 
 
+class TaggedVlessMaterialData(TypedDict):
+    kind: Literal["vless-tls"]
+    user_uuid: str
+
+
 ProtocolMaterialData = (
     TaggedRealityMaterialData
     | TaggedShadowsocksMaterialData
@@ -80,6 +91,7 @@ ProtocolMaterialData = (
     | TaggedTrojanMaterialData
     | TaggedAnyTlsMaterialData
     | TaggedTuicMaterialData
+    | TaggedVlessMaterialData
 )
 
 
@@ -100,6 +112,20 @@ class OperatorFileTlsIntentData(TypedDict):
 TlsIntentData = AcmeTlsIntentData | OperatorFileTlsIntentData
 
 
+class WebSocketTransportIntentData(TypedDict):
+    kind: Literal["websocket"]
+    path: str
+    host: str | None
+
+
+class GrpcTransportIntentData(TypedDict):
+    kind: Literal["grpc"]
+    service_name: str
+
+
+TransportIntentData = WebSocketTransportIntentData | GrpcTransportIntentData
+
+
 class ProfileData(TypedDict):
     profile_id: str
     profile_name: str
@@ -111,6 +137,7 @@ class ProfileData(TypedDict):
     protocol_material: ProtocolMaterialData | None
     server_address: str | None
     tls_intent: TlsIntentData | None
+    transport_intent: TransportIntentData | None
 
 
 class InstallationData(TypedDict):
@@ -213,6 +240,9 @@ class JsonFileStateStore:
                     ),
                     server_address=profile.server_address,
                     tls_intent=JsonFileStateStore._tls_intent_to_data(profile.tls_intent),
+                    transport_intent=JsonFileStateStore._transport_intent_to_data(
+                        profile.transport_intent
+                    ),
                 )
                 for profile in installation.profiles
             ],
@@ -248,6 +278,11 @@ class JsonFileStateStore:
             tls_intent=(
                 JsonFileStateStore._tls_intent_from_data(tls_data)
                 if (tls_data := data.get("tls_intent")) is not None
+                else None
+            ),
+            transport_intent=(
+                JsonFileStateStore._transport_intent_from_data(transport_data)
+                if (transport_data := data.get("transport_intent")) is not None
                 else None
             ),
         )
@@ -289,6 +324,11 @@ class JsonFileStateStore:
                 user_uuid=material.user_uuid,
                 password=material.password,
             )
+        elif isinstance(material, VlessMaterial):
+            data = TaggedVlessMaterialData(
+                kind="vless-tls",
+                user_uuid=material.user_uuid,
+            )
         elif material is None:
             data = None
         else:
@@ -298,22 +338,26 @@ class JsonFileStateStore:
     @staticmethod
     def _material_from_data(data: ProtocolMaterialData) -> ProtocolMaterial:
         if data["kind"] == "vless-reality":
-            return RealityMaterial(
+            material: ProtocolMaterial = RealityMaterial(
                 user_uuid=data["user_uuid"],
                 private_key=data["private_key"],
                 public_key=data["public_key"],
                 short_id=data["short_id"],
                 server_name=data["server_name"],
             )
-        if data["kind"] == "shadowsocks-2022":
-            return ShadowsocksMaterial(password=data["password"])
-        if data["kind"] == "hysteria2":
-            return Hysteria2Material(password=data["password"])
-        if data["kind"] == "trojan":
-            return TrojanMaterial(password=data["password"])
-        if data["kind"] == "anytls":
-            return AnyTlsMaterial(password=data["password"])
-        return TuicMaterial(user_uuid=data["user_uuid"], password=data["password"])
+        elif data["kind"] == "shadowsocks-2022":
+            material = ShadowsocksMaterial(password=data["password"])
+        elif data["kind"] == "hysteria2":
+            material = Hysteria2Material(password=data["password"])
+        elif data["kind"] == "trojan":
+            material = TrojanMaterial(password=data["password"])
+        elif data["kind"] == "anytls":
+            material = AnyTlsMaterial(password=data["password"])
+        elif data["kind"] == "tuic":
+            material = TuicMaterial(user_uuid=data["user_uuid"], password=data["password"])
+        else:
+            material = VlessMaterial(user_uuid=data["user_uuid"])
+        return material
 
     @staticmethod
     def _tls_intent_to_data(intent: TlsIntent | None) -> TlsIntentData | None:
@@ -348,3 +392,23 @@ class JsonFileStateStore:
             certificate_path=Path(data["certificate_path"]),
             key_path=Path(data["key_path"]),
         )
+
+    @staticmethod
+    def _transport_intent_to_data(
+        intent: TransportIntent | None,
+    ) -> TransportIntentData | None:
+        if isinstance(intent, WebSocketTransportIntent):
+            return WebSocketTransportIntentData(
+                kind="websocket",
+                path=intent.path,
+                host=intent.host,
+            )
+        if isinstance(intent, GrpcTransportIntent):
+            return GrpcTransportIntentData(kind="grpc", service_name=intent.service_name)
+        return None
+
+    @staticmethod
+    def _transport_intent_from_data(data: TransportIntentData) -> TransportIntent:
+        if data["kind"] == "websocket":
+            return WebSocketTransportIntent(path=data["path"], host=data["host"])
+        return GrpcTransportIntent(service_name=data["service_name"])

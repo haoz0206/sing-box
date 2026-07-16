@@ -3,7 +3,11 @@ from pathlib import Path
 
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
-from sb_manager.application.manager import AcmeTlsRequest, PlanProfileRequest
+from sb_manager.application.manager import (
+    AcmeTlsRequest,
+    PlanProfileRequest,
+    WebSocketTransportRequest,
+)
 from sb_manager.application.profile_apply import ApplyProfileRequest
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
@@ -18,6 +22,7 @@ from sb_manager.domain.protocol_material import (
     ShadowsocksMaterial,
     TrojanMaterial,
     TuicMaterial,
+    VlessMaterial,
 )
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.ui.app import ManagerApp
@@ -314,3 +319,37 @@ def test_cli_composes_a_complete_tuic_acme_apply_path(tmp_path: Path) -> None:
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["type"] == "tuic"
     assert document["inbounds"][0]["zero_rtt_handshake"] is False
+
+
+def test_cli_composes_a_complete_vless_tls_websocket_apply_path(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="CDN 兼容",
+            protocol=ProtocolKind.VLESS_TLS,
+            listen_port=listen_port,
+            server_address="edge.example.com",
+            tls=AcmeTlsRequest(
+                server_name="vpn.example.com",
+                email="operator@example.com",
+            ),
+            transport=WebSocketTransportRequest(
+                path="/proxy",
+                host="vpn.example.com",
+            ),
+        )
+    )
+    app.manager.save_profile_draft(plan)
+
+    assert app.profile_applier is not None
+    result = app.profile_applier.apply_profile(
+        ApplyProfileRequest(profile_id="profile-1", expected_revision=1, confirmed=True)
+    )
+
+    assert result.committed_revision == EXPECTED_APPLIED_REVISION
+    profile = JsonFileStateStore(state_path).load().profiles[0]
+    assert isinstance(profile.protocol_material, VlessMaterial)
+    document = json.loads(config_path.read_text(encoding="utf-8"))
+    assert document["inbounds"][0]["transport"] == {"type": "ws", "path": "/proxy"}
+    assert document["certificate_providers"][0]["tag"] == "tls-profile-1"

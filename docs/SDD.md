@@ -479,10 +479,10 @@ the release acceptance criteria. It is not translated function by function.
 Current implementation status (2026-07-16):
 
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
-  AnyTLS, TUIC;
+  AnyTLS, TUIC, VLESS TLS WebSocket;
 - shared TLS strategies: sing-box 1.14 ACME certificate providers and
   operator-provided certificate files;
-- pending: VMess/VLESS transport variants and their release-level
+- pending: VMess and VLESS gRPC transport variants and their release-level
   semantic fixtures.
 
 ## 13. Release acceptance criteria

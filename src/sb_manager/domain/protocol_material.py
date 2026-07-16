@@ -51,6 +51,13 @@ class TuicMaterial:
     password: str
 
 
+@dataclass(frozen=True, slots=True)
+class VlessMaterial:
+    """Generated UUID for one transported VLESS profile."""
+
+    user_uuid: str
+
+
 ProtocolMaterial: TypeAlias = (
     RealityMaterial
     | ShadowsocksMaterial
@@ -58,4 +65,5 @@ ProtocolMaterial: TypeAlias = (
     | TrojanMaterial
     | AnyTlsMaterial
     | TuicMaterial
+    | VlessMaterial
 )

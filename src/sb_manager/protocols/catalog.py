@@ -12,6 +12,7 @@ from sb_manager.domain.protocol_material import (
     ShadowsocksMaterial,
     TrojanMaterial,
     TuicMaterial,
+    VlessMaterial,
 )
 from sb_manager.protocols.anytls import (
     AnyTlsConnectionSpec,
@@ -39,13 +40,20 @@ from sb_manager.protocols.trojan import (
     TrojanProtocol,
 )
 from sb_manager.protocols.tuic import TuicConnectionSpec, TuicInboundSpec, TuicProtocol
+from sb_manager.protocols.vless_tls import (
+    VlessTlsConnectionSpec,
+    VlessTlsInboundSpec,
+    VlessTlsProtocol,
+)
 from sb_manager.seams.anytls_material import AnyTlsMaterialSource
 from sb_manager.seams.hysteria2_material import Hysteria2MaterialSource
 from sb_manager.seams.reality_material import RealityMaterialSource
 from sb_manager.seams.shadowsocks_material import ShadowsocksMaterialSource
 from sb_manager.seams.trojan_material import TrojanMaterialSource
 from sb_manager.seams.tuic_material import TuicMaterialSource
+from sb_manager.seams.vless_material import VlessMaterialSource
 from sb_manager.tls.catalog import TlsCatalog
+from sb_manager.transports.catalog import TransportCatalog
 
 
 class UnsupportedProtocolError(ValueError):
@@ -419,6 +427,80 @@ class TuicHandler:
                     user_uuid=material.user_uuid,
                     password=material.password,
                     tls=tls.client,
+                )
+            )
+            connection_info = ProfileConnectionInfo(
+                server_address=specific.server_address,
+                server_port=specific.server_port,
+                share_uri=specific.share_uri,
+            )
+        return MaterializedProfile(
+            profile=applied_profile,
+            inbound=inbound,
+            connection_info=connection_info,
+            certificate_providers=tls.certificate_providers,
+        )
+
+
+class VlessTlsHandler:
+    """Own VLESS material, TLS, transport, and connection behavior."""
+
+    kind = ProtocolKind.VLESS_TLS
+
+    def __init__(
+        self,
+        *,
+        material_source: VlessMaterialSource,
+        tls_catalog: TlsCatalog,
+        transport_catalog: TransportCatalog,
+    ) -> None:
+        self._material_source = material_source
+        self._tls_catalog = tls_catalog
+        self._transport_catalog = transport_catalog
+
+    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+        material = profile.protocol_material
+        if material is None:
+            if profile.status is ProfileStatus.APPLIED:
+                raise IncompleteAppliedProfileError(profile.profile_id)
+            material = self._material_source.generate()
+        if not isinstance(material, VlessMaterial):
+            raise ProtocolMaterialMismatchError(profile.profile_id)
+        if profile.tls_intent is None or profile.transport_intent is None:
+            raise IncompleteAppliedProfileError(f"{profile.profile_id}: TLS/transport intent")
+
+        tls = self._tls_catalog.materialize(
+            profile.tls_intent,
+            tag=f"tls-{profile.profile_id}",
+        )
+        transport = self._transport_catalog.materialize(profile.transport_intent)
+        applied_profile = replace(
+            profile,
+            listen_port=listen_port,
+            status=ProfileStatus.APPLIED,
+            protocol_material=material,
+        )
+        protocol = VlessTlsProtocol()
+        inbound = protocol.build_inbound(
+            VlessTlsInboundSpec(
+                tag=profile.profile_id,
+                profile_name=profile.profile_name,
+                listen_port=listen_port,
+                user_uuid=material.user_uuid,
+                tls=tls.server,
+                transport=transport.server,
+            )
+        )
+        connection_info = None
+        if profile.server_address is not None:
+            specific = protocol.build_connection_info(
+                VlessTlsConnectionSpec(
+                    profile_name=profile.profile_name,
+                    server_address=profile.server_address,
+                    server_port=listen_port,
+                    user_uuid=material.user_uuid,
+                    tls=tls.client,
+                    transport=transport.client,
                 )
             )
             connection_info = ProfileConnectionInfo(

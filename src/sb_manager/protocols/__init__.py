@@ -31,6 +31,12 @@ from sb_manager.protocols.tuic import (
     TuicInboundSpec,
     TuicProtocol,
 )
+from sb_manager.protocols.vless_tls import (
+    VlessTlsConnectionInfo,
+    VlessTlsConnectionSpec,
+    VlessTlsInboundSpec,
+    VlessTlsProtocol,
+)
 
 __all__ = [
     "AnyTlsConnectionInfo",
@@ -58,6 +64,10 @@ __all__ = [
     "TuicConnectionSpec",
     "TuicInboundSpec",
     "TuicProtocol",
+    "VlessTlsConnectionInfo",
+    "VlessTlsConnectionSpec",
+    "VlessTlsInboundSpec",
+    "VlessTlsProtocol",
 ]
 from sb_manager.protocols.anytls import (
     AnyTlsConnectionInfo,

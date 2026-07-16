@@ -16,6 +16,7 @@ from sb_manager.application.manager import (
     PlanProfileRequest,
     PlanValidationError,
     ProfilePlan,
+    WebSocketTransportRequest,
 )
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
@@ -30,6 +31,7 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.transports.catalog import WebSocketTransportIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +45,7 @@ class GuidedProfileDefinition:
     title: str
     guidance: str
     uses_acme: bool = False
+    uses_websocket: bool = False
 
 
 REALITY_PROFILE = GuidedProfileDefinition(
@@ -96,6 +99,16 @@ TUIC_PROFILE = GuidedProfileDefinition(
     title="配置 TUIC",
     guidance="基于 QUIC 的低延迟协议。默认关闭可重放的 0-RTT。",
     uses_acme=True,
+)
+VLESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
+    protocol=ProtocolKind.VLESS_TLS,
+    form_id="vless-websocket-form",
+    title_id="vless-websocket-form-title",
+    guidance_id="vless-websocket-guidance",
+    title="配置 VLESS TLS WebSocket",
+    guidance="适合需要 WebSocket 或 CDN 兼容入口的场景。",
+    uses_acme=True,
+    uses_websocket=True,
 )
 
 
@@ -263,6 +276,7 @@ class PlanPreviewScreen(Screen[None]):
         GeneratedValue.ANYTLS_PASSWORD: "AnyTLS 认证密码",
         GeneratedValue.TUIC_UUID: "TUIC UUID",
         GeneratedValue.TUIC_PASSWORD: "TUIC 认证密码",
+        GeneratedValue.VLESS_UUID: "VLESS UUID",
         GeneratedValue.TLS_CERTIFICATE: "TLS 证书",
     }
     PROTOCOL_LABELS: ClassVar[dict[ProtocolKind, str]] = {
@@ -272,6 +286,7 @@ class PlanPreviewScreen(Screen[None]):
         ProtocolKind.TROJAN: "Trojan",
         ProtocolKind.ANYTLS: "AnyTLS",
         ProtocolKind.TUIC: "TUIC",
+        ProtocolKind.VLESS_TLS: "VLESS TLS",
     }
 
     def __init__(
@@ -312,6 +327,11 @@ class PlanPreviewScreen(Screen[None]):
                     f"{self.plan.tls_intent.server_name} · {self.plan.tls_intent.email}",
                     id="plan-tls",
                 )
+            if isinstance(self.plan.transport_intent, WebSocketTransportIntent):
+                transport_summary = f"传输：WebSocket · {self.plan.transport_intent.path}"
+                if self.plan.transport_intent.host is not None:
+                    transport_summary += f" · Host {self.plan.transport_intent.host}"
+                yield Static(transport_summary, id="plan-transport")
             yield Static(f"自动生成：{generated}", id="plan-generated")
             yield Static("当前仅预览，不会修改服务器。", id="plan-safety")
             yield Button("保存为草案", id="save-draft", variant="primary")
@@ -334,6 +354,7 @@ class GuidedProfileScreen(Screen[None]):
         "listen_port": "#listen-port-error",
         "tls_server_name": "#tls-server-name-error",
         "tls_email": "#tls-email-error",
+        "websocket_path": "#websocket-path-error",
     }
 
     def __init__(
@@ -372,6 +393,12 @@ class GuidedProfileScreen(Screen[None]):
                 yield Label("ACME 联系邮箱", classes="field-label")
                 yield Input(placeholder="例如：operator@example.com", id="tls-email")
                 yield Static("", id="tls-email-error", classes="field-error")
+            if self.definition.uses_websocket:
+                yield Label("WebSocket 路径", classes="field-label")
+                yield Input(placeholder="例如：/proxy", id="websocket-path")
+                yield Static("", id="websocket-path-error", classes="field-error")
+                yield Label("WebSocket Host (可选)", classes="field-label")
+                yield Input(placeholder="例如：vpn.example.com", id="websocket-host")
             yield Label("监听端口", classes="field-label")
             yield Input(placeholder="留空自动选择", id="listen-port", type="integer")
             yield Static("", id="listen-port-error", classes="field-error")
@@ -388,11 +415,19 @@ class GuidedProfileScreen(Screen[None]):
                 server_name=self.query_one("#tls-server-name", Input).value,
                 email=self.query_one("#tls-email", Input).value,
             )
+        transport = None
+        if self.definition.uses_websocket:
+            transport = WebSocketTransportRequest(
+                path=self.query_one("#websocket-path", Input).value,
+                host=self.query_one("#websocket-host", Input).value,
+            )
         port_text = self.query_one("#listen-port", Input).value
         listen_port = int(port_text) if port_text else None
         visible_error_fields = ["profile_name", "listen_port"]
         if self.definition.uses_acme:
             visible_error_fields.extend(("tls_server_name", "tls_email"))
+        if self.definition.uses_websocket:
+            visible_error_fields.append("websocket_path")
         for field in visible_error_fields:
             self.query_one(self.ERROR_SELECTORS[field], Static).update("")
         try:
@@ -403,6 +438,7 @@ class GuidedProfileScreen(Screen[None]):
                     listen_port=listen_port,
                     server_address=server_address,
                     tls=tls,
+                    transport=transport,
                 )
             )
         except PlanValidationError as error:
@@ -454,6 +490,10 @@ class ProtocolSelectionScreen(Screen[None]):
                 id="protocol-anytls",
             )
             yield Button("TUIC · QUIC 低延迟", id="protocol-tuic")
+            yield Button(
+                "VLESS TLS · WebSocket/CDN",
+                id="protocol-vless-websocket",
+            )
         yield Footer()
 
     @on(Button.Pressed, "#protocol-vless-reality")
@@ -490,6 +530,12 @@ class ProtocolSelectionScreen(Screen[None]):
     def open_tuic_form(self) -> None:
         self.app.push_screen(GuidedProfileScreen(self.manager, TUIC_PROFILE, self.profile_applier))
 
+    @on(Button.Pressed, "#protocol-vless-websocket")
+    def open_vless_websocket_form(self) -> None:
+        self.app.push_screen(
+            GuidedProfileScreen(self.manager, VLESS_WEBSOCKET_PROFILE, self.profile_applier)
+        )
+
 
 class ManagerApp(App[None]):
     """Guided terminal manager for sing-box."""
@@ -504,6 +550,7 @@ class ManagerApp(App[None]):
         ProtocolKind.TROJAN: "Trojan",
         ProtocolKind.ANYTLS: "AnyTLS",
         ProtocolKind.TUIC: "TUIC",
+        ProtocolKind.VLESS_TLS: "VLESS TLS",
     }
     STATUS_LABELS: ClassVar[dict[ProfileStatus, str]] = {
         ProfileStatus.DRAFT: "草案",
@@ -529,6 +576,7 @@ class ManagerApp(App[None]):
     #trojan-form,
     #anytls-form,
     #tuic-form,
+    #vless-websocket-form,
     #plan-preview, #draft-saved, #apply-confirmation, #apply-result {
         width: 72;
         max-width: 90%;
@@ -544,6 +592,7 @@ class ManagerApp(App[None]):
     #trojan-form-title,
     #anytls-form-title,
     #tuic-form-title,
+    #vless-websocket-form-title,
     #draft-saved-title {
         margin-bottom: 1;
         text-style: bold;
@@ -562,7 +611,8 @@ class ManagerApp(App[None]):
         width: 100%;
     }
 
-    #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form {
+    #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form,
+    #vless-websocket-form {
         max-height: 90%;
     }
     """

@@ -3,6 +3,7 @@ from enum import Enum
 
 from sb_manager.domain.protocol_material import ProtocolMaterial
 from sb_manager.tls.catalog import TlsIntent
+from sb_manager.transports.catalog import TransportIntent
 
 CURRENT_SCHEMA_VERSION = 1
 
@@ -16,6 +17,7 @@ class ProtocolKind(str, Enum):
     TROJAN = "trojan"
     ANYTLS = "anytls"
     TUIC = "tuic"
+    VLESS_TLS = "vless-tls"
 
 
 class PortSelection(str, Enum):
@@ -45,6 +47,7 @@ class ManagedProfile:
     protocol_material: ProtocolMaterial | None = None
     server_address: str | None = None
     tls_intent: TlsIntent | None = None
+    transport_intent: TransportIntent | None = None
 
 
 @dataclass(frozen=True, slots=True)
