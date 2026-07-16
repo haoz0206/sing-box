@@ -336,6 +336,13 @@ immutable releases, mandatory SHA-256 verification, safe archive inspection,
 and version self-verification occur before the later privileged replacement
 seam.
 
+### 7.8 Privileged helper
+
+ADR-0004 defines a single-shot, root-only, no-network helper with versioned JSON
+requests and fixed root-owned paths. It exposes allowlisted domain operations,
+not arbitrary commands or destinations. The interactive manager stays
+unprivileged and relies on operator-managed sudo/doas/polkit authorization.
+
 ## 8. Python project layout
 
 ```text

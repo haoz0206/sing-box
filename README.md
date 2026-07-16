@@ -55,6 +55,7 @@ python -m venv .venv
 - [Python + Textual 重写决策](docs/adr/0001-python-textual-rewrite.md)
 - [深协议 catalog 决策](docs/adr/0002-deep-protocol-catalog.md)
 - [sing-box 制品信任策略](docs/adr/0003-sing-box-artifact-trust.md)
+- [最小权限 helper 决策](docs/adr/0004-minimal-privileged-helper.md)
 - [支持平台矩阵](docs/SUPPORT.md)
 
 核心数据流为：
