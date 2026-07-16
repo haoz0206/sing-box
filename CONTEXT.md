@@ -96,6 +96,14 @@ valid, invalid, or unavailable evidence without applying the document, and
 redacts persisted protocol material from validator diagnostics.
 _Avoid_: Live configuration identity, apply dry-run, displaying generated JSON
 
+**Public domain resolution**:
+A bounded, read-only DNS observation of normalized public server addresses and
+TLS server names in one desired-state snapshot. Repeated domains resolve once,
+literal IP endpoints are counted without DNS, and partial failures preserve
+successful address evidence. Resolution proves reachability through local DNS,
+not that an address belongs to the managed host.
+_Avoid_: Public IP ownership proof, ACME certificate status, connectivity test
+
 **Live configuration identity**:
 The read-only SHA-256 observation of the configured sing-box target, compared
 with the exact replacement precondition recorded in desired state. It can prove

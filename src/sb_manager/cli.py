@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from sb_manager.adapters.anytls_material import SecureAnyTlsMaterialSource
+from sb_manager.adapters.domain_resolution import BoundedSocketDomainResolutionInspector
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
 from sb_manager.adapters.generated_configuration import (
@@ -34,7 +35,10 @@ from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.core_update import CoreUpdateService
-from sb_manager.application.diagnostics_center import DiagnosticsCenterService
+from sb_manager.application.diagnostics_center import (
+    DiagnosticsCenterInspectors,
+    DiagnosticsCenterService,
+)
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
 from sb_manager.application.host_readiness import (
     HostAccessMode,
@@ -285,10 +289,13 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             diagnostics_center=DiagnosticsCenterService(
                 state_store=state_store,
                 config_inspector=config_inspector,
-                generated_configuration_inspector=ProjectedGeneratedConfigurationInspector(
-                    projector=ManagedConfigurationProjector(protocol_catalog=protocol_catalog),
-                    stager=ConfigurationStager(parent=arguments.staging_dir),
-                    validator=config_validator,
+                inspectors=DiagnosticsCenterInspectors(
+                    generated_configuration=ProjectedGeneratedConfigurationInspector(
+                        projector=ManagedConfigurationProjector(protocol_catalog=protocol_catalog),
+                        stager=ConfigurationStager(parent=arguments.staging_dir),
+                        validator=config_validator,
+                    ),
+                    domain_resolution=BoundedSocketDomainResolutionInspector(timeout_seconds=5),
                 ),
                 host_readiness=host_readiness,
                 host_diagnostics=host_diagnostics,

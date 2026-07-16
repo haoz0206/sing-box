@@ -18,6 +18,10 @@ from sb_manager.seams.config_target import (
     ConfigTargetInspectionError,
     ConfigurationTargetInspector,
 )
+from sb_manager.seams.domain_resolution import (
+    DomainResolutionInspectionError,
+    DomainResolutionInspector,
+)
 from sb_manager.seams.generated_configuration import (
     GeneratedConfigurationInspectionError,
     GeneratedConfigurationInspector,
@@ -46,6 +50,7 @@ class DiagnosticCode(str, Enum):
     DESIRED_STATE = "desired-state"
     LIVE_CONFIGURATION = "live-configuration"
     GENERATED_CONFIGURATION = "generated-configuration"
+    DOMAIN_RESOLUTION = "domain-resolution"
     CONFIG_TARGET = "config-target"
     PRIVILEGED_HELPER = "privileged-helper"
     CORE = "core"
@@ -117,6 +122,17 @@ class DiagnosticsCenter(Protocol):
     def inspect(self) -> DiagnosticsCenterReport: ...
 
 
+@dataclass(frozen=True, slots=True)
+class DiagnosticsCenterInspectors:
+    """Optional evidence sources that extend the stable diagnostics interface."""
+
+    generated_configuration: GeneratedConfigurationInspector | None = None
+    domain_resolution: DomainResolutionInspector | None = None
+
+
+_NO_ADDITIONAL_INSPECTORS = DiagnosticsCenterInspectors()
+
+
 class DiagnosticsCenterService:
     """Translate desired-state, readiness, and runtime evidence into one report."""
 
@@ -125,13 +141,14 @@ class DiagnosticsCenterService:
         *,
         state_store: StateStore,
         config_inspector: ConfigurationTargetInspector,
-        generated_configuration_inspector: GeneratedConfigurationInspector | None = None,
+        inspectors: DiagnosticsCenterInspectors = _NO_ADDITIONAL_INSPECTORS,
         host_readiness: HostReadiness,
         host_diagnostics: HostDiagnostics,
     ) -> None:
         self._state_store = state_store
         self._config_inspector = config_inspector
-        self._generated_configuration_inspector = generated_configuration_inspector
+        self._generated_configuration_inspector = inspectors.generated_configuration
+        self._domain_resolution_inspector = inspectors.domain_resolution
         self._host_readiness = host_readiness
         self._host_diagnostics = host_diagnostics
 
@@ -208,6 +225,8 @@ class DiagnosticsCenterService:
             else:
                 generated_configuration_item = self._inspect_generated_configuration(installation)
             items.append(generated_configuration_item)
+        if self._domain_resolution_inspector is not None and installation is not None:
+            items.append(self._inspect_domain_resolution(installation))
         try:
             runtime = self._host_diagnostics.inspect()
         except (OSError, RuntimeError, ValueError) as error:
@@ -240,6 +259,82 @@ class DiagnosticsCenterService:
                 )
             )
         return DiagnosticsCenterReport(items=tuple(items))
+
+    def _inspect_domain_resolution(
+        self,
+        installation: ManagedInstallation,
+    ) -> DiagnosticItem:
+        inspector = self._domain_resolution_inspector
+        if inspector is None:
+            raise AssertionError("Domain resolution inspector is not configured")
+        try:
+            resolution = inspector.inspect(installation)
+        except DomainResolutionInspectionError as error:
+            return DiagnosticItem(
+                code=DiagnosticCode.DOMAIN_RESOLUTION,
+                condition=DiagnosticCondition.ATTENTION,
+                title="公开域名解析",
+                summary="无法完成公开域名解析检查",
+                diagnostics=str(error),
+                guidance=(
+                    "确认本机 DNS 和网络可用后重新检查。结果未知不会修改 desired state 或运行服务。"
+                ),
+            )
+        unresolved = tuple(result for result in resolution.results if result.error is not None)
+        if unresolved:
+            unresolved_summary = (
+                f"{len(unresolved)} 个公开域名无法解析"
+                if len(unresolved) == len(resolution.results)
+                else f"{len(unresolved)}/{len(resolution.results)} 个公开域名无法解析"
+            )
+            return DiagnosticItem(
+                code=DiagnosticCode.DOMAIN_RESOLUTION,
+                condition=DiagnosticCondition.ATTENTION,
+                title="公开域名解析",
+                summary=unresolved_summary,
+                diagnostics="; ".join(
+                    (
+                        f"{result.domain}：{result.error}"
+                        if result.error is not None
+                        else f"{result.domain} → {', '.join(result.addresses)}"
+                    )
+                    for result in resolution.results
+                ),
+                guidance=("检查域名拼写、A/AAAA 记录和本机 DNS。解析恢复后再签发证书或分享连接。"),
+            )
+        if not resolution.results and resolution.skipped_ip_addresses:
+            return DiagnosticItem(
+                code=DiagnosticCode.DOMAIN_RESOLUTION,
+                condition=DiagnosticCondition.HEALTHY,
+                title="公开域名解析",
+                summary=(f"当前使用 {resolution.skipped_ip_addresses} 个 IP 地址，无需 DNS 解析"),
+                diagnostics="IP 端点不依赖 DNS",
+                guidance="",
+            )
+        if not resolution.results:
+            return DiagnosticItem(
+                code=DiagnosticCode.DOMAIN_RESOLUTION,
+                condition=DiagnosticCondition.HEALTHY,
+                title="公开域名解析",
+                summary="当前没有需要 DNS 解析的公开域名",
+                diagnostics="未配置域名端点",
+                guidance="",
+            )
+        skipped = (
+            f"，{resolution.skipped_ip_addresses} 个 IP 地址无需 DNS"
+            if resolution.skipped_ip_addresses
+            else ""
+        )
+        return DiagnosticItem(
+            code=DiagnosticCode.DOMAIN_RESOLUTION,
+            condition=DiagnosticCondition.HEALTHY,
+            title="公开域名解析",
+            summary=f"{len(resolution.results)} 个公开域名可解析{skipped}",
+            diagnostics="; ".join(
+                f"{result.domain} → {', '.join(result.addresses)}" for result in resolution.results
+            ),
+            guidance="",
+        )
 
     def _inspect_generated_configuration(
         self,

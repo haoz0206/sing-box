@@ -3,6 +3,7 @@ from sb_manager.application.diagnostics_center import (
     DiagnosticAction,
     DiagnosticCode,
     DiagnosticCondition,
+    DiagnosticsCenterInspectors,
     DiagnosticsCenterService,
 )
 from sb_manager.application.host_diagnostics import (
@@ -24,6 +25,11 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.domain.protocol_material import RealityMaterial
 from sb_manager.seams.config_target import ConfigTargetInspectionError, LiveConfigObservation
+from sb_manager.seams.domain_resolution import (
+    DomainResolutionInspectionError,
+    DomainResolutionObservation,
+    DomainResolutionResult,
+)
 from sb_manager.seams.generated_configuration import (
     GeneratedConfigurationInspectionError,
     GeneratedConfigurationObservation,
@@ -41,6 +47,19 @@ class FixedConfigurationTargetInspector:
 class FailingConfigurationTargetInspector:
     def inspect(self) -> LiveConfigObservation:
         raise ConfigTargetInspectionError("helper inspection timed out")
+
+
+class FixedDomainResolutionInspector:
+    def __init__(self, observation: DomainResolutionObservation) -> None:
+        self.observation = observation
+
+    def inspect(self, installation: ManagedInstallation) -> DomainResolutionObservation:
+        return self.observation
+
+
+class FailingDomainResolutionInspector:
+    def inspect(self, installation: ManagedInstallation) -> DomainResolutionObservation:
+        raise DomainResolutionInspectionError("DNS worker timed out after 5 seconds")
 
 
 class FixedGeneratedConfigurationInspector:
@@ -105,14 +124,233 @@ def empty_config_inspector() -> FixedConfigurationTargetInspector:
     return FixedConfigurationTargetInspector(LiveConfigObservation(exists=False, sha256=None))
 
 
+def test_unresolved_public_domain_is_actionable_attention_without_hiding_runtime() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FixedDomainResolutionInspector(
+                DomainResolutionObservation(
+                    results=(
+                        DomainResolutionResult(
+                            domain="proxy.example.com",
+                            addresses=(),
+                            error="Name or service not known",
+                        ),
+                    ),
+                    skipped_ip_addresses=0,
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert tuple(item.code for item in report.items) == (
+        DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
+        DiagnosticCode.DOMAIN_RESOLUTION,
+        DiagnosticCode.RUNTIME,
+    )
+    resolution = report.items[-2]
+    assert resolution.condition is DiagnosticCondition.ATTENTION
+    assert resolution.title == "公开域名解析"
+    assert resolution.summary == "1 个公开域名无法解析"
+    assert resolution.diagnostics == "proxy.example.com：Name or service not known"
+    assert resolution.guidance == (
+        "检查域名拼写、A/AAAA 记录和本机 DNS。解析恢复后再签发证书或分享连接。"
+    )
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
+def test_resolved_public_domains_are_reported_with_stable_addresses() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FixedDomainResolutionInspector(
+                DomainResolutionObservation(
+                    results=(
+                        DomainResolutionResult(
+                            domain="proxy.example.com",
+                            addresses=("203.0.113.10", "2001:db8::10"),
+                            error=None,
+                        ),
+                    ),
+                    skipped_ip_addresses=1,
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    resolution = center.inspect().items[-2]
+
+    assert resolution.code is DiagnosticCode.DOMAIN_RESOLUTION
+    assert resolution.condition is DiagnosticCondition.HEALTHY
+    assert resolution.summary == "1 个公开域名可解析，1 个 IP 地址无需 DNS"
+    assert resolution.diagnostics == "proxy.example.com → 203.0.113.10, 2001:db8::10"
+    assert resolution.guidance == ""
+
+
+def test_partial_domain_failure_keeps_successful_resolution_evidence() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FixedDomainResolutionInspector(
+                DomainResolutionObservation(
+                    results=(
+                        DomainResolutionResult(
+                            domain="bad.example.com",
+                            addresses=(),
+                            error="Name or service not known",
+                        ),
+                        DomainResolutionResult(
+                            domain="good.example.com",
+                            addresses=("203.0.113.20",),
+                            error=None,
+                        ),
+                    ),
+                    skipped_ip_addresses=0,
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    resolution = center.inspect().items[-2]
+
+    assert resolution.condition is DiagnosticCondition.ATTENTION
+    assert resolution.summary == "1/2 个公开域名无法解析"
+    assert resolution.diagnostics == (
+        "bad.example.com：Name or service not known; good.example.com → 203.0.113.20"
+    )
+
+
+def test_no_public_domains_is_a_clear_healthy_diagnostic() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FixedDomainResolutionInspector(
+                DomainResolutionObservation(results=(), skipped_ip_addresses=0)
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    resolution = center.inspect().items[-2]
+
+    assert resolution.condition is DiagnosticCondition.HEALTHY
+    assert resolution.summary == "当前没有需要 DNS 解析的公开域名"
+    assert resolution.diagnostics == "未配置域名端点"
+    assert resolution.guidance == ""
+
+
+def test_ip_only_endpoints_are_distinguished_from_missing_public_address() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FixedDomainResolutionInspector(
+                DomainResolutionObservation(results=(), skipped_ip_addresses=1)
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    resolution = center.inspect().items[-2]
+
+    assert resolution.condition is DiagnosticCondition.HEALTHY
+    assert resolution.summary == "当前使用 1 个 IP 地址，无需 DNS 解析"
+    assert resolution.diagnostics == "IP 端点不依赖 DNS"
+    assert resolution.guidance == ""
+
+
+def test_domain_resolution_probe_failure_is_attention_and_keeps_runtime_evidence() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            domain_resolution=FailingDomainResolutionInspector()
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    resolution = report.items[-2]
+    assert resolution.code is DiagnosticCode.DOMAIN_RESOLUTION
+    assert resolution.condition is DiagnosticCondition.ATTENTION
+    assert resolution.summary == "无法完成公开域名解析检查"
+    assert resolution.diagnostics == "DNS worker timed out after 5 seconds"
+    assert resolution.guidance == (
+        "确认本机 DNS 和网络可用后重新检查。结果未知不会修改 desired state 或运行服务。"
+    )
+    assert report.items[-1].code is DiagnosticCode.RUNTIME
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
 def test_invalid_generated_configuration_requires_action_without_hiding_other_evidence() -> None:
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
         config_inspector=empty_config_inspector(),
-        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
-            GeneratedConfigurationObservation(
-                valid=False,
-                diagnostics="inbound[0].tls: missing certificate provider",
+        inspectors=DiagnosticsCenterInspectors(
+            generated_configuration=FixedGeneratedConfigurationInspector(
+                GeneratedConfigurationObservation(
+                    valid=False,
+                    diagnostics="inbound[0].tls: missing certificate provider",
+                )
             )
         ),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
@@ -146,10 +384,12 @@ def test_valid_generated_configuration_is_reported_as_healthy() -> None:
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
         config_inspector=empty_config_inspector(),
-        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
-            GeneratedConfigurationObservation(
-                valid=True,
-                diagnostics="sing-box check completed successfully",
+        inspectors=DiagnosticsCenterInspectors(
+            generated_configuration=FixedGeneratedConfigurationInspector(
+                GeneratedConfigurationObservation(
+                    valid=True,
+                    diagnostics="sing-box check completed successfully",
+                )
             )
         ),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
@@ -176,7 +416,9 @@ def test_generated_configuration_probe_failure_is_actionable_and_keeps_runtime_e
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
         config_inspector=empty_config_inspector(),
-        generated_configuration_inspector=FailingGeneratedConfigurationInspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            generated_configuration=FailingGeneratedConfigurationInspector()
+        ),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
         host_diagnostics=FixedHostDiagnostics(
             HostDiagnosticsReport(
@@ -206,7 +448,9 @@ def test_unavailable_core_action_precedes_generated_configuration_probe_failure(
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
         config_inspector=empty_config_inspector(),
-        generated_configuration_inspector=FailingGeneratedConfigurationInspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            generated_configuration=FailingGeneratedConfigurationInspector()
+        ),
         host_readiness=FixedHostReadiness(
             HostReadinessReport(
                 items=(
@@ -253,10 +497,12 @@ def test_generated_configuration_is_not_misreported_invalid_when_core_is_unavail
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
         config_inspector=empty_config_inspector(),
-        generated_configuration_inspector=FixedGeneratedConfigurationInspector(
-            GeneratedConfigurationObservation(
-                valid=False,
-                diagnostics="sing-box executable not found",
+        inspectors=DiagnosticsCenterInspectors(
+            generated_configuration=FixedGeneratedConfigurationInspector(
+                GeneratedConfigurationObservation(
+                    valid=False,
+                    diagnostics="sing-box executable not found",
+                )
             )
         ),
         host_readiness=FixedHostReadiness(

@@ -296,6 +296,10 @@ Release gate adds:
   documents, projection failures, unavailable disposable staging, protocol
   material redaction, missing-core priority, Textual presentation, production
   composition, and the real `sing-box check` release gate;
+- public-domain diagnostics for normalization, IDNA/domain syntax, duplicate
+  domains and IP endpoints, public and TLS names, successful/partial/failed
+  resolution, one bounded worker lifetime, Textual presentation, and production
+  composition without external-network test requirements;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

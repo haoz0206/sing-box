@@ -175,6 +175,21 @@ def invalid_generated_configuration_report() -> DiagnosticsCenterReport:
     )
 
 
+def unresolved_domain_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.DOMAIN_RESOLUTION,
+                condition=DiagnosticCondition.ATTENTION,
+                title="公开域名解析",
+                summary="1 个公开域名无法解析",
+                diagnostics="proxy.example.com：Name or service not known",
+                guidance=("检查域名拼写、A/AAAA 记录和本机 DNS。解析恢复后再签发证书或分享连接。"),
+            ),
+        )
+    )
+
+
 async def test_operator_sees_generated_configuration_failure_and_recovery_guidance() -> None:
     app = ManagerApp(
         host_tools=ManagerAppHostTools(
@@ -197,6 +212,30 @@ async def test_operator_sees_generated_configuration_failure_and_recovery_guidan
         assert (
             app.screen.query_one("#diagnostic-generated-configuration-guidance", Static).content
             == "下一步：不要应用。修复受影响配置或恢复 desired-state 备份后重新检查。"
+        )
+
+
+async def test_operator_sees_unresolved_domain_and_recovery_guidance() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(unresolved_domain_report())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert (
+            app.screen.query_one("#diagnostic-domain-resolution-title", Static).content
+            == "[注意] 公开域名解析"
+        )
+        assert (
+            app.screen.query_one("#diagnostic-domain-resolution-details", Static).content
+            == "proxy.example.com：Name or service not known"
+        )
+        assert app.screen.query_one("#diagnostic-domain-resolution-guidance", Static).content == (
+            "下一步：检查域名拼写、A/AAAA 记录和本机 DNS。解析恢复后再签发证书或分享连接。"
         )
 
 

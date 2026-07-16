@@ -304,12 +304,45 @@ def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -
         DiagnosticCode.PRIVILEGED_HELPER,
         DiagnosticCode.CORE,
         DiagnosticCode.GENERATED_CONFIGURATION,
+        DiagnosticCode.DOMAIN_RESOLUTION,
         DiagnosticCode.RUNTIME,
     )
     assert report.items[0].condition is DiagnosticCondition.HEALTHY
     assert report.items[-2].condition is DiagnosticCondition.HEALTHY
-    assert report.items[-2].diagnostics == "sing-box check completed successfully"
+    assert report.items[-3].diagnostics == "sing-box check completed successfully"
+    assert report.items[-2].summary == "当前没有需要 DNS 解析的公开域名"
     assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
+def test_cli_diagnostics_resolve_persisted_public_domain(tmp_path: Path) -> None:
+    app, state_path, _ = _create_isolated_app(tmp_path)
+    JsonFileStateStore(state_path).save(
+        ManagedInstallation(
+            schema_version=1,
+            revision=1,
+            profiles=(
+                ManagedProfile(
+                    profile_id="profile-1",
+                    profile_name="本机测试",
+                    protocol=ProtocolKind.VLESS_REALITY,
+                    listen_port=4433,
+                    port_selection=PortSelection.FIXED,
+                    status=ProfileStatus.DRAFT,
+                    server_address="LOCALHOST.",
+                ),
+            ),
+        )
+    )
+
+    assert app.diagnostics_center is not None
+    report = app.diagnostics_center.inspect()
+
+    resolution = next(
+        item for item in report.items if item.code is DiagnosticCode.DOMAIN_RESOLUTION
+    )
+    assert resolution.condition is DiagnosticCondition.HEALTHY
+    assert resolution.summary == "1 个公开域名可解析"
+    assert resolution.diagnostics.startswith("localhost → ")
 
 
 def test_cli_refuses_unmanaged_config_until_exact_adoption_is_confirmed(

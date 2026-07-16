@@ -221,9 +221,14 @@ without mutating the host. Projection failures, semantic rejection, and an
 unavailable check remain distinct evidence; persisted protocol material is
 redacted from validator diagnostics. Core readiness precedes this check in
 recommendation priority so a missing core is never misreported as invalid
-configuration. Domain resolution, certificate expiry, port ownership, apply
-history, and redacted raw-log drill-down are delivered as later complete checks
-rather than UI-side subprocess parsing.
+configuration. The public-domain slice extracts normalized, deduplicated server
+addresses and TLS server names from the same desired-state snapshot. It skips
+literal IP endpoints, resolves all domains inside one disposable worker with a
+bounded total runtime, retains successful addresses beside per-domain failures,
+and treats unresolved or unavailable DNS as attention rather than host mutation
+failure. Certificate expiry, port ownership, apply history, and redacted raw-log
+drill-down are delivered as later complete checks rather than UI-side subprocess
+parsing.
 
 Actionable findings may carry one typed navigation action. The report exposes
 only the action belonging to its highest-priority finding, and the Textual
@@ -608,6 +613,11 @@ Current implementation status (2026-07-17):
   `sing-box check` validator; valid, invalid, unavailable, and unprojectable
   outcomes remain typed, protocol material is redacted from diagnostics, and a
   missing core retains priority as the operator's actual prerequisite;
+- public domain resolution: one bounded read-only worker normalizes and
+  deduplicates public server addresses plus TLS server names, skips literal IP
+  endpoints, preserves mixed success/failure evidence, and reports invalid,
+  unresolved, or unavailable DNS as attention without obscuring higher-priority
+  configuration, core, or runtime actions;
 - listening-port editing: profile details prefill the current port and accept a
   fixed value or an empty automatic selection; plans separate actual-port and
   selection-policy changes, reject desired-state/host conflicts, recheck under
