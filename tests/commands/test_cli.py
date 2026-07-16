@@ -11,6 +11,7 @@ from sb_manager.application.manager import (
     WebSocketTransportRequest,
 )
 from sb_manager.application.profile_apply import ApplyProfileRequest
+from sb_manager.application.profile_removal import ProfileRemovalScope
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -33,6 +34,7 @@ from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.app import ManagerApp
 
 EXPECTED_APPLIED_REVISION = 2
+EXPECTED_REMOVED_REVISION = 3
 
 
 def _write_fake_sing_box(tmp_path: Path) -> Path:
@@ -201,6 +203,36 @@ def test_cli_composes_a_complete_isolated_apply_path(tmp_path: Path) -> None:
     assert installation.profiles[0].status is ProfileStatus.APPLIED
     assert installation.profiles[0].protocol_material is not None
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == "profile-1"
+
+
+def test_cli_composes_transactional_applied_profile_removal(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    profile_plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="手机",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=listen_port,
+        )
+    )
+    app.manager.save_profile_draft(profile_plan)
+    assert app.profile_applier is not None
+    app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert app.profile_remover is not None
+    removal_plan = app.profile_remover.plan_removal("profile-1")
+    result = app.profile_remover.remove_profile(removal_plan, confirmed=True)
+
+    assert removal_plan.scope is ProfileRemovalScope.LIVE_CONFIGURATION
+    assert result.committed_revision == EXPECTED_REMOVED_REVISION
+    assert JsonFileStateStore(state_path).load().profiles == ()
+    assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"] == []
 
 
 def test_cli_refuses_unmanaged_config_until_exact_adoption_is_confirmed(

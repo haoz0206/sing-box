@@ -142,7 +142,10 @@ List columns:
 - applied revision.
 
 Profile detail shows connection information, share actions, generated artifact
-summary, recent apply result, and context-sensitive actions.
+summary, recent apply result, and context-sensitive actions. Removal is always
+planned and confirmed: a draft removal changes desired state only, while an
+applied removal transactionally projects and applies all remaining profiles
+before desired state is committed.
 
 ### 5.4 Profile wizard
 
@@ -569,6 +572,15 @@ Current implementation status (2026-07-16):
   non-symlink command path; an explicit retained-release rollback plan rechecks
   current state and immutable tree trust under the same lock before atomically
   reactivating exactly the operator-selected release;
+- profile lifecycle removal: profile details open a read-only, revision-bound
+  removal plan; draft removal commits desired state under the shared mutation
+  lock without host effects, while applied removal uses one shared complete
+  configuration projector, the existing fingerprint precondition, validation,
+  atomic commit, runtime health check, and rollback transaction before removing
+  the profile from desired state; the TUI presents typed success, failure,
+  rollback, and unknown-result states and recomposes the dashboard after success;
+  removing the final applied profile produces a real-sing-box-validated quiescent
+  document with zero inbounds and the fixed direct outbound;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

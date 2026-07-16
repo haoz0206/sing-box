@@ -202,3 +202,12 @@ def test_operator_tls_files_must_be_real_root_owned_files_under_fixed_directory(
     key.symlink_to(outside)
     with pytest.raises(PrivilegedInputError, match="symlink"):
         policy.validate(document)
+
+
+def test_policy_accepts_no_inbounds_after_final_profile_removal() -> None:
+    ManagedConfigurationPolicy().validate(
+        {
+            "inbounds": [],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        }
+    )

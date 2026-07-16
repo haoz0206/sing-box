@@ -3,11 +3,11 @@
 from dataclasses import dataclass
 from typing import Protocol
 
+from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.manager import StateRevisionConflictError
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
-    ProfileStatus,
 )
 from sb_manager.protocols.catalog import MaterializedProfile, ProfileConnectionInfo, ProtocolCatalog
 from sb_manager.seams.apply_lock import ApplyLock
@@ -77,6 +77,9 @@ class ProfileApplyService:
     ) -> None:
         self._state_store = state_store
         self._protocol_catalog = protocol_catalog
+        self._configuration_projector = ManagedConfigurationProjector(
+            protocol_catalog=protocol_catalog
+        )
         self._port_source = port_source
         self._applier = applier
         self._apply_lock = apply_lock
@@ -113,28 +116,7 @@ class ProfileApplyService:
             candidate.profile if existing.profile_id == profile.profile_id else existing
             for existing in installation.profiles
         )
-        inbounds: list[dict[str, object]] = []
-        certificate_providers: list[dict[str, object]] = []
-        for existing in projected_profiles:
-            if existing.status is not ProfileStatus.APPLIED:
-                continue
-            if existing.profile_id == candidate.profile.profile_id:
-                materialized = candidate
-            else:
-                if existing.listen_port is None:
-                    raise RuntimeError(f"Applied profile has no port: {existing.profile_id}")
-                materialized = self._materialize_profile(
-                    existing,
-                    listen_port=existing.listen_port,
-                )
-            inbounds.append(materialized.inbound)
-            certificate_providers.extend(materialized.certificate_providers)
-        document: dict[str, object] = {
-            "inbounds": inbounds,
-            "outbounds": [{"type": "direct", "tag": "direct"}],
-        }
-        if certificate_providers:
-            document["certificate_providers"] = certificate_providers
+        document = self._configuration_projector.project(projected_profiles)
         precondition = (
             ConfigTargetPrecondition.matching_sha256(installation.expected_config_sha256)
             if installation.expected_config_sha256 is not None

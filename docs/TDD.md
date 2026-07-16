@@ -272,6 +272,10 @@ Release gate adds:
 - package build and clean-environment install;
 - exact retained-package rollback plan, confirmation, stale-plan, and stable
   launcher behavior;
+- profile removal plans for draft and applied scopes, revision conflicts,
+  desired-state-only deletion, transactional live projection, failed-host state
+  preservation, final-profile zero-inbound validation against the privileged
+  allowlist and real sing-box, and the complete Textual confirmation/result journey;
 - headless TUI acceptance suite;
 - supported Python matrix;
 - semantic configuration fixtures;

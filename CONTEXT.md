@@ -58,3 +58,10 @@ _Avoid_: Previous version, backup venv
 An operator-confirmed atomic activation of one exact retained package release.
 It never guesses which release the operator intended.
 _Avoid_: Downgrade install, manual symlink edit
+
+**Profile removal**:
+An operator-confirmed lifecycle transition that removes one exact profile from
+desired state. Removing a draft changes desired state only; removing an applied
+profile first transactionally applies the complete remaining managed
+configuration and commits desired state only after host success.
+_Avoid_: Delete inbound JSON, forget profile, unlink configuration

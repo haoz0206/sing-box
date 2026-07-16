@@ -38,6 +38,7 @@ from sb_manager.application.host_readiness import (
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.application.profile_details import ProfileDetailsService
+from sb_manager.application.profile_removal import ProfileRemovalService
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
     Hysteria2Handler,
@@ -275,6 +276,12 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             profile_details_reader=ProfileDetailsService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,
+            ),
+            profile_remover=ProfileRemovalService(
+                state_store=state_store,
+                protocol_catalog=protocol_catalog,
+                applier=applier,
+                apply_lock=mutation_lock,
             ),
             config_adopter=ConfigAdoptionService(
                 state_store=state_store,

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
+from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.cli import create_protocol_catalog
 from sb_manager.domain.installation import (
     ManagedProfile,
@@ -14,6 +15,7 @@ from sb_manager.domain.installation import (
     ProtocolKind,
 )
 from sb_manager.privileged.config_policy import ManagedConfigurationPolicy
+from sb_manager.protocols.catalog import ProtocolCatalog
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transports.catalog import (
     GrpcTransportIntent,
@@ -154,3 +156,18 @@ def test_real_sing_box_accepts_trusted_operator_tls_files(
     result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
 
     assert result.valid, result.diagnostics
+
+
+@pytest.mark.integration
+def test_real_sing_box_accepts_configuration_after_final_profile_removal(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    document = ManagedConfigurationProjector(protocol_catalog=ProtocolCatalog(())).project(())
+    config_path = tmp_path / "no-profiles.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
+
+    assert result.valid, result.diagnostics
+    ManagedConfigurationPolicy().validate(document)

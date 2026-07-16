@@ -42,6 +42,10 @@ from sb_manager.application.profile_details import (
     ProfileDetailsError,
     ProfileDetailsReader,
 )
+from sb_manager.application.profile_removal import (
+    ProfileRemovalNotFoundError,
+    ProfileRemover,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     PortSelection,
@@ -55,6 +59,7 @@ from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTranspor
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
+from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,9 +215,15 @@ class ProfileDetailsScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
 
-    def __init__(self, details: ProfileDetails) -> None:
+    def __init__(
+        self,
+        details: ProfileDetails,
+        *,
+        profile_remover: ProfileRemover | None = None,
+    ) -> None:
         super().__init__()
         self.details = details
+        self.profile_remover = profile_remover
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -240,7 +251,23 @@ class ProfileDetailsScreen(Screen[None]):
                     "该配置尚无可用连接信息。应用草案并设置服务器地址后生成。",
                     id="profile-details-no-connection",
                 )
+            if self.profile_remover is not None:
+                yield Button("移除此配置", id="remove-profile", variant="error")
         yield Footer()
+
+    @on(Button.Pressed, "#remove-profile")
+    def open_profile_removal(self) -> None:
+        if self.profile_remover is None:
+            return
+        try:
+            screen = ProfileRemovalScreen(
+                self.profile_remover,
+                profile_id=self.details.profile_id,
+            )
+        except ProfileRemovalNotFoundError:
+            self.app.push_screen(ProfileDetailsErrorScreen())
+            return
+        self.app.push_screen(screen)
 
 
 class ProfileDetailsErrorScreen(Screen[None]):
@@ -856,11 +883,12 @@ class ProtocolSelectionScreen(Screen[None]):
 
 @dataclass(frozen=True, slots=True)
 class ManagerAppHostTools:
-    """Read-only host and adoption capabilities available from the dashboard."""
+    """Host observation and profile lifecycle capabilities available to the TUI."""
 
     host_diagnostics: HostDiagnostics | None = None
     host_readiness: HostReadiness | None = None
     profile_details_reader: ProfileDetailsReader | None = None
+    profile_remover: ProfileRemover | None = None
     config_adopter: ConfigAdopter | None = None
 
 
@@ -894,6 +922,7 @@ class ManagerApp(App[None]):
         self.host_readiness = tools.host_readiness
         self.host_readiness_report: HostReadinessReport | None = None
         self.profile_details_reader = tools.profile_details_reader
+        self.profile_remover = tools.profile_remover
         self.config_adopter = tools.config_adopter
 
     def compose(self) -> ComposeResult:
@@ -1121,7 +1150,12 @@ class ManagerApp(App[None]):
         except ProfileDetailsError:
             self.push_screen(ProfileDetailsErrorScreen())
             return
-        self.push_screen(ProfileDetailsScreen(details))
+        self.push_screen(
+            ProfileDetailsScreen(
+                details,
+                profile_remover=self.profile_remover,
+            )
+        )
 
     @on(Button.Pressed, "#manage-core")
     def open_core_update(self) -> None:

@@ -41,9 +41,9 @@ class ManagedConfigurationPolicy:
         if outbounds != [{"type": "direct", "tag": "direct"}]:
             raise PrivilegedInputError("Managed configuration permits only the direct outbound")
         inbounds = self._list(document["inbounds"], role="inbounds")
-        if not 1 <= len(inbounds) <= MAX_MANAGED_INBOUNDS:
+        if len(inbounds) > MAX_MANAGED_INBOUNDS:
             raise PrivilegedInputError(
-                f"Managed configuration requires 1 to {MAX_MANAGED_INBOUNDS} inbounds"
+                f"Managed configuration permits at most {MAX_MANAGED_INBOUNDS} inbounds"
             )
 
         referenced_providers = self._validate_inbounds(inbounds)
