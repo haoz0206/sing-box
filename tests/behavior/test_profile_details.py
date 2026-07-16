@@ -10,6 +10,8 @@ from sb_manager.domain.installation import (
 from sb_manager.domain.protocol_material import RealityMaterial
 from sb_manager.protocols.catalog import ProtocolCatalog, RealityHandler
 
+LISTEN_PORT = 4433
+
 
 class GenerationMustNotRun:
     def generate(self) -> RealityMaterial:
@@ -25,7 +27,7 @@ def test_applied_profile_details_rebuild_connection_information_from_desired_sta
                 profile_id="phone-profile",
                 profile_name="手机",
                 protocol=ProtocolKind.VLESS_REALITY,
-                listen_port=4433,
+                listen_port=LISTEN_PORT,
                 port_selection=PortSelection.FIXED,
                 status=ProfileStatus.APPLIED,
                 server_address="vpn.example.com",
@@ -41,9 +43,7 @@ def test_applied_profile_details_rebuild_connection_information_from_desired_sta
     )
     service = ProfileDetailsService(
         state_store=MemoryStateStore(installation),
-        protocol_catalog=ProtocolCatalog(
-            (RealityHandler(material_source=GenerationMustNotRun()),)
-        ),
+        protocol_catalog=ProtocolCatalog((RealityHandler(material_source=GenerationMustNotRun()),)),
     )
 
     details = service.get_profile_details("phone-profile")
@@ -53,7 +53,7 @@ def test_applied_profile_details_rebuild_connection_information_from_desired_sta
     assert details.status is ProfileStatus.APPLIED
     assert details.connection_info is not None
     assert details.connection_info.server_address == "vpn.example.com"
-    assert details.connection_info.server_port == 4433
+    assert details.connection_info.server_port == LISTEN_PORT
     assert details.connection_info.share_uri == (
         "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
         "?encryption=none&flow=xtls-rprx-vision&security=reality"

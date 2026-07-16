@@ -538,6 +538,10 @@ Current implementation status (2026-07-16):
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed
   error screen instead of terminating the TUI;
+- UI module depth: the complete core-update form, plan, confirmation, worker,
+  result, and failure workflow now lives behind the single
+  `CoreUpdateFormScreen(core_updater)` interface in `ui/screens/core_update.py`;
+  `ManagerApp` owns only the navigation entry to that workflow;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on
