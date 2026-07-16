@@ -142,7 +142,9 @@ class HostReadinessService:
                 summary="最小权限 helper 或固定配置目标尚不可用",
                 diagnostics=str(error),
                 guidance=(
-                    "以 root 身份运行 sb-manager-install-policy --confirm，然后返回 TUI 重新检查。"
+                    "以 root 身份运行 /opt/sing-box-manager/bin/"
+                    "sb-manager-install-policy，按主机指定 --authorization sudo 或 doas，"
+                    "并添加 --group sing-box-manager --confirm，然后返回 TUI 重新检查。"
                 ),
             )
         return HostReadinessItem(

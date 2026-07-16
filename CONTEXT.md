@@ -38,3 +38,13 @@ _Avoid_: Adoption, file copy
 The recorded identity that the live configuration must still have immediately
 before an apply may replace it.
 _Avoid_: Backup, confirmation
+
+**Package release**:
+One immutable, root-owned Python environment identified by the manager package
+version and exact source-wheel SHA-256.
+_Avoid_: Development virtual environment, in-place pip upgrade
+
+**Active package release**:
+The package release selected by the root-owned atomic `current` link. Stable
+launchers resolve all manager commands through this one selection.
+_Avoid_: Latest downloaded wheel, whichever command appears first in PATH

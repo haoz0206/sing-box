@@ -95,7 +95,8 @@ def test_privileged_readiness_prioritizes_policy_install_before_core_install() -
         (HostReadinessItemCode.PRIVILEGED_HELPER, ReadinessState.ACTION_REQUIRED),
         (HostReadinessItemCode.CORE, ReadinessState.ACTION_REQUIRED),
     ]
-    assert "sb-manager-install-policy --confirm" in report.items[0].guidance
+    assert "--authorization sudo 或 doas" in report.items[0].guidance
+    assert "--group sing-box-manager --confirm" in report.items[0].guidance
     assert report.items[0].diagnostics == "sudo: helper not found"
 
 

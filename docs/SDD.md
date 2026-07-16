@@ -559,6 +559,12 @@ Current implementation status (2026-07-16):
   generation and readiness checks, matching the core activated by the root
   helper; direct development mode keeps the `PATH` default and both remain
   explicitly overridable;
+- versioned Python deployment: `sb-manager-install` plans an exact local wheel
+  identity and explicit dependency source, builds only from a private verified
+  copy under an exclusive lock, and activates an immutable package release
+  through one atomic `current` link; stable real launchers keep the TUI and
+  privileged helper on the same selected release and give sudo/doas a fixed
+  non-symlink command path;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

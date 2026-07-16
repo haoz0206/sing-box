@@ -12,7 +12,7 @@ from sb_manager.installation.privileged_policy import (
     render_authorization_policy,
 )
 
-HELPER_RELATIVE_PATH = Path("opt/sing-box-manager/venv/bin/sb-manager-privileged")
+HELPER_RELATIVE_PATH = Path("opt/sing-box-manager/bin/sb-manager-privileged")
 
 
 class RecordingValidator:
@@ -77,14 +77,14 @@ def test_authorization_policies_allow_only_the_argument_free_fixed_helper() -> N
         group_name="sing-box-manager",
     ) == (
         "%sing-box-manager ALL=(root) NOPASSWD: "
-        '/opt/sing-box-manager/venv/bin/sb-manager-privileged ""\n'
+        '/opt/sing-box-manager/bin/sb-manager-privileged ""\n'
     )
     assert render_authorization_policy(
         AuthorizationProvider.DOAS,
         group_name="sing-box-manager",
     ) == (
         "permit nopass :sing-box-manager as root cmd "
-        "/opt/sing-box-manager/venv/bin/sb-manager-privileged args\n"
+        "/opt/sing-box-manager/bin/sb-manager-privileged args\n"
     )
 
 

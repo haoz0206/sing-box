@@ -7,8 +7,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-HELPER = "/opt/sing-box-manager/venv/bin/sb-manager-privileged"
-INSTALLER = "/opt/sing-box-manager/venv/bin/sb-manager-install-policy"
+BOOTSTRAP_ROOT = "/tmp/sb-manager-bootstrap"
+PACKAGE_ROOT = "/opt/sing-box-manager"
+HELPER = f"{PACKAGE_ROOT}/bin/sb-manager-privileged"
+POLICY_INSTALLER = f"{PACKAGE_ROOT}/bin/sb-manager-install-policy"
 ACCEPTANCE_TIMEOUT_SECONDS = 900
 
 
@@ -124,12 +126,25 @@ def _container_script(
     wheel_name: str,
     use_wheelhouse: bool,
 ) -> str:
-    pip_install = (
-        f"pip install --no-index --find-links /tmp/wheelhouse /tmp/{wheel_name}"
+    bootstrap_install = (
+        f"{BOOTSTRAP_ROOT}/bin/pip install --no-index --find-links /tmp/wheelhouse "
+        f"/tmp/{wheel_name}"
         if use_wheelhouse
-        else f"pip install /tmp/{wheel_name}"
+        else f"{BOOTSTRAP_ROOT}/bin/pip install /tmp/{wheel_name}"
+    )
+    dependency_arguments = "--wheelhouse /tmp/wheelhouse" if use_wheelhouse else "--allow-index"
+    package_install = (
+        f"{BOOTSTRAP_ROOT}/bin/sb-manager-install --wheel /tmp/{wheel_name} "
+        f"{dependency_arguments} --confirm"
+    )
+    policy_install = (
+        f"{POLICY_INSTALLER} --authorization {case.authorization} "
+        "--group sing-box-manager --confirm"
     )
     allowed_command = case.run_as_operator.format(command=f"{case.privilege_runner} -n {HELPER}")
+    operator_manager_help = case.run_as_operator.format(
+        command=f"{PACKAGE_ROOT}/bin/sb-manager --help"
+    )
     denied_argument_command = case.run_as_operator.format(
         command=f"{case.privilege_runner} -n {HELPER} unexpected"
     )
@@ -137,12 +152,16 @@ def _container_script(
         f"""
         {case.install_dependencies}
         {case.create_identity}
-        install -d -o root -g root -m 0755 /opt/sing-box-manager
-        python3 -m venv /opt/sing-box-manager/venv
-        /opt/sing-box-manager/venv/bin/{pip_install}
-        chown -R root:root /opt/sing-box-manager/venv
-        chmod -R go-w /opt/sing-box-manager/venv
-        {INSTALLER} --authorization {case.authorization} --group sing-box-manager --confirm
+        python3 -m venv {BOOTSTRAP_ROOT}
+        {bootstrap_install}
+        {package_install}
+        test -L {PACKAGE_ROOT}/current
+        test -x {PACKAGE_ROOT}/bin/sb-manager
+        test -x {HELPER}
+        {operator_manager_help} > /dev/null
+        stat -c %a {HELPER} | grep -qx 755
+        stat -c %U {HELPER} | grep -qx root
+        {policy_install}
         printf '%s' '{{"schema_version":1,"operation":"inspect-config"}}' \
           > /tmp/inspection.json
         {allowed_command} < /tmp/inspection.json > /tmp/inspection-output

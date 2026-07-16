@@ -176,7 +176,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     parser.add_argument(
         "--privileged-helper-binary",
         type=Path,
-        default=Path("/opt/sing-box-manager/venv/bin/sb-manager-privileged"),
+        default=Path("/opt/sing-box-manager/bin/sb-manager-privileged"),
         help="root-owned privileged helper 绝对路径",
     )
     parser.add_argument(

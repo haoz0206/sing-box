@@ -27,10 +27,20 @@ def test_container_command_preserves_wheel_name_and_explicit_network(tmp_path: P
     assert "--network=host" in command
     assert f"{wheel.resolve()}:/tmp/sing_box_manager-0.1.0-py3-none-any.whl:ro" in command
     assert command[-3:-1] == ["/bin/sh", "-ceu"]
-    assert "pip install /tmp/sing_box_manager-0.1.0-py3-none-any.whl" in command[-1]
     assert (
-        "sb-manager-install-policy --authorization sudo --group sing-box-manager --confirm"
+        "/tmp/sb-manager-bootstrap/bin/pip install /tmp/sing_box_manager-0.1.0-py3-none-any.whl"
     ) in command[-1]
+    assert (
+        "/tmp/sb-manager-bootstrap/bin/sb-manager-install --wheel "
+        "/tmp/sing_box_manager-0.1.0-py3-none-any.whl --allow-index --confirm"
+    ) in command[-1]
+    assert (
+        "/opt/sing-box-manager/bin/sb-manager-install-policy --authorization sudo "
+        "--group sing-box-manager --confirm"
+    ) in command[-1]
+    assert "test -L /opt/sing-box-manager/current" in command[-1]
+    assert "runuser -u operator -- /opt/sing-box-manager/bin/sb-manager --help" in command[-1]
+    assert "stat -c %U /opt/sing-box-manager/bin/sb-manager-privileged" in command[-1]
     assert '"operation":"inspect-config"' in command[-1]
     assert "inspection-output" in command[-1]
     assert '"status": "observed"' in command[-1]
@@ -53,6 +63,11 @@ def test_reviewed_wheelhouse_disables_package_index(tmp_path: Path) -> None:
     assert "--network=host" not in command
     assert f"{wheelhouse.resolve()}:/tmp/wheelhouse:ro" in command
     assert (
-        "pip install --no-index --find-links /tmp/wheelhouse "
+        "/tmp/sb-manager-bootstrap/bin/pip install --no-index --find-links /tmp/wheelhouse "
         "/tmp/sing_box_manager-0.1.0-py3-none-any.whl"
+    ) in command[-1]
+    assert (
+        "/tmp/sb-manager-bootstrap/bin/sb-manager-install --wheel "
+        "/tmp/sing_box_manager-0.1.0-py3-none-any.whl "
+        "--wheelhouse /tmp/wheelhouse --confirm"
     ) in command[-1]

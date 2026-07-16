@@ -9,7 +9,7 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Protocol
 
-HELPER_RELATIVE_PATH = Path("opt/sing-box-manager/venv/bin/sb-manager-privileged")
+HELPER_RELATIVE_PATH = Path("opt/sing-box-manager/bin/sb-manager-privileged")
 HELPER_ABSOLUTE_PATH = Path("/") / HELPER_RELATIVE_PATH
 GROUP_NAME_PATTERN = re.compile(r"[a-z_][a-z0-9_-]*[$]?")
 
