@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Date: 2026-07-16
+- Extended by: ADR 0011 for transactional listen-port editing
 
 ## Context
 

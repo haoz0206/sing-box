@@ -18,3 +18,13 @@ def test_socket_port_source_detects_an_occupied_ipv6_wildcard_port() -> None:
     selected_port = source.choose_available()
     assert 1 <= selected_port <= MAX_TCP_PORT
     assert source.is_available(selected_port)
+
+
+def test_socket_port_source_excludes_manager_reserved_automatic_ports() -> None:
+    source = SocketPortSource()
+    reserved_port = source.choose_available()
+
+    selected_port = source.choose_available(excluded_ports=(reserved_port,))
+
+    assert selected_port != reserved_port
+    assert source.is_available(selected_port)

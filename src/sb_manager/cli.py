@@ -251,10 +251,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         sing_box_binary=sing_box_binary,
         reality_server_name=arguments.reality_server_name,
     )
+    port_source = SocketPortSource()
     profile_applier = ProfileApplyService(
         state_store=state_store,
         protocol_catalog=protocol_catalog,
-        port_source=SocketPortSource(),
+        port_source=port_source,
         applier=applier,
         apply_lock=mutation_lock,
     )
@@ -290,6 +291,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             profile_editor=ProfileEditingService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,
+                port_source=port_source,
                 applier=applier,
                 apply_lock=mutation_lock,
             ),

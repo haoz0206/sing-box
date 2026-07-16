@@ -5,7 +5,7 @@ from typing import ClassVar
 from textual import on, work
 from textual.app import ComposeResult
 from textual.binding import BindingType
-from textual.containers import Vertical
+from textual.containers import Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Static
 
@@ -18,10 +18,12 @@ from sb_manager.application.profile_editing import (
     ProfileEditor,
     ProfileEditPlan,
     ProfileEditPlanChangedError,
+    ProfileEditPortUnavailableError,
     ProfileEditResult,
     ProfileEditScope,
     ProfileEditValidationError,
 )
+from sb_manager.domain.installation import PortSelection
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
 
@@ -38,10 +40,10 @@ class ProfileEditFormScreen(Screen[None]):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Vertical(id="profile-edit"):
+        with VerticalScroll(id="profile-edit"):
             yield Static("编辑配置", id="profile-edit-title")
             yield Static(
-                "稳定 ID、协议、端口和凭据保持不变。提交前会显示影响计划。",
+                "稳定 ID、协议和凭据保持不变。提交前会显示影响计划。",
                 id="profile-edit-guidance",
             )
             yield Label("配置名称", id="profile-edit-name-label")
@@ -51,18 +53,41 @@ class ProfileEditFormScreen(Screen[None]):
                 value=self.details.server_address or "",
                 id="profile-edit-server-address",
             )
+            yield Label("监听端口 (可留空)", id="profile-edit-listen-port-label")
+            yield Input(
+                value=(
+                    str(self.details.listen_port) if self.details.listen_port is not None else ""
+                ),
+                placeholder="留空自动选择",
+                id="profile-edit-listen-port",
+            )
+            yield Static(
+                "留空表示自动选择。已应用配置会在确认后选择端口并执行完整事务。",
+                id="profile-edit-port-guidance",
+            )
             yield Static("", id="profile-edit-error")
             yield Button("预览变更", id="preview-profile-edit", variant="primary")
         yield Footer()
 
     @on(Button.Pressed, "#preview-profile-edit")
     def preview_edit(self) -> None:
+        listen_port_input = self.query_one("#profile-edit-listen-port", Input)
+        listen_port_text = listen_port_input.value.strip()
+        try:
+            listen_port = int(listen_port_text) if listen_port_text else None
+        except ValueError:
+            self.query_one("#profile-edit-error", Static).update(
+                "端口必须是 1 到 65535 之间的整数，或留空自动选择"
+            )
+            listen_port_input.focus()
+            return
         try:
             plan = self.profile_editor.plan_edit(
                 PlanProfileEditRequest(
                     profile_id=self.details.profile_id,
                     profile_name=self.query_one("#profile-edit-name", Input).value,
                     server_address=self.query_one("#profile-edit-server-address", Input).value,
+                    listen_port=listen_port,
                 )
             )
         except ProfileEditValidationError as error:
@@ -100,6 +125,19 @@ class ProfileEditPlanScreen(Screen[None]):
                 f"{self.plan.previous_server_address or '未设置'} → "
                 f"{self.plan.server_address or '未设置'}"
             )
+        if "listen_port" in self.plan.changed_fields:
+            changes.append(
+                "监听端口："
+                f"{self.plan.previous_listen_port or '自动选择'} → "
+                f"{self.plan.listen_port or '自动选择 - 确认时'}"
+            )
+        if "port_selection" in self.plan.changed_fields:
+            changes.append(
+                "端口策略："
+                f"{self._port_selection_label(self.plan.previous_port_selection)}"
+                " → "
+                f"{self._port_selection_label(self.plan.port_selection)}"
+            )
         desired_only = self.plan.scope is ProfileEditScope.DESIRED_STATE_ONLY
         yield Header()
         with Vertical(id="profile-edit-plan"):
@@ -121,6 +159,10 @@ class ProfileEditPlanScreen(Screen[None]):
             )
         yield Footer()
 
+    @staticmethod
+    def _port_selection_label(selection: PortSelection) -> str:
+        return "自动选择" if selection is PortSelection.AUTOMATIC else "固定"
+
     @on(Button.Pressed, "#confirm-profile-edit")
     def confirm_edit(self) -> None:
         self.query_one("#confirm-profile-edit", Button).disabled = True
@@ -133,6 +175,12 @@ class ProfileEditPlanScreen(Screen[None]):
     def execute_edit(self) -> None:
         try:
             result = self.profile_editor.apply_edit(self.plan, confirmed=True)
+        except ProfileEditPortUnavailableError as error:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                ProfileEditPortConflictScreen(str(error)),
+            )
+            return
         except (
             ProfileEditNoChangesError,
             ProfileEditNotFoundError,
@@ -273,6 +321,11 @@ class ProfileEditResultScreen(Screen[None]):
                             f"{index + 1}. {instruction}",
                             id=f"profile-edit-recovery-step-{index}",
                         )
+            if self.result.committed_revision is not None and self.result.listen_port is not None:
+                yield Static(
+                    f"当前监听端口：{self.result.listen_port}",
+                    id="profile-edit-result-listen-port",
+                )
             if self.result.committed_revision is not None:
                 yield Button(
                     "返回仪表盘",
@@ -305,6 +358,27 @@ class ProfileEditOperationalErrorScreen(Screen[None]):
             yield Static(
                 "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。",
                 id="profile-edit-error-safety",
+            )
+        yield Footer()
+
+
+class ProfileEditPortConflictScreen(Screen[None]):
+    """Explain a safe confirmation-time port conflict without implying host mutation."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def __init__(self, diagnostics: str) -> None:
+        super().__init__()
+        self.diagnostics = diagnostics
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-edit-port-conflict"):
+            yield Static("监听端口已不可用", id="profile-edit-port-conflict-title")
+            yield Static(self.diagnostics, id="profile-edit-port-conflict-details")
+            yield Static(
+                "尚未调用配置 applier，实时配置、服务和 desired state 均未改变。",
+                id="profile-edit-port-conflict-safety",
             )
         yield Footer()
 

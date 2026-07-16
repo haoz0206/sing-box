@@ -280,6 +280,10 @@ Release gate adds:
   validation, desired-state-only versus live-configuration scope, revision and
   reviewed-content conflicts, transactional failure preservation, every typed
   TUI result, production composition, and real sing-box reprojection;
+- listen-port edit plans for fixed/automatic selection, range, duplicate intent,
+  host availability, policy-only scope, confirmation-time recheck, automatic
+  selection under lock, transactional projection, typed stale-port TUI
+  guidance, production composition, and real sing-box reprojection;
 - diagnostics-center aggregation for healthy evidence, corrupt or inconsistent
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after

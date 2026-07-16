@@ -6,6 +6,7 @@ from sb_manager.application.profile_details import ProfileDetails
 from sb_manager.application.profile_editing import (
     PlanProfileEditRequest,
     ProfileEditPlan,
+    ProfileEditPortUnavailableError,
     ProfileEditResult,
     ProfileEditScope,
     ProfileEditValidationError,
@@ -27,6 +28,9 @@ from sb_manager.transactions.apply import (
     RollbackResult,
 )
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+LISTEN_PORT = 4433
+EDITED_PORT = 8443
 
 
 class FixedProfileDetailsReader:
@@ -54,20 +58,40 @@ class RecordingProfileEditor:
 
     def plan_edit(self, request: PlanProfileEditRequest) -> ProfileEditPlan:
         self.requests.append(request)
+        profile_name = request.profile_name.strip()
+        server_address = (request.server_address or "").strip() or None
+        port_selection = (
+            PortSelection.AUTOMATIC if request.listen_port is None else PortSelection.FIXED
+        )
+        changed_fields = tuple(
+            field
+            for field, changed in (
+                ("profile_name", profile_name != "手机"),
+                ("server_address", server_address != "old.example.com"),
+                ("listen_port", request.listen_port != LISTEN_PORT),
+                ("port_selection", port_selection is not PortSelection.FIXED),
+            )
+            if changed
+        )
         return ProfileEditPlan(
             profile_id=request.profile_id,
             previous_profile_name="手机",
-            profile_name=request.profile_name.strip(),
+            profile_name=profile_name,
             previous_server_address="old.example.com",
-            server_address=(request.server_address or "").strip() or None,
+            server_address=server_address,
+            previous_listen_port=LISTEN_PORT,
+            listen_port=request.listen_port,
+            previous_port_selection=PortSelection.FIXED,
+            port_selection=port_selection,
             status=self.status,
             expected_revision=2,
             scope=(
                 ProfileEditScope.LIVE_CONFIGURATION
                 if self.status is ProfileStatus.APPLIED
+                and {"profile_name", "listen_port"}.intersection(changed_fields)
                 else ProfileEditScope.DESIRED_STATE_ONLY
             ),
-            changed_fields=("profile_name", "server_address"),
+            changed_fields=changed_fields,
         )
 
     def apply_edit(
@@ -92,6 +116,12 @@ class RecordingProfileEditor:
             scope=plan.scope,
             committed_revision=3,
             transaction=transaction,
+            listen_port=(
+                9443
+                if plan.scope is ProfileEditScope.LIVE_CONFIGURATION
+                and plan.port_selection is PortSelection.AUTOMATIC
+                else plan.listen_port
+            ),
         )
 
 
@@ -154,6 +184,19 @@ class StaleProfileEditor(RecordingProfileEditor):
         raise StateRevisionConflictError(expected=2, actual=3)
 
 
+class PortUnavailableProfileEditor(RecordingProfileEditor):
+    def __init__(self) -> None:
+        super().__init__(status=ProfileStatus.APPLIED)
+
+    def apply_edit(
+        self,
+        plan: ProfileEditPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileEditResult:
+        raise ProfileEditPortUnavailableError(8443)
+
+
 class FixedLiveResultProfileEditor(RecordingProfileEditor):
     def __init__(self, transaction: ApplyTransactionResult) -> None:
         super().__init__(status=ProfileStatus.APPLIED)
@@ -195,8 +238,8 @@ class StateMutatingProfileEditor(RecordingProfileEditor):
                         profile_id=existing.profile_id,
                         profile_name=plan.profile_name,
                         protocol=existing.protocol,
-                        listen_port=existing.listen_port,
-                        port_selection=existing.port_selection,
+                        listen_port=plan.listen_port,
+                        port_selection=plan.port_selection,
                         status=existing.status,
                         protocol_material=existing.protocol_material,
                         server_address=plan.server_address,
@@ -251,6 +294,10 @@ async def test_operator_opens_prefilled_profile_edit_form_without_creating_a_pla
         assert (
             app.screen.query_one("#profile-edit-server-address", Input).value == "old.example.com"
         )
+        assert app.screen.query_one("#profile-edit-listen-port", Input).value == str(LISTEN_PORT)
+        assert app.screen.query_one("#profile-edit-port-guidance", Static).content == (
+            "留空表示自动选择。已应用配置会在确认后选择端口并执行完整事务。"
+        )
         assert editor.requests == []
         assert editor.edits == []
 
@@ -271,6 +318,7 @@ async def test_operator_previews_normalized_draft_metadata_changes_before_confir
                 profile_id="profile-1",
                 profile_name="平板",
                 server_address="new.example.com",
+                listen_port=4433,
             )
         ]
         assert app.screen.query_one("#profile-edit-plan-title", Static).content == ("确认配置变更")
@@ -281,6 +329,82 @@ async def test_operator_previews_normalized_draft_metadata_changes_before_confir
             "只更新 manager desired state，不会写入 sing-box 配置或刷新服务。"
         )
         assert editor.edits == []
+
+
+async def test_operator_previews_applied_listen_port_change_before_confirmation() -> None:
+    editor = RecordingProfileEditor(status=ProfileStatus.APPLIED)
+    app = app_for(editor)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-listen-port", Input).value = "8443"
+
+        await pilot.click("#preview-profile-edit")
+
+        assert editor.requests == [
+            PlanProfileEditRequest(
+                profile_id="profile-1",
+                profile_name="手机",
+                server_address="old.example.com",
+                listen_port=8443,
+            )
+        ]
+        assert app.screen.query_one("#profile-edit-plan-changes", Static).content == (
+            "监听端口：4433 → 8443"
+        )
+        assert app.screen.query_one("#profile-edit-plan-impact", Static).content == (
+            "将生成完整 sing-box 配置，校验并刷新服务，失败时自动回滚。"
+        )
+        assert str(app.screen.query_one("#confirm-profile-edit", Button).label) == (
+            "确认修改并应用"
+        )
+        assert editor.edits == []
+
+
+async def test_port_conflict_after_review_returns_operator_to_a_fresh_preview() -> None:
+    app = app_for(PortUnavailableProfileEditor())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-listen-port", Input).value = "8443"
+        await pilot.click("#preview-profile-edit")
+        await pilot.click("#confirm-profile-edit")
+
+        assert app.screen.query_one("#profile-edit-port-conflict-title", Static).content == (
+            "监听端口已不可用"
+        )
+        assert app.screen.query_one("#profile-edit-port-conflict-details", Static).content == (
+            "端口 8443 在确认后已不可用，请重新预览"
+        )
+        assert app.screen.query_one("#profile-edit-port-conflict-safety", Static).content == (
+            "尚未调用配置 applier，实时配置、服务和 desired state 均未改变。"
+        )
+
+
+async def test_automatic_port_edit_reports_the_selected_live_port() -> None:
+    editor = RecordingProfileEditor(status=ProfileStatus.APPLIED)
+    app = app_for(editor)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-listen-port", Input).value = ""
+        await pilot.click("#preview-profile-edit")
+
+        assert app.screen.query_one("#profile-edit-plan-changes", Static).content == (
+            "监听端口：4433 → 自动选择 - 确认时\n端口策略：固定 → 自动选择"
+        )
+
+        await pilot.click("#confirm-profile-edit")
+
+        assert app.screen.query_one("#profile-edit-result-title", Static).content == (
+            "配置已应用并更新"
+        )
+        assert app.screen.query_one("#profile-edit-result-listen-port", Static).content == (
+            "当前监听端口：9443"
+        )
 
 
 async def test_profile_edit_form_keeps_field_validation_actionable() -> None:

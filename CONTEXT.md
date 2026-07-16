@@ -67,11 +67,20 @@ configuration and commits desired state only after host success.
 _Avoid_: Delete inbound JSON, forget profile, unlink configuration
 
 **Profile edit**:
-An operator-confirmed, revision-bound change to the mutable metadata of one
-stable profile. Changing only a public server address updates desired state;
-renaming an applied profile transactionally replaces the complete live
-configuration because the name is present in generated sing-box user records.
+An operator-confirmed, revision-bound change to the supported mutable intent of
+one stable profile. Metadata-only changes may update desired state, while any
+field that changes generated server configuration uses one complete live
+transaction.
 _Avoid_: Patch generated JSON, recreate profile, rotate credentials
+
+**Listen port edit**:
+A profile edit that selects one validated fixed port or requests automatic
+selection. Draft changes remain desired-state-only. Changing the actual port of
+an applied profile rechecks availability under the shared lock, reprojects the
+complete configuration, and commits desired state only after host success.
+Changing only automatic/fixed policy for the same actual port does not refresh
+the service.
+_Avoid_: Firewall mutation, editing generated inbound JSON, unchecked port swap
 
 **Diagnostics center**:
 One read-only, prioritized report that combines manager desired-state

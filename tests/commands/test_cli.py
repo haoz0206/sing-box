@@ -245,7 +245,11 @@ def test_cli_composes_transactional_applied_profile_removal(tmp_path: Path) -> N
 
 def test_cli_composes_transactional_applied_profile_editing(tmp_path: Path) -> None:
     app, state_path, config_path = _create_isolated_app(tmp_path)
-    listen_port = SocketPortSource().choose_available()
+    port_source = SocketPortSource()
+    listen_port = port_source.choose_available()
+    edited_port = port_source.choose_available()
+    while edited_port == listen_port:
+        edited_port = port_source.choose_available()
     profile_plan = app.manager.plan_profile(
         PlanProfileRequest(
             profile_name="手机",
@@ -270,17 +274,21 @@ def test_cli_composes_transactional_applied_profile_editing(tmp_path: Path) -> N
             profile_id="profile-1",
             profile_name="平板",
             server_address="new.example.com",
+            listen_port=edited_port,
         )
     )
     result = app.profile_editor.apply_edit(edit_plan, confirmed=True)
 
     assert edit_plan.scope is ProfileEditScope.LIVE_CONFIGURATION
     assert result.committed_revision == EXPECTED_REMOVED_REVISION
+    assert result.listen_port == edited_port
     installation = JsonFileStateStore(state_path).load()
     assert installation.profiles[0].profile_name == "平板"
     assert installation.profiles[0].server_address == "new.example.com"
+    assert installation.profiles[0].listen_port == edited_port
     inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
     assert inbound["users"][0]["name"] == "平板"
+    assert inbound["listen_port"] == edited_port
 
 
 def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -> None:

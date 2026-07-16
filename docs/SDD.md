@@ -148,12 +148,24 @@ applied removal transactionally projects and applies all remaining profiles
 before desired state is committed.
 
 Profile metadata editing starts with display name and public server address.
-The stable identifier, protocol, port, credentials, TLS, and transport remain
+The stable identifier, protocol, credentials, TLS, and transport remain
 unchanged. Every edit is normalized, revision-bound, previewed, and confirmed.
 Draft edits and public-address-only edits update desired state without host
 effects. Renaming an applied profile transactionally projects and applies the
 complete configuration because the display name is present in generated
 sing-box user records. Desired state advances only after host success.
+
+Listening-port editing accepts a validated fixed port or an empty automatic
+selection. Plans reject ranges outside 1–65535, ports declared by another
+profile, and newly selected fixed ports unavailable on the host. Confirmation
+rechecks fixed-port availability under the shared mutation lock; an automatic
+applied edit chooses its actual port only inside that lock. Draft port changes
+remain desired-state-only. An applied actual-port change reprojects and applies
+the complete configuration, while changing only automatic/fixed policy for the
+same actual port updates desired state without refreshing sing-box. Firewall
+mutation remains outside this workflow. Automatic selection excludes ports
+already declared by other profiles, and a successful result presents the
+actual selected port to the operator.
 
 ### 5.4 Profile wizard
 
@@ -585,6 +597,12 @@ Current implementation status (2026-07-17):
   form only after the privileged helper is ready; actions follow report
   priority, disappear when their destination is unavailable, and never bypass
   the destination workflow's plan or confirmation;
+- listening-port editing: profile details prefill the current port and accept a
+  fixed value or an empty automatic selection; plans separate actual-port and
+  selection-policy changes, reject desired-state/host conflicts, recheck under
+  the shared lock, and transactionally reproject applied profiles while draft
+  or policy-only changes remain desired-state-only; the TUI preserves exact
+  validation, stale-port, transaction, rollback, and unknown-result guidance;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed

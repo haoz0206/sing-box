@@ -1,4 +1,4 @@
-from collections.abc import Iterator
+from collections.abc import Collection, Iterator
 from contextlib import contextmanager
 
 import pytest
@@ -11,6 +11,7 @@ from sb_manager.application.profile_editing import (
     ProfileEditingService,
     ProfileEditNoChangesError,
     ProfileEditPlanChangedError,
+    ProfileEditPortUnavailableError,
     ProfileEditScope,
     ProfileEditValidationError,
 )
@@ -35,6 +36,9 @@ from sb_manager.transactions.staging import configuration_sha256
 PLANNED_REVISION = 7
 COMMITTED_REVISION = 8
 CONCURRENT_REVISION = 5
+ORIGINAL_PORT = 4433
+EDITED_PORT = 8443
+AUTOMATIC_PORT = 9443
 
 
 class ExplodingApplier:
@@ -45,6 +49,51 @@ class ExplodingApplier:
 class ExplodingLock:
     def acquire(self) -> object:
         raise AssertionError("planning a profile edit must not acquire the mutation lock")
+
+
+class AvailablePortSource:
+    def is_available(self, port: int) -> bool:
+        return True
+
+    def choose_available(self) -> int:
+        raise AssertionError("a fixed-port plan must not select an automatic port")
+
+
+class UnavailablePortSource:
+    def is_available(self, port: int) -> bool:
+        return False
+
+    def choose_available(self) -> int:
+        raise AssertionError("an unavailable fixed port must not trigger automatic selection")
+
+
+class PortBecomesUnavailableSource:
+    def __init__(self) -> None:
+        self.observations = iter((True, False))
+
+    def is_available(self, port: int) -> bool:
+        return next(self.observations)
+
+    def choose_available(self) -> int:
+        raise AssertionError("a fixed-port edit must not select an automatic port")
+
+
+class AutomaticPortSource:
+    def is_available(self, port: int) -> bool:
+        raise AssertionError("an automatic-port edit must not probe a fixed port")
+
+    def choose_available(self, *, excluded_ports: Collection[int] = ()) -> int:
+        return AUTOMATIC_PORT
+
+
+class ReservedAwareAutomaticPortSource:
+    def is_available(self, port: int) -> bool:
+        raise AssertionError("an automatic-port edit must not probe a fixed port")
+
+    def choose_available(self, *, excluded_ports: Collection[int]) -> int:
+        if EDITED_PORT not in excluded_ports:
+            raise AssertionError("manager-declared ports must be excluded")
+        return AUTOMATIC_PORT
 
 
 class TrackingLock:
@@ -119,6 +168,190 @@ class RejectingApplier:
         )
 
 
+def test_applied_profile_port_edit_plan_is_read_only_and_requires_live_apply() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        server_address="proxy.example.com",
+    )
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(applied,))
+    state_store = MemoryStateStore(initial)
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address="proxy.example.com",
+            listen_port=8443,
+        )
+    )
+
+    assert plan.previous_listen_port == ORIGINAL_PORT
+    assert plan.listen_port == EDITED_PORT
+    assert plan.previous_port_selection is PortSelection.FIXED
+    assert plan.port_selection is PortSelection.FIXED
+    assert plan.changed_fields == ("listen_port",)
+    assert plan.scope is ProfileEditScope.LIVE_CONFIGURATION
+    assert plan.mutates_host is False
+    assert state_store.load() == initial
+
+
+def test_fixing_the_current_automatic_port_changes_only_desired_state_policy() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=ORIGINAL_PORT,
+        port_selection=PortSelection.AUTOMATIC,
+        status=ProfileStatus.APPLIED,
+    )
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(applied,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=UnavailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address=None,
+            listen_port=ORIGINAL_PORT,
+        )
+    )
+
+    assert plan.changed_fields == ("port_selection",)
+    assert plan.previous_port_selection is PortSelection.AUTOMATIC
+    assert plan.port_selection is PortSelection.FIXED
+    assert plan.scope is ProfileEditScope.DESIRED_STATE_ONLY
+
+
+def test_profile_edit_rejects_a_port_outside_the_valid_range() -> None:
+    draft = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(draft,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    with pytest.raises(ProfileEditValidationError) as captured:
+        editor.plan_edit(
+            PlanProfileEditRequest(
+                profile_id="profile-1",
+                profile_name="手机",
+                server_address=None,
+                listen_port=65_536,
+            )
+        )
+
+    assert captured.value.field == "listen_port"
+    assert captured.value.message == "端口必须在 1 到 65535 之间，或留空以自动选择"
+
+
+def test_profile_edit_rejects_a_port_already_declared_by_another_profile() -> None:
+    selected = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+    other = ManagedProfile(
+        profile_id="profile-2",
+        profile_name="平板",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=8443,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(
+                schema_version=1,
+                revision=7,
+                profiles=(selected, other),
+            )
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    with pytest.raises(ProfileEditValidationError) as captured:
+        editor.plan_edit(
+            PlanProfileEditRequest(
+                profile_id="profile-1",
+                profile_name="手机",
+                server_address=None,
+                listen_port=8443,
+            )
+        )
+
+    assert captured.value.field == "listen_port"
+    assert captured.value.message == "端口 8443 已被配置“平板”使用"
+
+
+def test_profile_edit_rejects_a_new_fixed_port_that_is_currently_unavailable() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(applied,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=UnavailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+    )
+
+    with pytest.raises(ProfileEditValidationError) as captured:
+        editor.plan_edit(
+            PlanProfileEditRequest(
+                profile_id="profile-1",
+                profile_name="手机",
+                server_address=None,
+                listen_port=8443,
+            )
+        )
+
+    assert captured.value.field == "listen_port"
+    assert captured.value.message == ("端口 8443 当前不可用，请选择其他端口或留空自动选择")
+
+
 def test_draft_profile_edit_plan_is_read_only_and_normalizes_operator_input() -> None:
     draft = ManagedProfile(
         profile_id="profile-1",
@@ -134,6 +367,7 @@ def test_draft_profile_edit_plan_is_read_only_and_normalizes_operator_input() ->
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -143,6 +377,7 @@ def test_draft_profile_edit_plan_is_read_only_and_normalizes_operator_input() ->
             profile_id="profile-1",
             profile_name="  新名称  ",
             server_address="  new.example.com  ",
+            listen_port=4433,
         )
     )
 
@@ -172,6 +407,7 @@ def test_profile_edit_rejects_an_empty_name_with_field_guidance() -> None:
             ManagedInstallation(schema_version=1, revision=7, profiles=(draft,))
         ),
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -182,6 +418,7 @@ def test_profile_edit_rejects_an_empty_name_with_field_guidance() -> None:
                 profile_id="profile-1",
                 profile_name="   ",
                 server_address=None,
+                listen_port=4433,
             )
         )
 
@@ -204,6 +441,7 @@ def test_profile_edit_rejects_a_plan_without_observable_changes() -> None:
             ManagedInstallation(schema_version=1, revision=7, profiles=(draft,))
         ),
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -214,6 +452,7 @@ def test_profile_edit_rejects_a_plan_without_observable_changes() -> None:
                 profile_id="profile-1",
                 profile_name="  现有名称 ",
                 server_address=" proxy.example.com ",
+                listen_port=4433,
             )
         )
 
@@ -233,6 +472,7 @@ def test_applied_profile_public_address_edit_does_not_claim_host_mutation() -> N
             ManagedInstallation(schema_version=1, revision=7, profiles=(applied,))
         ),
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -242,6 +482,7 @@ def test_applied_profile_public_address_edit_does_not_claim_host_mutation() -> N
             profile_id="profile-1",
             profile_name="手机",
             server_address="new.example.com",
+            listen_port=4433,
         )
     )
 
@@ -265,6 +506,7 @@ def test_applied_profile_name_edit_requires_a_live_configuration_transaction() -
             ManagedInstallation(schema_version=1, revision=7, profiles=(applied,))
         ),
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -274,6 +516,7 @@ def test_applied_profile_name_edit_requires_a_live_configuration_transaction() -
             profile_id="profile-1",
             profile_name="新名称",
             server_address="proxy.example.com",
+            listen_port=4433,
         )
     )
 
@@ -295,6 +538,7 @@ def test_profile_edit_requires_confirmation_before_lock_or_mutation() -> None:
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=ExplodingLock(),
     )
@@ -303,6 +547,7 @@ def test_profile_edit_requires_confirmation_before_lock_or_mutation() -> None:
             profile_id="profile-1",
             profile_name="新名称",
             server_address=None,
+            listen_port=4433,
         )
     )
 
@@ -334,6 +579,7 @@ def test_confirmed_draft_edit_commits_only_desired_state() -> None:
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=lock,
     )
@@ -342,6 +588,7 @@ def test_confirmed_draft_edit_commits_only_desired_state() -> None:
             profile_id="profile-1",
             profile_name="新名称",
             server_address="new.example.com",
+            listen_port=4433,
         )
     )
 
@@ -392,6 +639,7 @@ def test_confirmed_applied_name_edit_rebuilds_live_configuration_before_state_co
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog((handler,)),
+        port_source=AvailablePortSource(),
         applier=applier,
         apply_lock=TrackingLock(),
     )
@@ -400,6 +648,7 @@ def test_confirmed_applied_name_edit_rebuilds_live_configuration_before_state_co
             profile_id="profile-1",
             profile_name="新名称",
             server_address="proxy.example.com",
+            listen_port=4433,
         )
     )
 
@@ -428,6 +677,209 @@ def test_confirmed_applied_name_edit_rebuilds_live_configuration_before_state_co
     assert edited.expected_config_sha256 == configuration_sha256(expected_document)
 
 
+def test_confirmed_applied_port_edit_rebuilds_live_configuration_before_state_commit() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        server_address="proxy.example.com",
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=7,
+            profiles=(applied,),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    applier = RecordingSuccessfulApplier()
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingProfileHandler(),)),
+        port_source=AvailablePortSource(),
+        applier=applier,
+        apply_lock=TrackingLock(),
+    )
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address="proxy.example.com",
+            listen_port=8443,
+        )
+    )
+
+    result = editor.apply_edit(plan, confirmed=True)
+
+    expected_document = {
+        "inbounds": [
+            {
+                "type": "vless",
+                "tag": "profile-1",
+                "listen_port": 8443,
+                "users": [{"name": "手机"}],
+            }
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+    assert applier.document == expected_document
+    assert applier.precondition == ConfigTargetPrecondition.matching_sha256("a" * 64)
+    assert result.scope is ProfileEditScope.LIVE_CONFIGURATION
+    assert result.committed_revision == COMMITTED_REVISION
+    edited = state_store.load()
+    assert edited.profiles[0].listen_port == EDITED_PORT
+    assert edited.profiles[0].port_selection is PortSelection.FIXED
+    assert edited.expected_config_sha256 == configuration_sha256(expected_document)
+
+
+def test_port_becoming_unavailable_after_review_prevents_any_edit() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+    initial = ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(applied,),
+        expected_config_sha256="a" * 64,
+    )
+    state_store = MemoryStateStore(initial)
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=PortBecomesUnavailableSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+    )
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address=None,
+            listen_port=8443,
+        )
+    )
+
+    with pytest.raises(ProfileEditPortUnavailableError) as captured:
+        editor.apply_edit(plan, confirmed=True)
+
+    assert captured.value.port == EDITED_PORT
+    assert str(captured.value) == "端口 8443 在确认后已不可用，请重新预览"
+    assert state_store.load() == initial
+
+
+def test_confirmed_applied_edit_can_select_and_persist_an_automatic_port() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=7,
+            profiles=(applied,),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    applier = RecordingSuccessfulApplier()
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingProfileHandler(),)),
+        port_source=AutomaticPortSource(),
+        applier=applier,
+        apply_lock=TrackingLock(),
+    )
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address=None,
+            listen_port=None,
+        )
+    )
+
+    result = editor.apply_edit(plan, confirmed=True)
+
+    assert plan.listen_port is None
+    assert plan.port_selection is PortSelection.AUTOMATIC
+    assert result.committed_revision == COMMITTED_REVISION
+    assert result.listen_port == AUTOMATIC_PORT
+    assert applier.document == {
+        "inbounds": [
+            {
+                "type": "vless",
+                "tag": "profile-1",
+                "listen_port": 9443,
+                "users": [{"name": "手机"}],
+            }
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+    edited = state_store.load().profiles[0]
+    assert edited.listen_port == AUTOMATIC_PORT
+    assert edited.port_selection is PortSelection.AUTOMATIC
+
+
+def test_automatic_port_edit_excludes_ports_declared_by_other_profiles() -> None:
+    applied = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=ORIGINAL_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+    reserved_draft = ManagedProfile(
+        profile_id="profile-2",
+        profile_name="平板",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=EDITED_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=7,
+            profiles=(applied, reserved_draft),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingProfileHandler(),)),
+        port_source=ReservedAwareAutomaticPortSource(),
+        applier=RecordingSuccessfulApplier(),
+        apply_lock=TrackingLock(),
+    )
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="手机",
+            server_address=None,
+            listen_port=None,
+        )
+    )
+
+    result = editor.apply_edit(plan, confirmed=True)
+
+    assert result.committed_revision == COMMITTED_REVISION
+    edited_profiles = state_store.load().profiles
+    assert edited_profiles[0].listen_port == AUTOMATIC_PORT
+    assert edited_profiles[1].listen_port == EDITED_PORT
+
+
 def test_failed_live_profile_edit_preserves_desired_state() -> None:
     applied = ManagedProfile(
         profile_id="profile-1",
@@ -447,6 +899,7 @@ def test_failed_live_profile_edit_preserves_desired_state() -> None:
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog((RecordingProfileHandler(),)),
+        port_source=AvailablePortSource(),
         applier=RejectingApplier(),
         apply_lock=TrackingLock(),
     )
@@ -455,6 +908,7 @@ def test_failed_live_profile_edit_preserves_desired_state() -> None:
             profile_id="profile-1",
             profile_name="不会提交",
             server_address=None,
+            listen_port=4433,
         )
     )
 
@@ -480,6 +934,7 @@ def test_profile_edit_rejects_a_stale_desired_state_revision() -> None:
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=TrackingLock(),
     )
@@ -488,6 +943,7 @@ def test_profile_edit_rejects_a_stale_desired_state_revision() -> None:
             profile_id="profile-1",
             profile_name="新名称",
             server_address=None,
+            listen_port=4433,
         )
     )
     state_store.save(ManagedInstallation(schema_version=1, revision=5, profiles=(draft,)))
@@ -513,6 +969,7 @@ def test_profile_edit_reports_revision_conflict_when_another_session_made_same_e
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=TrackingLock(),
     )
@@ -521,6 +978,7 @@ def test_profile_edit_reports_revision_conflict_when_another_session_made_same_e
             profile_id="profile-1",
             profile_name="新名称",
             server_address=None,
+            listen_port=4433,
         )
     )
     state_store.save(
@@ -559,6 +1017,7 @@ def test_profile_edit_rejects_same_revision_content_that_no_longer_matches_plan(
     editor = ProfileEditingService(
         state_store=state_store,
         protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
         applier=ExplodingApplier(),
         apply_lock=TrackingLock(),
     )
@@ -567,6 +1026,7 @@ def test_profile_edit_rejects_same_revision_content_that_no_longer_matches_plan(
             profile_id="profile-1",
             profile_name="新名称",
             server_address=None,
+            listen_port=4433,
         )
     )
     state_store.save(
