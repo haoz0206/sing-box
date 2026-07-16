@@ -491,6 +491,10 @@ Current implementation status (2026-07-16):
   against official 1.14.0-alpha.45;
 - release harness: systemd/OpenRC service refresh and health checks require
   explicit host authorization;
+- artifact acquisition: exact immutable official releases require an API
+  SHA-256, safe archive staging, and staged core version self-verification;
+- pending artifact work: atomic privileged installation and rollback of the
+  verified staged distribution;
 - pending: the stable sing-box 1.14 release and execution of that harness on
   every supported host family.
 

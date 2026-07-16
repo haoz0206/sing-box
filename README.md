@@ -15,10 +15,11 @@
 - 独占 manager lock、隔离 staging、恢复备份与原子配置提交；
 - `sing-box check -c` 类型化验证适配器；
 - systemd/OpenRC runtime、后置健康检查、自动回滚与人工恢复步骤；
+- 官方 immutable release 的精确版本获取、SHA-256 校验、安全 staging 与核心版本自证；
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-当前尚未完成权限提升代理、sing-box 安装/升级和 Caddy/制品工作流。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+当前尚未完成权限提升代理、已验证制品的原子安装/升级和 Caddy 工作流。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 

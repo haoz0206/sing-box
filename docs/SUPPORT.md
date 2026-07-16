@@ -33,6 +33,18 @@ The real configuration integration check is also opt in. Point
 .venv/bin/pytest -q -m integration
 ```
 
+The official artifact path has a separate network authorization. This example
+acquires, hashes, safely stages, and self-verifies the current pre-release used
+by the compatibility suite:
+
+```bash
+SB_MANAGER_ARTIFACT_DOWNLOAD=download \
+SB_MANAGER_ARTIFACT_VERSION=1.14.0-alpha.45 \
+SB_MANAGER_ARTIFACT_ARCHITECTURE=amd64 \
+SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE=1 \
+.venv/bin/pytest -q tests/integration/test_official_artifact.py
+```
+
 ## Host runtime smoke
 
 The host marker exercises the production runtime adapter by refreshing the
