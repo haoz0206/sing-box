@@ -263,17 +263,24 @@ class ApplyConfirmationScreen(Screen[None]):
         self,
         installation: ManagedInstallation,
         profile_applier: ProfileApplier,
+        *,
+        profile_id: str,
     ) -> None:
         super().__init__()
         self.installation = installation
         self.profile_applier = profile_applier
+        try:
+            self.profile = next(
+                profile for profile in installation.profiles if profile.profile_id == profile_id
+            )
+        except StopIteration as error:
+            raise ValueError(f"Unknown profile in apply confirmation: {profile_id}") from error
 
     def compose(self) -> ComposeResult:
-        profile = self.installation.profiles[-1]
         yield Header()
         with Vertical(id="apply-confirmation"):
             yield Static("即将修改服务器", id="apply-confirm-title")
-            yield Static(f"配置：{profile.profile_name}", id="apply-confirm-profile")
+            yield Static(f"配置：{self.profile.profile_name}", id="apply-confirm-profile")
             yield Static(
                 "将写入 sing-box 配置并刷新服务，失败时自动回滚。",
                 id="apply-confirm-warning",
@@ -284,14 +291,13 @@ class ApplyConfirmationScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-apply")
     def confirm_apply(self) -> None:
-        profile = self.installation.profiles[-1]
         self.query_one("#confirm-apply", Button).disabled = True
         self.query_one("#apply-progress", Static).update(
             "正在校验、提交并检查服务健康状态; 请勿关闭程序。"
         )
         self.execute_apply(
             ApplyProfileRequest(
-                profile_id=profile.profile_id,
+                profile_id=self.profile.profile_id,
                 expected_revision=self.installation.revision,
                 confirmed=True,
             )
@@ -318,18 +324,25 @@ class DraftSavedScreen(Screen[None]):
     def __init__(
         self,
         installation: ManagedInstallation,
+        *,
+        profile_id: str,
         profile_applier: ProfileApplier | None = None,
     ) -> None:
         super().__init__()
         self.installation = installation
         self.profile_applier = profile_applier
+        try:
+            self.profile = next(
+                profile for profile in installation.profiles if profile.profile_id == profile_id
+            )
+        except StopIteration as error:
+            raise ValueError(f"Unknown saved draft profile: {profile_id}") from error
 
     def compose(self) -> ComposeResult:
-        profile = self.installation.profiles[-1]
         yield Header()
         with Vertical(id="draft-saved"):
             yield Static("草案已保存", id="draft-saved-title")
-            yield Static(profile.profile_name, id="saved-profile")
+            yield Static(self.profile.profile_name, id="saved-profile")
             yield Static(
                 f"草案 · revision {self.installation.revision}",
                 id="saved-status",
@@ -342,7 +355,13 @@ class DraftSavedScreen(Screen[None]):
     @on(Button.Pressed, "#apply-draft")
     def open_apply_confirmation(self) -> None:
         if self.profile_applier is not None:
-            self.app.push_screen(ApplyConfirmationScreen(self.installation, self.profile_applier))
+            self.app.push_screen(
+                ApplyConfirmationScreen(
+                    self.installation,
+                    self.profile_applier,
+                    profile_id=self.profile.profile_id,
+                )
+            )
 
 
 class PlanPreviewScreen(Screen[None]):
@@ -442,8 +461,14 @@ class PlanPreviewScreen(Screen[None]):
     @on(Button.Pressed, "#save-draft")
     def save_draft(self) -> None:
         self.manager.save_profile_draft(self.plan)
+        installation = self.manager.get_installation()
+        saved_profile = installation.profiles[-1]
         self.app.push_screen(
-            DraftSavedScreen(self.manager.get_installation(), self.profile_applier)
+            DraftSavedScreen(
+                installation,
+                profile_id=saved_profile.profile_id,
+                profile_applier=self.profile_applier,
+            )
         )
 
 
@@ -1024,6 +1049,14 @@ class ManagerApp(App[None]):
                         ),
                         id=f"profile-{index}",
                     )
+                    if profile.status is ProfileStatus.DRAFT and self.profile_applier is not None:
+                        yield Button(
+                            "应用草案",
+                            name=profile.profile_id,
+                            id=f"apply-profile-{index}",
+                            classes="apply-profile-action",
+                            variant="warning",
+                        )
                 yield Button(
                     "添加配置",
                     id="add-profile",
@@ -1049,6 +1082,29 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:
         self.push_screen(ProtocolSelectionScreen(self.manager, self.profile_applier))
+
+    @on(Button.Pressed, ".apply-profile-action")
+    def open_saved_draft_apply(self, event: Button.Pressed) -> None:
+        if self.profile_applier is None or event.button.name is None:
+            return
+        installation = self.manager.get_installation()
+        try:
+            profile = next(
+                profile
+                for profile in installation.profiles
+                if profile.profile_id == event.button.name
+            )
+        except StopIteration:
+            return
+        if profile.status is not ProfileStatus.DRAFT:
+            return
+        self.push_screen(
+            ApplyConfirmationScreen(
+                installation,
+                self.profile_applier,
+                profile_id=profile.profile_id,
+            )
+        )
 
     @on(Button.Pressed, "#manage-core")
     def open_core_update(self) -> None:

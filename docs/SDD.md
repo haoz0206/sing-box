@@ -524,8 +524,12 @@ Current implementation status (2026-07-16):
   runner, strictly restores the typed transaction, and surfaces unknown host
   results without committing desired state;
 - privileged installation: a root-only command installs fixed directories and
-  exact no-arguments sudo/doas rules after native syntax validation; pinned
-  Debian 12, Ubuntu 24.04, and Alpine 3.20 container acceptance passes;
+  exact no-arguments sudo/doas rules after a read-only plan and explicit
+  `--confirm`, followed by native syntax validation; pinned Debian 12, Ubuntu
+  24.04, and Alpine 3.20 container acceptance passes;
+- persisted operator journey: reopening the TUI exposes an apply action for
+  each draft and carries its stable profile ID plus current desired-state
+  revision into the existing confirmation and background apply flow;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

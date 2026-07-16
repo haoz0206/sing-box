@@ -256,6 +256,53 @@ async def test_operator_sees_saved_profiles_after_reopening_the_tui() -> None:
         assert str(app.screen.query_one("#add-profile", Button).label) == "添加配置"
 
 
+async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="saved-draft",
+                profile_name="待应用手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+            ),
+            ManagedProfile(
+                profile_id="already-applied",
+                profile_name="现有电脑",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=8443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    profile_applier = RecordingProfileApplier()
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_applier=profile_applier,
+    )
+
+    async with app.run_test() as pilot:
+        assert str(app.screen.query_one("#apply-profile-0", Button).label) == "应用草案"
+        await pilot.click("#apply-profile-0")
+
+        assert app.screen.query_one("#apply-confirm-profile", Static).content == (
+            "配置：待应用手机"
+        )
+        await pilot.click("#confirm-apply")
+
+        assert profile_applier.requests == [
+            ApplyProfileRequest(
+                profile_id="saved-draft",
+                expected_revision=7,
+                confirmed=True,
+            )
+        ]
+
+
 async def test_operator_sees_applied_status_after_reopening_the_tui() -> None:
     installation = ManagedInstallation(
         schema_version=1,
