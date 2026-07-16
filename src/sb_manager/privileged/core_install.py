@@ -1,31 +1,26 @@
 """Root-side core activation from one fixed incoming directory."""
 
-import hashlib
-import hmac
-import os
 import shutil
-import stat
 from dataclasses import dataclass
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.artifacts.installation import CoreActivation, CoreDistributionInstaller
 from sb_manager.artifacts.staging import CoreArtifactStager
+from sb_manager.privileged.errors import PrivilegedInputError
+from sb_manager.privileged.incoming import (
+    VerifiedIncomingFileCopier,
+    prepare_private_directory,
+    require_real_directory,
+)
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
-    ArtifactIntegrityError,
     CoreArtifactRequest,
     VerifiedCoreArtifact,
 )
 
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
-COPY_CHUNK_BYTES = 1024 * 1024
 SHA256_HEX_LENGTH = 64
-
-
-class PrivilegedInputError(RuntimeError):
-    """An unprivileged request or incoming file violates fixed policy."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,17 +50,18 @@ class PrivilegedCoreInstallService:
 
     def activate_core(self, request: ActivateCoreRequest) -> CoreActivation:
         self._validate_request(request)
-        self._require_incoming_directory()
-        self._policy.working_directory.mkdir(parents=True, mode=0o700, exist_ok=True)
-        if self._policy.working_directory.is_symlink():
-            raise PrivilegedInputError("Private working directory must not be a symlink")
-        self._policy.working_directory.chmod(0o700)
+        require_real_directory(self._policy.incoming_directory, role="Incoming artifact directory")
+        prepare_private_directory(self._policy.working_directory)
 
         asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
         incoming_path = self._policy.incoming_directory / asset_name
-        private_archive = self._copy_and_verify(
+        private_archive = VerifiedIncomingFileCopier(
+            working_directory=self._policy.working_directory
+        ).copy(
             incoming_path,
             expected_sha256=request.sha256,
+            maximum_bytes=MAX_ARCHIVE_BYTES,
+            prefix=".incoming-core.",
         )
         staged_directory: Path | None = None
         try:
@@ -102,69 +98,3 @@ class PrivilegedCoreInstallService:
             character not in "0123456789abcdef" for character in request.sha256
         ):
             raise PrivilegedInputError("Core archive SHA-256 must be 64 lowercase hex characters")
-
-    def _require_incoming_directory(self) -> None:
-        incoming = self._policy.incoming_directory
-        if not incoming.is_dir() or incoming.is_symlink():
-            raise PrivilegedInputError(
-                f"Incoming artifact directory must be a real directory: {incoming}"
-            )
-
-    def _copy_and_verify(self, source_path: Path, *, expected_sha256: str) -> Path:
-        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-        try:
-            descriptor = os.open(source_path, flags)
-        except OSError as error:
-            raise PrivilegedInputError(
-                f"Incoming core archive must be a regular file: {source_path}"
-            ) from error
-
-        private_path: Path | None = None
-        try:
-            source_stat = os.fstat(descriptor)
-            if not stat.S_ISREG(source_stat.st_mode):
-                raise PrivilegedInputError(
-                    f"Incoming core archive must be a regular file: {source_path}"
-                )
-            if source_stat.st_size > MAX_ARCHIVE_BYTES:
-                raise PrivilegedInputError(
-                    f"Incoming core archive exceeds {MAX_ARCHIVE_BYTES} bytes"
-                )
-
-            digest = hashlib.sha256()
-            with (
-                os.fdopen(descriptor, "rb", closefd=False) as source,
-                NamedTemporaryFile(
-                    mode="wb",
-                    dir=self._policy.working_directory,
-                    prefix=".incoming-core.",
-                    delete=False,
-                ) as destination,
-            ):
-                private_path = Path(destination.name)
-                copied_bytes = 0
-                while chunk := source.read(COPY_CHUNK_BYTES):
-                    copied_bytes += len(chunk)
-                    if copied_bytes > MAX_ARCHIVE_BYTES:
-                        raise PrivilegedInputError(
-                            f"Incoming core archive exceeds {MAX_ARCHIVE_BYTES} bytes"
-                        )
-                    digest.update(chunk)
-                    destination.write(chunk)
-                destination.flush()
-                os.fsync(destination.fileno())
-
-            actual_sha256 = digest.hexdigest()
-            if not hmac.compare_digest(actual_sha256, expected_sha256):
-                raise ArtifactIntegrityError(
-                    f"SHA-256 mismatch for {source_path.name}: "
-                    f"expected {expected_sha256}, got {actual_sha256}"
-                )
-            private_path.chmod(0o400)
-            verified_path = private_path
-            private_path = None
-            return verified_path
-        finally:
-            os.close(descriptor)
-            if private_path is not None:
-                private_path.unlink(missing_ok=True)

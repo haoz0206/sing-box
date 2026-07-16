@@ -32,6 +32,9 @@ owner, invoking account, and host controls are operator decisions.
 | Root-private copy and staging | `/var/lib/sing-box-manager/work` |
 | Versioned core installation | `/opt/sing-box-manager/core` |
 | Activation lock | `/run/lock/sing-box-manager-core.lock` |
+| Managed configuration | `/etc/sing-box/config.json` |
+| Installed validation core | `/opt/sing-box-manager/core/current/sing-box` |
+| Configuration apply lock | `/run/lock/sing-box-manager-apply.lock` |
 
 The incoming directory may permit a dedicated manager account to create files,
 but its parent and the other paths must remain root-controlled. The helper
@@ -41,7 +44,7 @@ SHA-256 before archive parsing.
 
 ## Request protocol
 
-Schema version 1 currently allows only `activate-core`:
+Schema version 1 allows `activate-core`:
 
 ```json
 {
@@ -57,6 +60,21 @@ Unknown, missing, or duplicate fields fail. `architecture` is `amd64` or
 `arm64`. The helper emits the active binary path and previous activation target
 without echoing request bytes or file contents.
 
-The current helper covers core activation only. Privileged configuration apply
-and runtime refresh remain unavailable until they receive separate request
-schemas and transaction tests.
+It also allows a fixed-target configuration transaction:
+
+```json
+{
+  "schema_version": 1,
+  "operation": "apply-config",
+  "sha256": "FULL_64_CHARACTER_LOWERCASE_SHA256"
+}
+```
+
+The corresponding incoming filename is derived as `config-<sha256>.json`.
+The request cannot choose its destination, validator, init system, service, or
+lock. On an active systemd host the helper uses
+`/usr/bin/systemctl sing-box.service`; otherwise it accepts fixed
+`/sbin/rc-service sing-box`. It reuses the transactional validator, atomic
+commit, health check, and rollback behavior.
+
+The unprivileged TUI client and operator authorization packaging remain pending.

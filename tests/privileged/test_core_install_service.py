@@ -9,8 +9,8 @@ from sb_manager.privileged.core_install import (
     ActivateCoreRequest,
     PrivilegedCoreInstallPolicy,
     PrivilegedCoreInstallService,
-    PrivilegedInputError,
 )
+from sb_manager.privileged.errors import PrivilegedInputError
 from sb_manager.seams.artifact_source import ArtifactArchitecture, ArtifactIntegrityError
 
 VERSION = "1.14.0-alpha.45"

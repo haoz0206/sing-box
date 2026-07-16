@@ -506,8 +506,11 @@ Current implementation status (2026-07-16):
 - privileged artifact seam: a root-only, no-network, fixed-policy JSON helper
   re-copies and hashes incoming archives before using safe staging and atomic
   activation;
-- pending privileged work: configuration apply, runtime refresh, and
-  operator-owned authorization packaging;
+- privileged configuration seam: a SHA-256-only request selects a derived
+  incoming filename and fixed config/core/runtime/lock policy, then reuses
+  validation, atomic commit, health, and rollback transactions;
+- pending privileged work: the unprivileged TUI client and operator-owned
+  authorization packaging;
 - pending: the stable sing-box 1.14 release and execution of that harness on
   every supported host family.
 

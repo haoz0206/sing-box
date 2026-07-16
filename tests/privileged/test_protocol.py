@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.privileged.config_apply import ApplyConfigRequest
 from sb_manager.privileged.core_install import ActivateCoreRequest
 from sb_manager.privileged.protocol import (
     PrivilegedProtocolError,
@@ -11,6 +12,9 @@ from sb_manager.privileged.protocol import (
     execute_privileged_request,
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
+from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult, CommitResult
 
 
 class RecordingCoreActivator:
@@ -25,6 +29,28 @@ class RecordingCoreActivator:
             binary_path=Path("/opt/sing-box-manager/core/current/sing-box"),
             activated_target="versions/release",
             previous_target=None,
+        )
+
+
+class RecordingConfigApplier:
+    def __init__(self) -> None:
+        self.requests: list[ApplyConfigRequest] = []
+
+    def apply_config(self, request: ApplyConfigRequest) -> ApplyTransactionResult:
+        self.requests.append(request)
+        return ApplyTransactionResult(
+            outcome=ApplyOutcome.APPLIED,
+            validation=ConfigValidationResult(valid=True, diagnostics="configuration valid"),
+            runtime_refresh=RuntimeRefreshResult(
+                success=True,
+                diagnostics="service refreshed",
+            ),
+            postcondition=RuntimePostcondition(
+                healthy=True,
+                diagnostics="service active",
+            ),
+            rollback=None,
+            commit=CommitResult(success=True, diagnostics="configuration committed"),
         )
 
 
@@ -76,6 +102,37 @@ def test_non_root_request_is_rejected_before_service_invocation() -> None:
         )
 
     assert activator.requests == []
+
+
+def test_apply_config_request_cannot_select_host_policy_and_returns_outcome() -> None:
+    applier = RecordingConfigApplier()
+    sha256 = "b" * 64
+
+    result = execute_privileged_request(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "operation": "apply-config",
+                "sha256": sha256,
+            }
+        ),
+        effective_user_id=0,
+        core_activator=RecordingCoreActivator(),
+        config_applier=applier,
+    )
+
+    assert applier.requests == [ApplyConfigRequest(sha256=sha256)]
+    assert json.loads(result) == {
+        "schema_version": 1,
+        "status": "applied",
+        "outcome": "applied",
+        "diagnostics": [
+            "configuration valid",
+            "configuration committed",
+            "service refreshed",
+            "service active",
+        ],
+    }
 
 
 @pytest.mark.parametrize(

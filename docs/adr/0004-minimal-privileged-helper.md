@@ -60,8 +60,9 @@ no flags or environment variables that override these paths.
   still must provide bytes matching an accepted digest.
 - The helper package must be upgraded deliberately before new privileged
   behavior becomes available.
-- Service/config mutation remains pending until its own request schema and
-  transactional policy are designed.
+- Configuration mutation now uses a separate SHA-256-only `apply-config`
+  schema with fixed validator, target, runtime, service, and lock policy; future
+  operations remain unavailable until separately designed.
 
 ## Rejected alternatives
 

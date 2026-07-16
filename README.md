@@ -16,11 +16,11 @@
 - `sing-box check -c` 类型化验证适配器；
 - systemd/OpenRC runtime、后置健康检查、自动回滚与人工恢复步骤；
 - 官方 immutable release 的精确版本获取、SHA-256 校验、安全 staging、版本自证，以及版本目录的原子激活/rollback；
-- root-only、无网络、固定路径与版本化 JSON 协议的单次 core activation helper；
+- root-only、无网络、固定路径与版本化 JSON 协议的 core activation/config apply helper；
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-core 制品已经有最小权限 helper，但配置写入与 runtime refresh 尚未接入该边界，Caddy 工作流也未完成。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback，但 unprivileged TUI client 尚未接入，Caddy 工作流也未完成。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 

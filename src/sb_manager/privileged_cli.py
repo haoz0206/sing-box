@@ -6,23 +6,30 @@ import sys
 from pathlib import Path
 
 from sb_manager.artifacts.installation import CoreInstallError
+from sb_manager.privileged.config_apply import (
+    ApplyConfigRequest,
+    PrivilegedConfigApplyPolicy,
+    PrivilegedConfigApplyService,
+)
 from sb_manager.privileged.core_install import (
     PrivilegedCoreInstallPolicy,
     PrivilegedCoreInstallService,
-    PrivilegedInputError,
 )
+from sb_manager.privileged.errors import PrivilegedInputError
 from sb_manager.privileged.protocol import (
     MAX_REQUEST_BYTES,
     REQUEST_SCHEMA_VERSION,
     PrivilegedProtocolError,
     execute_privileged_request,
 )
+from sb_manager.privileged.runtime_policy import HostRuntimePolicyError, create_host_runtime
 from sb_manager.seams.apply_lock import ApplyLockUnavailableError
 from sb_manager.seams.artifact_source import (
     ArtifactArchiveError,
     ArtifactIntegrityError,
     ArtifactVersionError,
 )
+from sb_manager.transactions.apply import ApplyTransactionResult
 
 EX_NOPERM = 77
 EX_USAGE = 64
@@ -34,6 +41,23 @@ HOST_POLICY = PrivilegedCoreInstallPolicy(
     installation_root=Path("/opt/sing-box-manager/core"),
     lock_path=Path("/run/lock/sing-box-manager-core.lock"),
 )
+HOST_CONFIG_POLICY = PrivilegedConfigApplyPolicy(
+    incoming_directory=Path("/var/lib/sing-box-manager/incoming"),
+    working_directory=Path("/var/lib/sing-box-manager/work"),
+    config_path=Path("/etc/sing-box/config.json"),
+    core_binary=Path("/opt/sing-box-manager/core/current/sing-box"),
+    lock_path=Path("/run/lock/sing-box-manager-apply.lock"),
+)
+
+
+class HostConfigApplier:
+    """Delay fixed init-system detection until an apply request needs it."""
+
+    def apply_config(self, request: ApplyConfigRequest) -> ApplyTransactionResult:
+        return PrivilegedConfigApplyService(
+            policy=HOST_CONFIG_POLICY,
+            runtime=create_host_runtime(),
+        ).apply_config(request)
 
 
 def main() -> None:
@@ -54,6 +78,7 @@ def main() -> None:
             request_text,
             effective_user_id=os.geteuid(),
             core_activator=PrivilegedCoreInstallService(policy=HOST_POLICY),
+            config_applier=HostConfigApplier(),
         )
     except PrivilegedProtocolError as error:
         _write_error(error="invalid-request", message=str(error))
@@ -64,6 +89,7 @@ def main() -> None:
         ArtifactIntegrityError,
         ArtifactVersionError,
         CoreInstallError,
+        HostRuntimePolicyError,
         PrivilegedInputError,
     ) as error:
         _write_error(error="operation-rejected", message=str(error))
