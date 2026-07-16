@@ -53,6 +53,7 @@ python -m venv .venv
 - [TDD 执行方法](docs/TDD.md)
 - [Python + Textual 重写决策](docs/adr/0001-python-textual-rewrite.md)
 - [深协议 catalog 决策](docs/adr/0002-deep-protocol-catalog.md)
+- [支持平台矩阵](docs/SUPPORT.md)
 
 核心数据流为：
 

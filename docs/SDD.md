@@ -386,8 +386,8 @@ directories and speculative modules are not created in advance.
 
 ## 9. Technology choices
 
-- Python: typed Python 3.10 or newer; the production OS matrix is confirmed
-  before privileged host apply.
+- Python: typed CPython 3.10 through 3.14; the managed-host matrix and its
+  verification levels are defined in `docs/SUPPORT.md`.
 - TUI: Textual, selected for screen/widget navigation and headless Pilot tests.
 - Tests: pytest, pytest-asyncio, and Textual `run_test()`.
 - Static quality: Ruff formatting/linting and mypy strictness introduced
@@ -505,8 +505,6 @@ Current implementation status (2026-07-16):
 
 ## 14. Open decisions
 
-- Define the supported Linux distribution and Python matrix before a stable
-  release.
 - Choose the first artifact acquisition trust policy and supported update
   channels.
 - Decide whether operator-provided TLS files enter the guided wizard or remain
