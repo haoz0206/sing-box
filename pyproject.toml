@@ -31,6 +31,7 @@ asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
 markers = [
+  "host: destructive opt-in checks against an explicitly configured host service",
   "integration: opt-in checks against explicitly configured host binaries",
 ]
 

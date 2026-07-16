@@ -485,7 +485,10 @@ Current implementation status (2026-07-16):
 - release integration: product-generated configurations for every supported
   protocol and the VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
   against official 1.14.0-alpha.45;
-- pending: the stable sing-box 1.14 release and supported-host smoke tests.
+- release harness: systemd/OpenRC service refresh and health checks require
+  explicit host authorization;
+- pending: the stable sing-box 1.14 release and execution of that harness on
+  every supported host family.
 
 ## 13. Release acceptance criteria
 

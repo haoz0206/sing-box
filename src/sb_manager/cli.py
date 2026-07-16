@@ -32,12 +32,30 @@ from sb_manager.protocols.catalog import (
     VlessTlsHandler,
     VmessTlsHandler,
 )
-from sb_manager.seams.runtime import Runtime
+from sb_manager.seams.runtime import Runtime, RuntimeKind
 from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCatalog
 from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import TransportCatalog
 from sb_manager.ui.app import ManagerApp
+
+
+def create_runtime(
+    *,
+    runtime_kind: RuntimeKind,
+    binary: str | Path | None = None,
+    service_name: str | None = None,
+) -> Runtime:
+    """Select one production runtime with init-system-specific defaults."""
+    if runtime_kind is RuntimeKind.SYSTEMD:
+        return SystemdRuntime(
+            binary=binary or "systemctl",
+            service_name=service_name or "sing-box.service",
+        )
+    return OpenRCRuntime(
+        binary=binary or "rc-service",
+        service_name=service_name or "sing-box",
+    )
 
 
 def create_protocol_catalog(
@@ -122,8 +140,8 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     )
     parser.add_argument(
         "--runtime",
-        choices=("systemd", "openrc"),
-        default="systemd",
+        choices=tuple(kind.value for kind in RuntimeKind),
+        default=RuntimeKind.SYSTEMD.value,
         help="服务管理器",
     )
     parser.add_argument(
@@ -146,17 +164,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     manager = Manager(state_store=state_store, mutation_lock=mutation_lock)
-    runtime: Runtime
-    if arguments.runtime == "systemd":
-        runtime = SystemdRuntime(
-            binary=arguments.runtime_binary or "systemctl",
-            service_name=arguments.service_name or "sing-box.service",
-        )
-    else:
-        runtime = OpenRCRuntime(
-            binary=arguments.runtime_binary or "rc-service",
-            service_name=arguments.service_name or "sing-box",
-        )
+    runtime = create_runtime(
+        runtime_kind=RuntimeKind(arguments.runtime),
+        binary=arguments.runtime_binary,
+        service_name=arguments.service_name,
+    )
     applier = ApplyCoordinator(
         config_path=arguments.config_file,
         stager=ConfigurationStager(parent=arguments.staging_dir),

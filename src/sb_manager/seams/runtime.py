@@ -1,7 +1,15 @@
 """Public seam for managing and observing the sing-box runtime."""
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Protocol
+
+
+class RuntimeKind(str, Enum):
+    """Init systems supported by the production runtime composition seam."""
+
+    SYSTEMD = "systemd"
+    OPENRC = "openrc"
 
 
 @dataclass(frozen=True, slots=True)

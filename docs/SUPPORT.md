@@ -33,6 +33,25 @@ The real configuration integration check is also opt in. Point
 .venv/bin/pytest -q -m integration
 ```
 
+## Host runtime smoke
+
+The host marker exercises the production runtime adapter by refreshing the
+configured service and then checking its health. It changes live service state.
+Run it only on an approved acceptance host with a recoverable sing-box service:
+
+```bash
+SB_MANAGER_HOST_SMOKE=refresh \
+SB_MANAGER_HOST_RUNTIME=systemd \
+SB_MANAGER_HOST_SERVICE=sing-box.service \
+.venv/bin/pytest -q -m host
+```
+
+Use `openrc` and service name `sing-box` on Alpine. An alternate command path
+can be supplied through `SB_MANAGER_HOST_RUNTIME_BINARY`. Without the exact
+`SB_MANAGER_HOST_SMOKE=refresh` authorization, the test skips before invoking
+the runtime. Providing this harness is not evidence that a target distribution
+has passed; each row remains pending until the command succeeds on that host.
+
 ## sing-box
 
 Generated configuration currently targets the sing-box 1.14 pre-release schema
