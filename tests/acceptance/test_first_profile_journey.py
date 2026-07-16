@@ -2,6 +2,7 @@ import time
 from pathlib import Path
 
 from textual.containers import VerticalScroll
+from textual.pilot import Pilot
 from textual.widgets import Button, Input, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -48,6 +49,14 @@ from sb_manager.transactions.apply import (
 )
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+
+async def open_direct_protocol_selection(
+    app: ManagerApp,
+    pilot: Pilot[None],
+) -> None:
+    app.screen.query_one("#choose-protocol-directly", Button).press()
+    await pilot.pause()
 
 
 class RecordingProfileApplier:
@@ -281,11 +290,11 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
 
         await pilot.click("#create-first-profile")
 
-        selection_title = app.screen.query_one("#protocol-selection-title", Static)
-        reality_option = app.screen.query_one("#protocol-vless-reality", Button)
+        purpose_title = app.screen.query_one("#profile-purpose-title", Static)
+        general_option = app.screen.query_one("#purpose-general", Button)
 
-        assert selection_title.content == "选择适合你的协议"
-        assert str(reality_option.label) == "VLESS Reality · 推荐"
+        assert purpose_title.content == "你主要想优化什么?"
+        assert str(general_option.label) == "通用搭建 · 推荐"
 
 
 async def test_operator_can_review_and_confirm_existing_config_adoption() -> None:
@@ -493,6 +502,7 @@ async def test_operator_gets_a_guided_reality_form() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
 
         form_title = app.screen.query_one("#reality-form-title", Static)
@@ -515,6 +525,7 @@ async def test_operator_can_preview_a_reality_plan_without_changing_the_host() -
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -541,6 +552,7 @@ async def test_operator_sees_which_field_needs_attention() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#listen-port")
         await pilot.press("4", "4", "3", "3")
@@ -556,6 +568,7 @@ async def test_operator_can_leave_port_selection_to_apply_time() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -571,6 +584,7 @@ async def test_operator_can_save_the_previewed_profile_as_a_draft() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -783,6 +797,7 @@ async def test_operator_sees_an_inline_error_for_an_invalid_port() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -801,6 +816,7 @@ async def test_operator_explicitly_confirms_apply_and_sees_success() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -854,6 +870,7 @@ async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         app.screen.query_one("#profile-name", Input).value = "后台应用"
         app.screen.query_one("#listen-port", Input).value = "4433"
@@ -876,6 +893,7 @@ async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -905,6 +923,7 @@ async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown()
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
@@ -931,6 +950,7 @@ async def test_operator_can_create_a_shadowsocks_2022_draft() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
 
         shadowsocks_option = app.screen.query_one("#protocol-shadowsocks", Button)
         assert str(shadowsocks_option.label) == "Shadowsocks 2022 · 简洁稳定"
@@ -970,6 +990,7 @@ async def test_operator_can_create_a_hysteria2_acme_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
 
         hysteria2_option = app.screen.query_one("#protocol-hysteria2", Button)
         assert str(hysteria2_option.label) == "Hysteria2 · 移动网络"
@@ -1013,6 +1034,7 @@ async def test_operator_can_create_a_trojan_acme_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
 
         option = app.screen.query_one("#protocol-trojan", Button)
         assert str(option.label) == "Trojan · TLS 兼容"
@@ -1052,6 +1074,7 @@ async def test_operator_can_create_an_anytls_acme_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
 
         option = app.screen.query_one("#protocol-anytls", Button)
         assert str(option.label) == "AnyTLS · 抗 TLS 嵌套指纹"
@@ -1092,6 +1115,7 @@ async def test_operator_can_create_a_tuic_acme_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         option = app.screen.query_one("#protocol-tuic", Button)
         assert str(option.label) == "TUIC · QUIC 低延迟"
         option.press()
@@ -1125,6 +1149,7 @@ async def test_operator_can_choose_root_managed_tls_files_as_an_advanced_strateg
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         app.screen.query_one("#protocol-trojan", Button).press()
         await pilot.pause()
 
@@ -1173,6 +1198,7 @@ async def test_operator_can_create_a_vless_tls_websocket_draft(tmp_path) -> None
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         option = app.screen.query_one("#protocol-vless-websocket", Button)
         assert str(option.label) == "VLESS TLS · WebSocket/CDN"
         option.press()
@@ -1213,6 +1239,7 @@ async def test_operator_can_create_a_vless_tls_grpc_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         option = app.screen.query_one("#protocol-vless-grpc", Button)
         assert str(option.label) == "VLESS TLS · gRPC"
         option.press()
@@ -1247,6 +1274,7 @@ async def test_operator_can_create_a_vmess_tls_websocket_draft(tmp_path) -> None
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         option = app.screen.query_one("#protocol-vmess-websocket", Button)
         assert str(option.label) == "VMess TLS · 旧客户端兼容"
         option.press()
@@ -1280,6 +1308,7 @@ async def test_operator_can_create_a_vmess_tls_grpc_draft(tmp_path) -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         option = app.screen.query_one("#protocol-vmess-grpc", Button)
         assert str(option.label) == "VMess TLS · gRPC 兼容"
         option.press()
@@ -1309,6 +1338,7 @@ async def test_operator_sees_actionable_configuration_commit_failure() -> None:
 
     async with app.run_test() as pilot:
         await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")

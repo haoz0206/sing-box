@@ -28,6 +28,7 @@ Footer {
 #profile-edit-port-conflict,
 #profile-edit-conflict,
 #profile-availability-plan, #profile-availability-result, #profile-availability-error,
+#profile-purpose, #profile-recommendation,
 #core-update-form, #core-update-plan, #core-update-result, #core-update-error,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
@@ -55,6 +56,7 @@ Footer {
 #profile-edit-error-title, #profile-edit-conflict-title, #profile-edit-port-conflict-title,
 #profile-availability-plan-title, #profile-availability-result-title,
 #profile-availability-error-title,
+#profile-purpose-title, #profile-recommendation-title,
 #config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;
     text-style: bold;

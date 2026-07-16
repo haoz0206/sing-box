@@ -190,8 +190,20 @@ The wizard uses progressive disclosure:
 5. Transport and TLS: only choices supported by the selected protocol.
 6. Review: human-readable plan, warnings, and one explicit apply action.
 
-The first implementation slice supports one guided VLESS Reality profile. The
-architecture must not assume Reality is the only protocol.
+The implemented entry journey asks for general setup, mobile/low-latency,
+restricted-network connection choices, or existing-client compatibility before
+showing protocol terminology. A pure application advisor returns three ordered
+exact protocol variants with one reason and one tradeoff each. Textual renders
+that evidence without recomputing policy, labels the first choice as a starting
+point rather than an automatic decision, and states that no recommendation
+guarantees connectivity. Selection opens the existing form and retains all
+normal plan and confirmation steps. An explicit advanced action exposes every
+supported protocol/transport variant without ranking.
+
+Wizard purpose remains ephemeral navigation intent. `ProtocolVariant` identifies
+the exact form, including WebSocket/gRPC distinctions, but persisted profiles
+continue to store protocol, TLS intent, and transport intent as the source of
+truth.
 
 ### 5.5 Network
 
@@ -563,6 +575,10 @@ the release acceptance criteria. It is not translated function by function.
 
 Current implementation status (2026-07-17):
 
+- purpose-first profile recommendation: adding a profile starts from four
+  operator outcomes, returns three reasoned and caveated protocol variants from
+  one pure application module, opens the existing guided form after selection,
+  and retains an unranked advanced list of all ten supported variants;
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
 - shared TLS strategies: the guided TUI supports sing-box 1.14 ACME certificate

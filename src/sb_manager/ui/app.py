@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
@@ -53,6 +53,11 @@ from sb_manager.application.profile_details import (
     ProfileDetailsReader,
 )
 from sb_manager.application.profile_editing import ProfileEditor
+from sb_manager.application.profile_recommendation import (
+    ProfileRecommendationAdvisor,
+    ProfileRecommendationService,
+    ProtocolVariant,
+)
 from sb_manager.application.profile_removal import (
     ProfileRemovalNotFoundError,
     ProfileRemover,
@@ -76,6 +81,7 @@ from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityPlanScreen,
 )
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
+from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
 
 
@@ -186,6 +192,18 @@ VMESS_GRPC_PROFILE = GuidedProfileDefinition(
     uses_tls=True,
     uses_grpc=True,
 )
+GUIDED_PROFILES_BY_VARIANT: dict[ProtocolVariant, GuidedProfileDefinition] = {
+    ProtocolVariant.VLESS_REALITY: REALITY_PROFILE,
+    ProtocolVariant.SHADOWSOCKS: SHADOWSOCKS_PROFILE,
+    ProtocolVariant.HYSTERIA2: HYSTERIA2_PROFILE,
+    ProtocolVariant.TROJAN: TROJAN_PROFILE,
+    ProtocolVariant.ANYTLS: ANYTLS_PROFILE,
+    ProtocolVariant.TUIC: TUIC_PROFILE,
+    ProtocolVariant.VLESS_WEBSOCKET: VLESS_WEBSOCKET_PROFILE,
+    ProtocolVariant.VLESS_GRPC: VLESS_GRPC_PROFILE,
+    ProtocolVariant.VMESS_WEBSOCKET: VMESS_WEBSOCKET_PROFILE,
+    ProtocolVariant.VMESS_GRPC: VMESS_GRPC_PROFILE,
+}
 PROTOCOL_LABELS: dict[ProtocolKind, str] = {
     ProtocolKind.VLESS_REALITY: "VLESS Reality",
     ProtocolKind.SHADOWSOCKS: "Shadowsocks 2022",
@@ -810,8 +828,8 @@ class GuidedProfileScreen(Screen[None]):
             visible_error_fields.append("websocket_path")
         if self.definition.uses_grpc:
             visible_error_fields.append("grpc_service_name")
-        for field in visible_error_fields:
-            self.query_one(self.ERROR_SELECTORS[field], Static).update("")
+        for error_field in visible_error_fields:
+            self.query_one(self.ERROR_SELECTORS[error_field], Static).update("")
         try:
             plan = self.manager.plan_profile(
                 PlanProfileRequest(
@@ -837,118 +855,6 @@ class GuidedProfileScreen(Screen[None]):
         self.query_one("#tls-file-fields").display = use_operator_files
 
 
-class ProtocolSelectionScreen(Screen[None]):
-    """Help an operator choose a protocol without requiring protocol syntax."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def __init__(
-        self,
-        manager: Manager,
-        profile_applier: ProfileApplier | None = None,
-    ) -> None:
-        super().__init__()
-        self.manager = manager
-        self.profile_applier = profile_applier
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with VerticalScroll(id="protocol-selection"):
-            yield Static("选择适合你的协议", id="protocol-selection-title")
-            yield Static("从推荐选项开始。高级协议会在后续版本逐步开放。")
-            yield Button(
-                "VLESS Reality · 推荐",
-                id="protocol-vless-reality",
-                variant="primary",
-            )
-            yield Button(
-                "Shadowsocks 2022 · 简洁稳定",
-                id="protocol-shadowsocks",
-            )
-            yield Button(
-                "Hysteria2 · 移动网络",
-                id="protocol-hysteria2",
-            )
-            yield Button(
-                "Trojan · TLS 兼容",
-                id="protocol-trojan",
-            )
-            yield Button(
-                "AnyTLS · 抗 TLS 嵌套指纹",
-                id="protocol-anytls",
-            )
-            yield Button("TUIC · QUIC 低延迟", id="protocol-tuic")
-            yield Button(
-                "VLESS TLS · WebSocket/CDN",
-                id="protocol-vless-websocket",
-            )
-            yield Button("VLESS TLS · gRPC", id="protocol-vless-grpc")
-            yield Button(
-                "VMess TLS · 旧客户端兼容",
-                id="protocol-vmess-websocket",
-            )
-            yield Button("VMess TLS · gRPC 兼容", id="protocol-vmess-grpc")
-        yield Footer()
-
-    @on(Button.Pressed, "#protocol-vless-reality")
-    def open_reality_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, REALITY_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-shadowsocks")
-    def open_shadowsocks_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, SHADOWSOCKS_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-hysteria2")
-    def open_hysteria2_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, HYSTERIA2_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-trojan")
-    def open_trojan_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, TROJAN_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-anytls")
-    def open_anytls_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, ANYTLS_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-tuic")
-    def open_tuic_form(self) -> None:
-        self.app.push_screen(GuidedProfileScreen(self.manager, TUIC_PROFILE, self.profile_applier))
-
-    @on(Button.Pressed, "#protocol-vless-websocket")
-    def open_vless_websocket_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, VLESS_WEBSOCKET_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-vless-grpc")
-    def open_vless_grpc_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, VLESS_GRPC_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-vmess-websocket")
-    def open_vmess_websocket_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, VMESS_WEBSOCKET_PROFILE, self.profile_applier)
-        )
-
-    @on(Button.Pressed, "#protocol-vmess-grpc")
-    def open_vmess_grpc_form(self) -> None:
-        self.app.push_screen(
-            GuidedProfileScreen(self.manager, VMESS_GRPC_PROFILE, self.profile_applier)
-        )
-
-
 @dataclass(frozen=True, slots=True)
 class ManagerAppHostTools:
     """Host observation and profile lifecycle capabilities available to the TUI."""
@@ -960,6 +866,9 @@ class ManagerAppHostTools:
     profile_editor: ProfileEditor | None = None
     profile_remover: ProfileRemover | None = None
     profile_availability_manager: ProfileAvailabilityManager | None = None
+    profile_recommendation_advisor: ProfileRecommendationAdvisor = field(
+        default_factory=ProfileRecommendationService
+    )
     config_adopter: ConfigAdopter | None = None
 
 
@@ -992,6 +901,7 @@ class ManagerApp(App[None]):
         self.profile_editor = tools.profile_editor
         self.profile_remover = tools.profile_remover
         self.profile_availability_manager = tools.profile_availability_manager
+        self.profile_recommendation_advisor = tools.profile_recommendation_advisor
         self.config_adopter = tools.config_adopter
 
     def compose(self) -> ComposeResult:
@@ -1209,7 +1119,20 @@ class ManagerApp(App[None]):
 
     @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:
-        self.push_screen(ProtocolSelectionScreen(self.manager, self.profile_applier))
+        self.push_screen(
+            ProfilePurposeScreen(self.profile_recommendation_advisor),
+            self.open_guided_profile_variant,
+        )
+
+    def open_guided_profile_variant(self, variant: ProtocolVariant | None) -> None:
+        if variant is not None:
+            self.push_screen(
+                GuidedProfileScreen(
+                    self.manager,
+                    GUIDED_PROFILES_BY_VARIANT[variant],
+                    self.profile_applier,
+                )
+            )
 
     @on(Button.Pressed, ".apply-profile-action")
     def open_saved_draft_apply(self, event: Button.Pressed) -> None:

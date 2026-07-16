@@ -23,6 +23,10 @@ from sb_manager.application.profile_editing import (
     PlanProfileEditRequest,
     ProfileEditScope,
 )
+from sb_manager.application.profile_recommendation import (
+    ProfilePurpose,
+    ProtocolVariant,
+)
 from sb_manager.application.profile_removal import ProfileRemovalScope
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
@@ -170,6 +174,14 @@ def test_cli_composes_the_tui_with_a_persistent_state_store(tmp_path: Path) -> N
     app.manager.save_profile_draft(plan)
 
     assert JsonFileStateStore(state_path).load().profiles[0].profile_name == "手机"
+
+
+def test_cli_composes_the_purpose_first_profile_advisor() -> None:
+    app = create_app([])
+
+    report = app.profile_recommendation_advisor.recommend(ProfilePurpose.LOW_LATENCY)
+
+    assert report.recommendations[0].variant is ProtocolVariant.HYSTERIA2
 
 
 def test_cli_composes_an_exact_core_update_path() -> None:

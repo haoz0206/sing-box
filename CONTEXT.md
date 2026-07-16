@@ -90,6 +90,25 @@ does not contribute an inbound. A confirmed transition commits desired state
 only after the complete host transaction succeeds.
 _Avoid_: Draft status, profile removal, stopping the whole sing-box service
 
+**Profile purpose**:
+The operator outcome used only to rank choices at the start of the add-profile
+journey: general setup, low latency, restricted-network connection options, or
+existing-client compatibility. It is ephemeral navigation intent and is not
+manager desired state.
+_Avoid_: Protocol, persisted profile metadata, detected network condition
+
+**Protocol variant**:
+One exact guided form the operator can open. It includes a transport distinction
+such as VLESS TLS WebSocket versus VLESS TLS gRPC, while persisted desired state
+continues to use protocol, TLS intent, and transport intent separately.
+_Avoid_: Protocol kind alone, generated inbound type
+
+**Protocol recommendation**:
+An ordered, read-only shortlist for one profile purpose. Every choice states a
+reason and a tradeoff, never applies automatically, and does not guarantee
+connectivity or suitability for a particular network.
+_Avoid_: Network probe result, automatic protocol selection, compatibility proof
+
 **Diagnostics center**:
 One read-only, prioritized report that combines manager desired-state
 consistency, host readiness, and runtime health into stable checks and one
