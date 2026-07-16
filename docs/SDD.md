@@ -493,8 +493,11 @@ Current implementation status (2026-07-16):
   explicit host authorization;
 - artifact acquisition: exact immutable official releases require an API
   SHA-256, safe archive staging, and staged core version self-verification;
-- pending artifact work: atomic privileged installation and rollback of the
-  verified staged distribution;
+- artifact activation: isolated-root tests and the real official artifact prove
+  versioned distributions, an atomic relative `current` link, retained prior
+  versions, and conflict-aware rollback;
+- pending artifact work: expose that activation only through the minimal
+  privileged installation seam for protected host directories;
 - pending: the stable sing-box 1.14 release and execution of that harness on
   every supported host family.
 

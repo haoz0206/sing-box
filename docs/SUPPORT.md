@@ -34,8 +34,8 @@ The real configuration integration check is also opt in. Point
 ```
 
 The official artifact path has a separate network authorization. This example
-acquires, hashes, safely stages, and self-verifies the current pre-release used
-by the compatibility suite:
+acquires, hashes, safely stages, self-verifies, atomically activates, and rolls
+back the current pre-release in an isolated root:
 
 ```bash
 SB_MANAGER_ARTIFACT_DOWNLOAD=download \

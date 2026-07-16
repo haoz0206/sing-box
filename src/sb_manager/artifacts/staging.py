@@ -3,11 +3,11 @@
 import hashlib
 import hmac
 import shutil
-import subprocess
 import tarfile
 from pathlib import Path, PurePosixPath
 from tempfile import mkdtemp
 
+from sb_manager.artifacts.inspection import CoreBinaryInspector
 from sb_manager.seams.artifact_source import (
     ArtifactArchiveError,
     ArtifactIntegrityError,
@@ -48,7 +48,7 @@ class CoreArtifactStager:
                 expected_root=expected_root,
                 distribution_directory=distribution_directory,
             )
-            self._verify_version(binary_path, artifact.version)
+            CoreBinaryInspector().verify(binary_path, artifact.version)
         except (ArtifactArchiveError, ArtifactVersionError):
             shutil.rmtree(staging_root)
             raise
@@ -122,26 +122,6 @@ class CoreArtifactStager:
                 return None
             raise ArtifactArchiveError(f"Archive contains unsafe path: {member.name}")
         return PurePosixPath(*parts[1:])
-
-    @staticmethod
-    def _verify_version(binary_path: Path, expected_version: str) -> None:
-        try:
-            completed = subprocess.run(
-                [str(binary_path), "version"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=10,
-            )
-        except (OSError, subprocess.SubprocessError) as error:
-            raise ArtifactVersionError(f"Unable to inspect staged sing-box: {error}") from error
-        output = (completed.stdout or completed.stderr).strip()
-        first_line = output.splitlines()[0] if output else ""
-        expected_line = f"sing-box version {expected_version}"
-        if completed.returncode != 0 or first_line != expected_line:
-            raise ArtifactVersionError(
-                f"Staged sing-box reported {first_line!r}; expected {expected_line!r}"
-            )
 
     @staticmethod
     def _hash(path: Path) -> str:
