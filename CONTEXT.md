@@ -79,3 +79,10 @@ consistency, host readiness, and runtime health into stable checks and one
 recommended operator action. A failed probe becomes its own check and does not
 erase independent evidence.
 _Avoid_: Raw log dump, runtime status page, readiness wizard
+
+**Live configuration identity**:
+The read-only SHA-256 observation of the configured sing-box target, compared
+with the exact replacement precondition recorded in desired state. It can prove
+that the target is absent, untracked, unchanged, missing, or changed without
+returning configuration content.
+_Avoid_: Generated configuration validation, imported configuration, runtime health

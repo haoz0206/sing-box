@@ -22,6 +22,20 @@ from sb_manager.domain.installation import (
     ProtocolKind,
 )
 from sb_manager.domain.protocol_material import RealityMaterial
+from sb_manager.seams.config_target import ConfigTargetInspectionError, LiveConfigObservation
+
+
+class FixedConfigurationTargetInspector:
+    def __init__(self, observation: LiveConfigObservation) -> None:
+        self.observation = observation
+
+    def inspect(self) -> LiveConfigObservation:
+        return self.observation
+
+
+class FailingConfigurationTargetInspector:
+    def inspect(self) -> LiveConfigObservation:
+        raise ConfigTargetInspectionError("helper inspection timed out")
 
 
 class FixedHostReadiness:
@@ -69,6 +83,208 @@ def ready_item(code: HostReadinessItemCode, title: str) -> HostReadinessItem:
     )
 
 
+def empty_config_inspector() -> FixedConfigurationTargetInspector:
+    return FixedConfigurationTargetInspector(LiveConfigObservation(exists=False, sha256=None))
+
+
+def test_recorded_live_configuration_identity_is_reported_as_healthy() -> None:
+    expected_sha256 = "a" * 64
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(
+                schema_version=1,
+                revision=3,
+                profiles=(),
+                expected_config_sha256=expected_sha256,
+            )
+        ),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=True, sha256=expected_sha256)
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    live_configuration = report.items[1]
+    assert live_configuration.code is DiagnosticCode.LIVE_CONFIGURATION
+    assert live_configuration.condition is DiagnosticCondition.HEALTHY
+    assert live_configuration.summary == "实时配置身份与 desired state 记录一致"
+    assert live_configuration.diagnostics == f"当前配置 SHA-256：{expected_sha256}"
+    assert live_configuration.guidance == ""
+
+
+def test_changed_live_configuration_identity_requires_operator_action() -> None:
+    expected_sha256 = "a" * 64
+    observed_sha256 = "b" * 64
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(
+                schema_version=1,
+                revision=3,
+                profiles=(),
+                expected_config_sha256=expected_sha256,
+            )
+        ),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=True, sha256=observed_sha256)
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    live_configuration = report.items[1]
+    assert live_configuration.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert live_configuration.summary == "实时配置已在 manager 记录后发生变化"
+    assert live_configuration.diagnostics == (
+        f"记录的 SHA-256：{expected_sha256}，当前 SHA-256：{observed_sha256}"
+    )
+    assert live_configuration.guidance == (
+        "不要直接应用。先备份当前配置并确认外部修改来源。若改动非预期，恢复记录版本后重新检查。"
+    )
+    assert report.recommended_action == live_configuration.guidance
+
+
+def test_missing_recorded_live_configuration_requires_recovery() -> None:
+    expected_sha256 = "a" * 64
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(
+                schema_version=1,
+                revision=3,
+                profiles=(),
+                expected_config_sha256=expected_sha256,
+            )
+        ),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=False, sha256=None)
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    live_configuration = center.inspect().items[1]
+
+    assert live_configuration.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert live_configuration.summary == "desired state 记录的实时配置不存在"
+    assert live_configuration.diagnostics == f"记录的 SHA-256：{expected_sha256}，配置目标不存在"
+    assert live_configuration.guidance == (
+        "不要创建空文件或直接应用。先确认配置目标路径和挂载状态，再从已知正常版本恢复。"
+    )
+
+
+def test_untracked_existing_configuration_requires_explicit_adoption() -> None:
+    observed_sha256 = "b" * 64
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=True, sha256=observed_sha256)
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    live_configuration = center.inspect().items[1]
+
+    assert live_configuration.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert live_configuration.summary == "发现尚未由 manager 接管的现有配置"
+    assert live_configuration.diagnostics == f"当前配置 SHA-256：{observed_sha256}"
+    assert live_configuration.guidance == (
+        "打开现有配置接管流程，先审查并确认这个精确指纹。接管不会导入或改写配置。"
+    )
+
+
+def test_empty_configuration_target_is_healthy_when_no_identity_is_recorded() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=False, sha256=None)
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    live_configuration = center.inspect().items[1]
+
+    assert live_configuration.condition is DiagnosticCondition.HEALTHY
+    assert live_configuration.summary == "配置目标不存在，desired state 也未记录实时配置"
+    assert live_configuration.diagnostics == "没有待核对的实时配置身份"
+    assert live_configuration.guidance == ""
+
+
+def test_configuration_identity_probe_failure_keeps_independent_evidence() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=FailingConfigurationTargetInspector(),
+        host_readiness=FixedHostReadiness(
+            HostReadinessReport(items=(ready_item(HostReadinessItemCode.CORE, "sing-box 核心"),))
+        ),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert tuple(item.code for item in report.items) == (
+        DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
+        DiagnosticCode.CORE,
+        DiagnosticCode.RUNTIME,
+    )
+    live_configuration = report.items[1]
+    assert live_configuration.condition is DiagnosticCondition.ACTION_REQUIRED
+    assert live_configuration.summary == "无法核对实时配置身份"
+    assert live_configuration.diagnostics == "helper inspection timed out"
+    assert live_configuration.guidance == (
+        "确认配置目标读取权限或最小权限 helper 后重新检查。在身份未知时不要应用配置。"
+    )
+    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+
+
 def test_diagnostics_center_aggregates_healthy_desired_host_and_runtime_evidence() -> None:
     applied = ManagedProfile(
         profile_id="profile-1",
@@ -94,6 +310,9 @@ def test_diagnostics_center_aggregates_healthy_desired_host_and_runtime_evidence
                 expected_config_sha256="a" * 64,
             )
         ),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=True, sha256="a" * 64)
+        ),
         host_readiness=FixedHostReadiness(
             HostReadinessReport(
                 items=(
@@ -118,6 +337,7 @@ def test_diagnostics_center_aggregates_healthy_desired_host_and_runtime_evidence
     assert report.condition is DiagnosticCondition.HEALTHY
     assert tuple(item.code for item in report.items) == (
         DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
         DiagnosticCode.CONFIG_TARGET,
         DiagnosticCode.PRIVILEGED_HELPER,
         DiagnosticCode.CORE,
@@ -150,6 +370,7 @@ def test_diagnostics_center_prioritizes_inconsistent_applied_desired_state() -> 
                 expected_config_sha256=None,
             )
         ),
+        config_inspector=empty_config_inspector(),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
         host_diagnostics=FixedHostDiagnostics(
             HostDiagnosticsReport(
@@ -181,6 +402,9 @@ def test_diagnostics_center_prioritizes_inconsistent_applied_desired_state() -> 
 def test_corrupt_desired_state_does_not_hide_independent_host_evidence() -> None:
     center = DiagnosticsCenterService(
         state_store=CorruptStateStore(),
+        config_inspector=FixedConfigurationTargetInspector(
+            LiveConfigObservation(exists=True, sha256="b" * 64)
+        ),
         host_readiness=FixedHostReadiness(
             HostReadinessReport(items=(ready_item(HostReadinessItemCode.CORE, "sing-box 核心"),))
         ),
@@ -214,6 +438,7 @@ def test_corrupt_desired_state_does_not_hide_independent_host_evidence() -> None
 def test_readiness_probe_failure_is_one_actionable_check_and_runtime_still_runs() -> None:
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
         host_readiness=FailingHostReadiness(),
         host_diagnostics=FixedHostDiagnostics(
             HostDiagnosticsReport(
@@ -229,10 +454,11 @@ def test_readiness_probe_failure_is_one_actionable_check_and_runtime_still_runs(
 
     assert tuple(item.code for item in report.items) == (
         DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
         DiagnosticCode.HOST_READINESS,
         DiagnosticCode.RUNTIME,
     )
-    readiness = report.items[1]
+    readiness = report.items[2]
     assert readiness.condition is DiagnosticCondition.ACTION_REQUIRED
     assert readiness.summary == "无法完成主机准备度检查"
     assert readiness.diagnostics == "sudo helper unavailable"
@@ -243,6 +469,7 @@ def test_readiness_probe_failure_is_one_actionable_check_and_runtime_still_runs(
 def test_runtime_probe_failure_is_reported_without_discarding_readiness_results() -> None:
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
         host_readiness=FixedHostReadiness(
             HostReadinessReport(items=(ready_item(HostReadinessItemCode.CORE, "sing-box 核心"),))
         ),
@@ -253,6 +480,7 @@ def test_runtime_probe_failure_is_reported_without_discarding_readiness_results(
 
     assert tuple(item.code for item in report.items) == (
         DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
         DiagnosticCode.CORE,
         DiagnosticCode.RUNTIME,
     )
@@ -281,6 +509,7 @@ def test_duplicate_profile_identity_is_reported_before_lifecycle_actions() -> No
         state_store=MemoryStateStore(
             ManagedInstallation(schema_version=1, revision=2, profiles=drafts)
         ),
+        config_inspector=empty_config_inspector(),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
         host_diagnostics=FixedHostDiagnostics(
             HostDiagnosticsReport(
@@ -313,6 +542,7 @@ def test_missing_stable_profile_identity_is_actionable_migration_evidence() -> N
         state_store=MemoryStateStore(
             ManagedInstallation(schema_version=1, revision=1, profiles=(legacy_draft,))
         ),
+        config_inspector=empty_config_inspector(),
         host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
         host_diagnostics=FixedHostDiagnostics(
             HostDiagnosticsReport(
@@ -333,6 +563,7 @@ def test_missing_stable_profile_identity_is_actionable_migration_evidence() -> N
 def test_action_required_runtime_guidance_precedes_readiness_attention() -> None:
     center = DiagnosticsCenterService(
         state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
         host_readiness=FixedHostReadiness(
             HostReadinessReport(
                 items=(

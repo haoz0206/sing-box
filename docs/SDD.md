@@ -198,9 +198,14 @@ The first diagnostics-center slice aggregates desired-state consistency, host
 readiness, core/helper/config-target evidence, and runtime health behind one
 read-only `inspect()` interface. It assigns one stable severity model, keeps
 independent evidence when a probe fails, and chooses the highest-priority
-operator action. Domain resolution, certificate expiry, generated-config
-validation, port ownership, apply history, and redacted raw-log drill-down are
-delivered as later complete checks rather than UI-side subprocess parsing.
+operator action. The next slice reuses the active direct or privileged
+configuration-target inspector to compare only its SHA-256 with the desired
+state replacement precondition. It distinguishes an empty target, an untracked
+existing target, a matching identity, a missing recorded target, external
+drift, and an unavailable probe without reading configuration content. Domain
+resolution, certificate expiry, semantic generated-config validation, port
+ownership, apply history, and redacted raw-log drill-down are delivered as
+later complete checks rather than UI-side subprocess parsing.
 
 ### 5.8 Settings
 
@@ -561,6 +566,12 @@ Current implementation status (2026-07-17):
   read-only application interface; it isolates failed probes, prioritizes
   action-required over attention checks, presents one recommended action, and
   supports background rechecks without duplicating dashboard actions;
+- live configuration identity: the diagnostics center reuses the access-mode
+  selected configuration inspector to compare the target's read-only SHA-256
+  with the single desired-state replacement precondition; empty, untracked,
+  matching, missing, changed, and failed-probe states produce distinct typed
+  results while corrupt desired state still leaves readiness/runtime evidence
+  available;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed

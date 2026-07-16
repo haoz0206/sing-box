@@ -278,6 +278,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             host_diagnostics=host_diagnostics,
             diagnostics_center=DiagnosticsCenterService(
                 state_store=state_store,
+                config_inspector=config_inspector,
                 host_readiness=host_readiness,
                 host_diagnostics=host_diagnostics,
             ),

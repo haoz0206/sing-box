@@ -29,6 +29,9 @@ inspect() -> DiagnosticsCenterReport
 - validates readable desired state, stable and unique profile identities,
   applied profile port/material completeness, and the managed-configuration
   fingerprint invariant;
+- reuses the active direct or privileged configuration-target inspector to
+  compare its content-free SHA-256 observation with the desired-state
+  replacement precondition;
 - reuses the typed host-readiness interface for configuration target, minimum
   privilege helper, and core evidence;
 - reuses typed runtime diagnostics for process health and recovery guidance;
@@ -43,10 +46,18 @@ supports an explicit recheck. The dashboard retains its lightweight background
 runtime/readiness summary but exposes only one diagnostics action when the
 center is available.
 
+The live-configuration identity check has six explicit outcomes: no recorded
+identity and no target is healthy; an existing untracked target requires
+explicit adoption; an exact match is healthy; a missing recorded target or a
+different fingerprint requires recovery; and an unavailable inspector becomes
+one isolated action-required item. Desired state is loaded once per report so a
+corrupt document cannot fail again while independent host probes continue.
+
 The first slice does not read raw logs, mutate the host, or claim to validate
-domain resolution, certificate expiry, generated configuration, port
-ownership, or historical apply results. Those become later typed checks behind
-the same report interface.
+domain resolution, certificate expiry, generated configuration semantics, port
+ownership, or historical apply results. Identity equality is not semantic
+configuration validation. Those become later typed checks behind the same
+report interface.
 
 ## Consequences
 

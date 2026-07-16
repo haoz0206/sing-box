@@ -291,6 +291,7 @@ def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -
 
     assert tuple(item.code for item in report.items) == (
         DiagnosticCode.DESIRED_STATE,
+        DiagnosticCode.LIVE_CONFIGURATION,
         DiagnosticCode.CONFIG_TARGET,
         DiagnosticCode.PRIVILEGED_HELPER,
         DiagnosticCode.CORE,

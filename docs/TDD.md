@@ -284,6 +284,10 @@ Release gate adds:
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after
   recovery, unexpected failure retry, and production composition;
+- live-configuration identity diagnostics for empty, untracked, matching,
+  missing, externally changed, and failed-probe observations, including
+  single-snapshot desired-state failure isolation and direct/privileged
+  production inspector composition;
 - headless TUI acceptance suite;
 - supported Python matrix;
 - semantic configuration fixtures;
