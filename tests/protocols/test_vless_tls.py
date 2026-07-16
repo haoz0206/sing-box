@@ -65,3 +65,22 @@ def test_vless_tls_websocket_produces_known_good_inbound_and_share_uri() -> None
             "&host=vpn.example.com&path=%2Fproxy#CDN%20%E5%85%BC%E5%AE%B9"
         ),
     )
+
+
+def test_vless_tls_grpc_connection_uri_carries_the_service_name() -> None:
+    connection = VlessTlsProtocol().build_connection_info(
+        VlessTlsConnectionSpec(
+            profile_name="gRPC 入口",
+            server_address="vpn.example.com",
+            server_port=443,
+            user_uuid="bf000d23-0752-40b4-affe-68f7707a9661",
+            tls=TlsClientPolicy(server_name="vpn.example.com", insecure=False),
+            transport={"type": "grpc", "service_name": "ProxyService"},
+        )
+    )
+
+    assert connection.share_uri == (
+        "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:443"
+        "?encryption=none&security=tls&sni=vpn.example.com&type=grpc"
+        "&serviceName=ProxyService#gRPC%20%E5%85%A5%E5%8F%A3"
+    )

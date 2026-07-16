@@ -13,7 +13,11 @@ from sb_manager.domain.installation import (
 from sb_manager.seams.apply_lock import ApplyLock
 from sb_manager.seams.state_store import StateStore
 from sb_manager.tls.catalog import AcmeTlsIntent, TlsIntent
-from sb_manager.transports.catalog import TransportIntent, WebSocketTransportIntent
+from sb_manager.transports.catalog import (
+    GrpcTransportIntent,
+    TransportIntent,
+    WebSocketTransportIntent,
+)
 
 MAX_LISTEN_PORT = 65_535
 
@@ -117,6 +121,16 @@ class WebSocketTransportRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class GrpcTransportRequest:
+    """User-facing gRPC transport input."""
+
+    service_name: str
+
+
+TransportRequest = WebSocketTransportRequest | GrpcTransportRequest
+
+
+@dataclass(frozen=True, slots=True)
 class PlanProfileRequest:
     """Validated operator intent needed to preview a profile."""
 
@@ -125,7 +139,7 @@ class PlanProfileRequest:
     listen_port: int | None
     server_address: str | None = None
     tls: AcmeTlsRequest | None = None
-    transport: WebSocketTransportRequest | None = None
+    transport: TransportRequest | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,9 +197,17 @@ class Manager:
         if request.protocol is ProtocolKind.VLESS_TLS:
             if request.transport is None:
                 issues.append(ValidationIssue(field="transport", message="请选择传输方式"))
-            elif not request.transport.path.startswith("/"):
+            elif isinstance(request.transport, WebSocketTransportRequest) and not (
+                request.transport.path.startswith("/")
+            ):
                 issues.append(
                     ValidationIssue(field="websocket_path", message="WebSocket 路径必须以 / 开头")
+                )
+            elif isinstance(request.transport, GrpcTransportRequest) and not (
+                request.transport.service_name.strip()
+            ):
+                issues.append(
+                    ValidationIssue(field="grpc_service_name", message="请输入 gRPC 服务名")
                 )
         if issues:
             raise PlanValidationError(tuple(issues))
@@ -224,8 +246,12 @@ class Manager:
                     )
                     or None,
                 )
-                if request.transport is not None
-                else None
+                if isinstance(request.transport, WebSocketTransportRequest)
+                else (
+                    GrpcTransportIntent(service_name=request.transport.service_name.strip())
+                    if isinstance(request.transport, GrpcTransportRequest)
+                    else None
+                )
             ),
         )
 

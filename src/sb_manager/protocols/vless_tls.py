@@ -70,6 +70,8 @@ class VlessTlsProtocol:
             query.append(("host", host))
         if isinstance(path := spec.transport.get("path"), str):
             query.append(("path", path))
+        if isinstance(service_name := spec.transport.get("service_name"), str):
+            query.append(("serviceName", service_name))
         share_uri = (
             f"vless://{spec.user_uuid}@{spec.server_address}:{spec.server_port}"
             f"?{urlencode(query)}#{quote(spec.profile_name, safe='')}"

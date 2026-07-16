@@ -12,10 +12,12 @@ from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
+    GrpcTransportRequest,
     Manager,
     PlanProfileRequest,
     PlanValidationError,
     ProfilePlan,
+    TransportRequest,
     WebSocketTransportRequest,
 )
 from sb_manager.application.profile_apply import (
@@ -31,7 +33,7 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
-from sb_manager.transports.catalog import WebSocketTransportIntent
+from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +48,7 @@ class GuidedProfileDefinition:
     guidance: str
     uses_acme: bool = False
     uses_websocket: bool = False
+    uses_grpc: bool = False
 
 
 REALITY_PROFILE = GuidedProfileDefinition(
@@ -109,6 +112,16 @@ VLESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
     guidance="适合需要 WebSocket 或 CDN 兼容入口的场景。",
     uses_acme=True,
     uses_websocket=True,
+)
+VLESS_GRPC_PROFILE = GuidedProfileDefinition(
+    protocol=ProtocolKind.VLESS_TLS,
+    form_id="vless-grpc-form",
+    title_id="vless-grpc-form-title",
+    guidance_id="vless-grpc-guidance",
+    title="配置 VLESS TLS gRPC",
+    guidance="适合需要标准 gRPC 传输兼容性的场景。",
+    uses_acme=True,
+    uses_grpc=True,
 )
 
 
@@ -332,6 +345,11 @@ class PlanPreviewScreen(Screen[None]):
                 if self.plan.transport_intent.host is not None:
                     transport_summary += f" · Host {self.plan.transport_intent.host}"
                 yield Static(transport_summary, id="plan-transport")
+            if isinstance(self.plan.transport_intent, GrpcTransportIntent):
+                yield Static(
+                    f"传输：gRPC · {self.plan.transport_intent.service_name}",
+                    id="plan-transport",
+                )
             yield Static(f"自动生成：{generated}", id="plan-generated")
             yield Static("当前仅预览，不会修改服务器。", id="plan-safety")
             yield Button("保存为草案", id="save-draft", variant="primary")
@@ -355,6 +373,7 @@ class GuidedProfileScreen(Screen[None]):
         "tls_server_name": "#tls-server-name-error",
         "tls_email": "#tls-email-error",
         "websocket_path": "#websocket-path-error",
+        "grpc_service_name": "#grpc-service-name-error",
     }
 
     def __init__(
@@ -399,6 +418,10 @@ class GuidedProfileScreen(Screen[None]):
                 yield Static("", id="websocket-path-error", classes="field-error")
                 yield Label("WebSocket Host (可选)", classes="field-label")
                 yield Input(placeholder="例如：vpn.example.com", id="websocket-host")
+            if self.definition.uses_grpc:
+                yield Label("gRPC 服务名", classes="field-label")
+                yield Input(placeholder="例如：ProxyService", id="grpc-service-name")
+                yield Static("", id="grpc-service-name-error", classes="field-error")
             yield Label("监听端口", classes="field-label")
             yield Input(placeholder="留空自动选择", id="listen-port", type="integer")
             yield Static("", id="listen-port-error", classes="field-error")
@@ -415,11 +438,15 @@ class GuidedProfileScreen(Screen[None]):
                 server_name=self.query_one("#tls-server-name", Input).value,
                 email=self.query_one("#tls-email", Input).value,
             )
-        transport = None
+        transport: TransportRequest | None = None
         if self.definition.uses_websocket:
             transport = WebSocketTransportRequest(
                 path=self.query_one("#websocket-path", Input).value,
                 host=self.query_one("#websocket-host", Input).value,
+            )
+        if self.definition.uses_grpc:
+            transport = GrpcTransportRequest(
+                service_name=self.query_one("#grpc-service-name", Input).value,
             )
         port_text = self.query_one("#listen-port", Input).value
         listen_port = int(port_text) if port_text else None
@@ -428,6 +455,8 @@ class GuidedProfileScreen(Screen[None]):
             visible_error_fields.extend(("tls_server_name", "tls_email"))
         if self.definition.uses_websocket:
             visible_error_fields.append("websocket_path")
+        if self.definition.uses_grpc:
+            visible_error_fields.append("grpc_service_name")
         for field in visible_error_fields:
             self.query_one(self.ERROR_SELECTORS[field], Static).update("")
         try:
@@ -494,6 +523,7 @@ class ProtocolSelectionScreen(Screen[None]):
                 "VLESS TLS · WebSocket/CDN",
                 id="protocol-vless-websocket",
             )
+            yield Button("VLESS TLS · gRPC", id="protocol-vless-grpc")
         yield Footer()
 
     @on(Button.Pressed, "#protocol-vless-reality")
@@ -534,6 +564,12 @@ class ProtocolSelectionScreen(Screen[None]):
     def open_vless_websocket_form(self) -> None:
         self.app.push_screen(
             GuidedProfileScreen(self.manager, VLESS_WEBSOCKET_PROFILE, self.profile_applier)
+        )
+
+    @on(Button.Pressed, "#protocol-vless-grpc")
+    def open_vless_grpc_form(self) -> None:
+        self.app.push_screen(
+            GuidedProfileScreen(self.manager, VLESS_GRPC_PROFILE, self.profile_applier)
         )
 
 
@@ -577,6 +613,7 @@ class ManagerApp(App[None]):
     #anytls-form,
     #tuic-form,
     #vless-websocket-form,
+    #vless-grpc-form,
     #plan-preview, #draft-saved, #apply-confirmation, #apply-result {
         width: 72;
         max-width: 90%;
@@ -593,6 +630,7 @@ class ManagerApp(App[None]):
     #anytls-form-title,
     #tuic-form-title,
     #vless-websocket-form-title,
+    #vless-grpc-form-title,
     #draft-saved-title {
         margin-bottom: 1;
         text-style: bold;
@@ -612,7 +650,7 @@ class ManagerApp(App[None]):
     }
 
     #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form,
-    #vless-websocket-form {
+    #vless-websocket-form, #vless-grpc-form {
         max-height: 90%;
     }
     """
