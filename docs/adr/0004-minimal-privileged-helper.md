@@ -20,9 +20,10 @@ general command runner or filesystem API.
 The manager uses a single-shot privileged helper, installed as
 `sb-manager-privileged`, with these constraints:
 
-1. It is invoked through an operator-configured authorization mechanism such as
-   sudo, doas, or polkit. The repository does not silently edit authorization
-   policy.
+1. It is invoked through an operator-selected authorization mechanism such as
+   sudo or doas. A separate root-only installer writes an exact no-arguments
+   rule only after the operator selects a provider and existing dedicated group;
+   it validates the temporary rule with `visudo` or `doas -C` before replacement.
 2. It refuses to run unless its effective user is root.
 3. It reads one versioned JSON request from standard input and emits one
    redacted JSON result. Unknown operations, fields, and schema versions fail.
@@ -39,7 +40,12 @@ The manager uses a single-shot privileged helper, installed as
 8. Safe staging, version self-verification, versioned installation, locking,
    atomic activation, and conflict-aware rollback reuse the tested deep artifact
    modules. Private copies and transient staging are cleaned after the request.
-9. Additional privileged operations require their own typed request, tests, and
+9. `apply-config` accepts only the exact configuration subset emitted by the
+   manager's protocol, TLS, and transport catalogs. Unknown top-level features,
+   unknown nested fields, duplicate JSON fields, non-direct outbounds, arbitrary
+   ACME storage, and TLS files outside the fixed trusted directory fail before
+   `sing-box check` or host mutation.
+10. Additional privileged operations require their own typed request, tests, and
    explicit allowlist entry. No operation accepts a shell string.
 
 Initial fixed host paths are:
@@ -48,6 +54,8 @@ Initial fixed host paths are:
 - private work: `/var/lib/sing-box-manager/work`;
 - installed core: `/opt/sing-box-manager/core`;
 - core lock: `/run/lock/sing-box-manager-core.lock`.
+- trusted operator TLS files: `/etc/sing-box-manager/tls`;
+- fixed ACME data: `/var/lib/sing-box-manager/acme`.
 
 Internal tests may inject an isolated policy root. The installed command exposes
 no flags or environment variables that override these paths.
@@ -61,8 +69,9 @@ no flags or environment variables that override these paths.
 - The helper package must be upgraded deliberately before new privileged
   behavior becomes available.
 - Configuration mutation now uses a separate SHA-256-only `apply-config`
-  schema with fixed validator, target, runtime, service, and lock policy; future
-  operations remain unavailable until separately designed.
+  schema with a strict generated-configuration policy plus fixed validator,
+  target, runtime, service, and lock policy; future operations remain
+  unavailable until separately designed.
 
 ## Rejected alternatives
 

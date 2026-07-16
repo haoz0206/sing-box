@@ -2,15 +2,36 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from sb_manager.privileged.config_apply import (
     ApplyConfigRequest,
     PrivilegedConfigApplyPolicy,
     PrivilegedConfigApplyService,
 )
+from sb_manager.privileged.errors import PrivilegedInputError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import ApplyOutcome
 
 ROLLBACK_REFRESH_COUNT = 2
+
+
+def managed_document() -> dict[str, object]:
+    return {
+        "inbounds": [
+            {
+                "type": "shadowsocks",
+                "tag": "profile-1",
+                "listen": "::",
+                "listen_port": 18443,
+                "network": "tcp",
+                "method": "2022-blake3-aes-128-gcm",
+                "password": "trusted-password",
+                "multiplex": {"enabled": True},
+            }
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
 
 
 class HealthyRuntime:
@@ -94,13 +115,20 @@ def write_incoming_config(
     return sha256
 
 
+def write_raw_incoming_config(
+    install_policy: PrivilegedConfigApplyPolicy,
+    content: bytes,
+) -> str:
+    sha256 = hashlib.sha256(content).hexdigest()
+    install_policy.incoming_directory.mkdir(exist_ok=True)
+    (install_policy.incoming_directory / f"config-{sha256}.json").write_bytes(content)
+    return sha256
+
+
 def test_verified_incoming_config_is_validated_committed_and_refreshed(tmp_path: Path) -> None:
     runtime = HealthyRuntime()
     install_policy = policy(tmp_path, core_binary=validator_binary(tmp_path, valid=True))
-    document: dict[str, object] = {
-        "inbounds": [{"type": "shadowsocks", "tag": "managed"}],
-        "outbounds": [{"type": "direct", "tag": "direct"}],
-    }
+    document = managed_document()
     sha256 = write_incoming_config(install_policy, document)
 
     result = PrivilegedConfigApplyService(
@@ -120,7 +148,7 @@ def test_validation_failure_preserves_previous_config_and_skips_runtime(tmp_path
     install_policy.config_path.write_bytes(previous)
     sha256 = write_incoming_config(
         install_policy,
-        {"inbounds": [{"type": "shadowsocks", "tag": "candidate"}]},
+        managed_document(),
     )
 
     result = PrivilegedConfigApplyService(
@@ -140,7 +168,7 @@ def test_runtime_rejection_restores_previous_config(tmp_path: Path) -> None:
     install_policy.config_path.write_bytes(previous)
     sha256 = write_incoming_config(
         install_policy,
-        {"inbounds": [{"type": "shadowsocks", "tag": "candidate"}]},
+        managed_document(),
     )
     runtime = RuntimeThatRecoversPreviousConfig()
 
@@ -154,3 +182,35 @@ def test_runtime_rejection_restores_previous_config(tmp_path: Path) -> None:
     assert result.rollback is not None
     assert result.rollback.success is True
     assert runtime.refresh_count == ROLLBACK_REFRESH_COUNT
+
+
+def test_configuration_outside_managed_subset_is_rejected_before_host_transaction(
+    tmp_path: Path,
+) -> None:
+    install_policy = policy(tmp_path, core_binary=validator_binary(tmp_path, valid=True))
+    document = managed_document()
+    document["log"] = {"output": "/root/manager.log"}
+    sha256 = write_incoming_config(install_policy, document)
+
+    with pytest.raises(PrivilegedInputError, match="top-level fields"):
+        PrivilegedConfigApplyService(
+            policy=install_policy,
+            runtime=RuntimeThatMustNotBeCalled(),
+        ).apply_config(ApplyConfigRequest(sha256=sha256))
+
+    assert not install_policy.config_path.exists()
+    assert list(install_policy.working_directory.iterdir()) == []
+
+
+def test_duplicate_json_fields_are_rejected_before_policy_evaluation(tmp_path: Path) -> None:
+    install_policy = policy(tmp_path, core_binary=validator_binary(tmp_path, valid=True))
+    sha256 = write_raw_incoming_config(
+        install_policy,
+        b'{"inbounds":[],"inbounds":[],"outbounds":[]}',
+    )
+
+    with pytest.raises(PrivilegedInputError, match="duplicate field: inbounds"):
+        PrivilegedConfigApplyService(
+            policy=install_policy,
+            runtime=RuntimeThatMustNotBeCalled(),
+        ).apply_config(ApplyConfigRequest(sha256=sha256))

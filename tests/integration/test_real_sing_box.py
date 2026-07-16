@@ -12,6 +12,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.privileged.config_policy import ManagedConfigurationPolicy
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transports.catalog import (
     GrpcTransportIntent,
@@ -71,7 +72,7 @@ def test_real_sing_box_accepts_product_generated_configuration(
         else AcmeTlsIntent(
             server_name="proxy.example.com",
             email="operator@example.com",
-            data_directory=tmp_path / "acme",
+            data_directory=Path("/var/lib/sing-box-manager/acme"),
         )
     )
     materialized = create_protocol_catalog(
@@ -84,7 +85,7 @@ def test_real_sing_box_accepts_product_generated_configuration(
             listen_port=18443,
             port_selection=PortSelection.FIXED,
             status=ProfileStatus.DRAFT,
-            profile_id="release-fixture",
+            profile_id="profile-1",
             tls_intent=tls_intent,
             transport_intent=transport,
         ),
@@ -96,6 +97,7 @@ def test_real_sing_box_accepts_product_generated_configuration(
     }
     if materialized.certificate_providers:
         document["certificate_providers"] = list(materialized.certificate_providers)
+    ManagedConfigurationPolicy().validate(document)
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(document), encoding="utf-8")
 

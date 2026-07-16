@@ -73,8 +73,10 @@ DIRECTORY_POLICIES = (
     _DirectoryPolicy(Path("var/lib/sing-box-manager"), 0o750, True),
     _DirectoryPolicy(Path("var/lib/sing-box-manager/incoming"), 0o770, True),
     _DirectoryPolicy(Path("var/lib/sing-box-manager/work"), 0o700, False),
+    _DirectoryPolicy(Path("var/lib/sing-box-manager/acme"), 0o700, False),
     _DirectoryPolicy(Path("opt/sing-box-manager/core"), 0o755, False),
     _DirectoryPolicy(Path("etc/sing-box"), 0o755, False),
+    _DirectoryPolicy(Path("etc/sing-box-manager/tls"), 0o755, False),
 )
 
 

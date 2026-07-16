@@ -1,11 +1,13 @@
 """Fixed-policy privileged configuration validation and transactional apply."""
 
 import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
+from sb_manager.privileged.config_policy import ManagedConfigurationPolicy
 from sb_manager.privileged.errors import PrivilegedInputError
 from sb_manager.privileged.incoming import (
     VerifiedIncomingFileCopier,
@@ -41,9 +43,16 @@ class PrivilegedConfigApplyPolicy:
 class PrivilegedConfigApplyService:
     """Re-verify incoming JSON and reuse the tested host apply transaction."""
 
-    def __init__(self, *, policy: PrivilegedConfigApplyPolicy, runtime: Runtime) -> None:
+    def __init__(
+        self,
+        *,
+        policy: PrivilegedConfigApplyPolicy,
+        runtime: Runtime,
+        document_policy: ManagedConfigurationPolicy | None = None,
+    ) -> None:
         self._policy = policy
         self._runtime = runtime
+        self._document_policy = document_policy or ManagedConfigurationPolicy()
 
     def apply_config(self, request: ApplyConfigRequest) -> ApplyTransactionResult:
         self._validate_request(request)
@@ -63,6 +72,7 @@ class PrivilegedConfigApplyService:
         )
         try:
             document = self._load_document(private_config)
+            self._document_policy.validate(document)
             with FileApplyLock(self._policy.lock_path).acquire():
                 return ApplyCoordinator(
                     config_path=self._policy.config_path,
@@ -85,7 +95,10 @@ class PrivilegedConfigApplyService:
     @staticmethod
     def _load_document(path: Path) -> dict[str, object]:
         try:
-            raw_document = json.loads(path.read_text(encoding="utf-8"))
+            raw_document = json.loads(
+                path.read_text(encoding="utf-8"),
+                object_pairs_hook=PrivilegedConfigApplyService._unique_object,
+            )
         except (OSError, UnicodeError, json.JSONDecodeError) as error:
             raise PrivilegedInputError(
                 f"Incoming configuration is not valid JSON: {error}"
@@ -95,3 +108,12 @@ class PrivilegedConfigApplyService:
         ):
             raise PrivilegedInputError("Incoming configuration must be a JSON object")
         return raw_document
+
+    @staticmethod
+    def _unique_object(pairs: Iterable[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise PrivilegedInputError(f"Incoming configuration has duplicate field: {key}")
+            result[key] = value
+        return result

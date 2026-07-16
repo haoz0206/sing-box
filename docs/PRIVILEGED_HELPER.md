@@ -154,7 +154,13 @@ It also allows a fixed-target configuration transaction:
 
 The corresponding incoming filename is derived as `config-<sha256>.json`.
 The request cannot choose its destination, validator, init system, service, or
-lock. On an active systemd host the helper uses
+lock. Before invoking `sing-box check`, the helper rejects duplicate JSON fields
+and validates the full document against the exact manager-generated subset:
+supported inbound schemas only, unique managed profile tags and ports, one
+fixed direct outbound, matching ACME providers under
+`/var/lib/sing-box-manager/acme`, and root-owned operator TLS files under
+`/etc/sing-box-manager/tls`. Unknown top-level or nested capabilities fail
+before any host transaction. On an active systemd host the helper uses
 `/usr/bin/systemctl sing-box.service`; otherwise it accepts fixed
 `/sbin/rc-service sing-box`. It reuses the transactional validator, atomic
 commit, health check, and rollback behavior.

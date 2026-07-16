@@ -112,8 +112,10 @@ def test_installer_creates_fixed_directories_and_validated_authorization(
         Path("var/lib/sing-box-manager"): 0o750,
         Path("var/lib/sing-box-manager/incoming"): 0o770,
         Path("var/lib/sing-box-manager/work"): 0o700,
+        Path("var/lib/sing-box-manager/acme"): 0o700,
         Path("opt/sing-box-manager/core"): 0o755,
         Path("etc/sing-box"): 0o755,
+        Path("etc/sing-box-manager/tls"): 0o755,
     }
     for relative_path, expected_mode in expected_directories.items():
         path = root / relative_path

@@ -511,14 +511,19 @@ Current implementation status (2026-07-16):
   re-copies and hashes incoming archives before using safe staging and atomic
   activation;
 - privileged configuration seam: a SHA-256-only request selects a derived
-  incoming filename and fixed config/core/runtime/lock policy, then reuses
-  validation, atomic commit, health, and rollback transactions;
+  incoming filename and fixed config/core/runtime/lock policy; a strict
+  manager-generated schema allowlist rejects extra sing-box capabilities and
+  untrusted ACME/TLS paths before reusing validation, atomic commit, health, and
+  rollback transactions;
 - unprivileged client: explicit privileged apply mode stages deterministic
   mode-`0600` JSON, sends a SHA-256-only request through a non-interactive
   runner, strictly restores the typed transaction, and surfaces unknown host
   results without committing desired state;
-- pending privileged work: operator-owned authorization packaging and
-  supported-host execution;
+- privileged installation: a root-only command installs fixed directories and
+  exact no-arguments sudo/doas rules after native syntax validation; pinned
+  Debian 12, Ubuntu 24.04, and Alpine 3.20 container acceptance passes;
+- pending privileged work: live systemd/OpenRC execution on approved,
+  recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on
   every supported host family.
 
