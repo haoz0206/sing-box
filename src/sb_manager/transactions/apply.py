@@ -1,5 +1,6 @@
 """Transactional orchestration for validated sing-box configuration."""
 
+import hashlib
 import os
 import shutil
 from collections.abc import Mapping
@@ -12,15 +13,58 @@ from sb_manager.seams.config_validator import ConfigValidationResult, ConfigVali
 from sb_manager.seams.runtime import Runtime, RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.staging import ConfigurationStager
 
+SHA256_HEX_LENGTH = 64
+
 
 class ApplyOutcome(str, Enum):
     """Operator-relevant terminal state of an apply transaction."""
 
     VALIDATION_FAILED = "validation-failed"
+    PRECONDITION_FAILED = "precondition-failed"
     COMMIT_FAILED = "commit-failed"
     APPLIED = "applied"
     ROLLED_BACK = "rolled-back"
     ROLLBACK_FAILED = "rollback-failed"
+
+
+class ConfigTargetExpectation(str, Enum):
+    """Identity requirement for the live configuration immediately before commit."""
+
+    UNCHECKED = "unchecked"
+    ABSENT = "absent"
+    MATCHING_SHA256 = "matching-sha256"
+
+
+@dataclass(frozen=True, slots=True)
+class ConfigTargetPrecondition:
+    """Prevent an apply from replacing an unreviewed or subsequently changed target."""
+
+    expectation: ConfigTargetExpectation
+    expected_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.expectation is ConfigTargetExpectation.MATCHING_SHA256:
+            if self.expected_sha256 is None or len(self.expected_sha256) != SHA256_HEX_LENGTH:
+                raise ValueError("Expected configuration SHA-256 must be 64 lowercase hex")
+            if any(character not in "0123456789abcdef" for character in self.expected_sha256):
+                raise ValueError("Expected configuration SHA-256 must be 64 lowercase hex")
+        elif self.expected_sha256 is not None:
+            raise ValueError("Only a matching SHA-256 precondition accepts a fingerprint")
+
+    @classmethod
+    def unchecked(cls) -> "ConfigTargetPrecondition":
+        return cls(expectation=ConfigTargetExpectation.UNCHECKED)
+
+    @classmethod
+    def absent(cls) -> "ConfigTargetPrecondition":
+        return cls(expectation=ConfigTargetExpectation.ABSENT)
+
+    @classmethod
+    def matching_sha256(cls, sha256: str) -> "ConfigTargetPrecondition":
+        return cls(
+            expectation=ConfigTargetExpectation.MATCHING_SHA256,
+            expected_sha256=sha256,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,7 +113,13 @@ class ApplyCoordinator:
         self._validator = validator
         self._runtime = runtime
 
-    def apply(self, document: Mapping[str, object]) -> ApplyTransactionResult:
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition | None = None,
+    ) -> ApplyTransactionResult:
+        target_precondition = precondition or ConfigTargetPrecondition.unchecked()
         with self._stager.stage(document) as staged:
             validation = self._validator.validate(staged.config_path)
             if not validation.valid:
@@ -79,6 +129,17 @@ class ApplyCoordinator:
                     runtime_refresh=None,
                     postcondition=None,
                     rollback=None,
+                )
+
+            precondition_failure = self._check_target_precondition(target_precondition)
+            if precondition_failure is not None:
+                return ApplyTransactionResult(
+                    outcome=ApplyOutcome.PRECONDITION_FAILED,
+                    validation=validation,
+                    runtime_refresh=None,
+                    postcondition=None,
+                    rollback=None,
+                    commit=CommitResult(success=False, diagnostics=precondition_failure),
                 )
 
             try:
@@ -129,6 +190,33 @@ class ApplyCoordinator:
             postcondition=postcondition,
             rollback=None,
             commit=commit,
+        )
+
+    def _check_target_precondition(
+        self,
+        precondition: ConfigTargetPrecondition,
+    ) -> str | None:
+        if precondition.expectation is ConfigTargetExpectation.UNCHECKED:
+            return None
+        if precondition.expectation is ConfigTargetExpectation.ABSENT:
+            return (
+                "Live configuration exists but absence was required"
+                if self._config_path.exists() or self._config_path.is_symlink()
+                else None
+            )
+        if not self._config_path.is_file() or self._config_path.is_symlink():
+            return "Reviewed live configuration is no longer a regular file"
+        try:
+            digest = hashlib.sha256()
+            with self._config_path.open("rb") as config_file:
+                for chunk in iter(lambda: config_file.read(1024 * 1024), b""):
+                    digest.update(chunk)
+        except OSError as error:
+            return f"Unable to verify live configuration fingerprint: {error}"
+        return (
+            None
+            if digest.hexdigest() == precondition.expected_sha256
+            else "Live configuration fingerprint changed after review"
         )
 
     def _backup_current_configuration(self) -> bool:

@@ -28,6 +28,7 @@ from sb_manager.domain.protocol_material import (
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.tls.catalog import AcmeTlsIntent
+from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.app import ManagerApp
 
 EXPECTED_APPLIED_REVISION = 2
@@ -192,6 +193,52 @@ def test_cli_composes_a_complete_isolated_apply_path(tmp_path: Path) -> None:
     assert installation.revision == EXPECTED_APPLIED_REVISION
     assert installation.profiles[0].status is ProfileStatus.APPLIED
     assert installation.profiles[0].protocol_material is not None
+    assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == "profile-1"
+
+
+def test_cli_refuses_unmanaged_config_until_exact_adoption_is_confirmed(
+    tmp_path: Path,
+) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    config_path.parent.mkdir(parents=True)
+    unmanaged_bytes = b'{"inbounds":[{"tag":"operator-owned"}]}\n'
+    config_path.write_bytes(unmanaged_bytes)
+    listen_port = SocketPortSource().choose_available()
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="手机",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=listen_port,
+        )
+    )
+    app.manager.save_profile_draft(plan)
+    assert app.profile_applier is not None
+
+    rejected = app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert rejected.transaction.outcome is ApplyOutcome.PRECONDITION_FAILED
+    assert config_path.read_bytes() == unmanaged_bytes
+    assert JsonFileStateStore(state_path).load().profiles[0].status is ProfileStatus.DRAFT
+
+    assert app.config_adopter is not None
+    adoption_plan = app.config_adopter.plan()
+    adoption = app.config_adopter.adopt(adoption_plan, confirmed=True)
+    applied = app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=adoption.committed_revision,
+            confirmed=True,
+        )
+    )
+
+    assert applied.transaction.outcome is ApplyOutcome.APPLIED
+    assert JsonFileStateStore(state_path).load().profiles[0].status is ProfileStatus.APPLIED
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == "profile-1"
 
 

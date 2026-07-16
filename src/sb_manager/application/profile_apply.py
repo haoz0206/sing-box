@@ -15,7 +15,12 @@ from sb_manager.seams.configuration_applier import ConfigurationApplier, Configu
 from sb_manager.seams.port_source import PortSource
 from sb_manager.seams.state_store import StateStore
 from sb_manager.tls.catalog import TlsMaterialError
-from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
+from sb_manager.transactions.apply import (
+    ApplyOutcome,
+    ApplyTransactionResult,
+    ConfigTargetPrecondition,
+)
+from sb_manager.transactions.staging import configuration_sha256
 
 
 class ProfileNotFoundError(LookupError):
@@ -130,7 +135,12 @@ class ProfileApplyService:
         }
         if certificate_providers:
             document["certificate_providers"] = certificate_providers
-        transaction = self._applier.apply(document)
+        precondition = (
+            ConfigTargetPrecondition.matching_sha256(installation.expected_config_sha256)
+            if installation.expected_config_sha256 is not None
+            else ConfigTargetPrecondition.absent()
+        )
+        transaction = self._applier.apply(document, precondition=precondition)
         if transaction.outcome is not ApplyOutcome.APPLIED:
             return ApplyProfileResult(transaction=transaction, committed_revision=None)
 
@@ -140,6 +150,7 @@ class ProfileApplyService:
                 schema_version=installation.schema_version,
                 revision=committed_revision,
                 profiles=projected_profiles,
+                expected_config_sha256=configuration_sha256(document),
             )
         )
         return ApplyProfileResult(

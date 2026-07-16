@@ -6,6 +6,7 @@ from sb_manager.tls.catalog import TlsIntent
 from sb_manager.transports.catalog import TransportIntent
 
 CURRENT_SCHEMA_VERSION = 1
+CONFIG_SHA256_HEX_LENGTH = 64
 
 
 class ProtocolKind(str, Enum):
@@ -58,6 +59,15 @@ class ManagedInstallation:
     schema_version: int
     revision: int
     profiles: tuple[ManagedProfile, ...]
+    expected_config_sha256: str | None = None
+
+    def __post_init__(self) -> None:
+        fingerprint = self.expected_config_sha256
+        if fingerprint is not None and (
+            len(fingerprint) != CONFIG_SHA256_HEX_LENGTH
+            or any(character not in "0123456789abcdef" for character in fingerprint)
+        ):
+            raise ValueError("Expected configuration SHA-256 must be 64 lowercase hex")
 
     @classmethod
     def empty(cls) -> "ManagedInstallation":

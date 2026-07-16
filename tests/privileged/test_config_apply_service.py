@@ -134,7 +134,7 @@ def test_verified_incoming_config_is_validated_committed_and_refreshed(tmp_path:
     result = PrivilegedConfigApplyService(
         policy=install_policy,
         runtime=runtime,
-    ).apply_config(ApplyConfigRequest(sha256=sha256))
+    ).apply_config(ApplyConfigRequest(sha256=sha256, expected_config_sha256=None))
 
     assert result.outcome is ApplyOutcome.APPLIED
     assert json.loads(install_policy.config_path.read_text()) == document
@@ -154,7 +154,7 @@ def test_validation_failure_preserves_previous_config_and_skips_runtime(tmp_path
     result = PrivilegedConfigApplyService(
         policy=install_policy,
         runtime=RuntimeThatMustNotBeCalled(),
-    ).apply_config(ApplyConfigRequest(sha256=sha256))
+    ).apply_config(ApplyConfigRequest(sha256=sha256, expected_config_sha256=None))
 
     assert result.outcome is ApplyOutcome.VALIDATION_FAILED
     assert install_policy.config_path.read_bytes() == previous
@@ -175,7 +175,12 @@ def test_runtime_rejection_restores_previous_config(tmp_path: Path) -> None:
     result = PrivilegedConfigApplyService(
         policy=install_policy,
         runtime=runtime,
-    ).apply_config(ApplyConfigRequest(sha256=sha256))
+    ).apply_config(
+        ApplyConfigRequest(
+            sha256=sha256,
+            expected_config_sha256=hashlib.sha256(previous).hexdigest(),
+        )
+    )
 
     assert result.outcome is ApplyOutcome.ROLLED_BACK
     assert install_policy.config_path.read_bytes() == previous

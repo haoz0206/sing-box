@@ -17,6 +17,8 @@ from sb_manager.transactions.apply import (
     ApplyOutcome,
     ApplyTransactionResult,
     CommitResult,
+    ConfigTargetExpectation,
+    ConfigTargetPrecondition,
     RollbackResult,
 )
 
@@ -54,7 +56,12 @@ class PrivilegedConfigurationApplier:
             incoming_directory.parent / "client-config-apply.lock"
         )
 
-    def apply(self, document: Mapping[str, object]) -> ApplyTransactionResult:
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition,
+    ) -> ApplyTransactionResult:
         content = (
             json.dumps(
                 document,
@@ -69,7 +76,10 @@ class PrivilegedConfigurationApplier:
             with self._apply_lock.acquire():
                 config_path = self._stage(content, sha256=sha256)
                 try:
-                    return self._invoke_helper(sha256=sha256)
+                    return self._invoke_helper(
+                        sha256=sha256,
+                        precondition=precondition,
+                    )
                 finally:
                     config_path.unlink(missing_ok=True)
                     self._sync_directory(self._incoming_directory)
@@ -104,12 +114,22 @@ class PrivilegedConfigurationApplier:
             if temporary_path is not None:
                 temporary_path.unlink(missing_ok=True)
 
-    def _invoke_helper(self, *, sha256: str) -> ApplyTransactionResult:
+    def _invoke_helper(
+        self,
+        *,
+        sha256: str,
+        precondition: ConfigTargetPrecondition,
+    ) -> ApplyTransactionResult:
+        if precondition.expectation is ConfigTargetExpectation.UNCHECKED:
+            raise PrivilegedHelperExecutionError(
+                "Privileged configuration apply requires a target precondition"
+            )
         request = json.dumps(
             {
                 "schema_version": HELPER_SCHEMA_VERSION,
                 "operation": "apply-config",
                 "sha256": sha256,
+                "expected_config_sha256": precondition.expected_sha256,
             },
             separators=(",", ":"),
             sort_keys=True,

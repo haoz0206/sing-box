@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 
+from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
 from sb_manager.artifacts.installation import CoreInstallError
 from sb_manager.privileged.config_apply import (
     ApplyConfigRequest,
@@ -79,6 +80,9 @@ def main() -> None:
             effective_user_id=os.geteuid(),
             core_activator=PrivilegedCoreInstallService(policy=HOST_POLICY),
             config_applier=HostConfigApplier(),
+            config_inspector=FileConfigurationTargetInspector(
+                config_path=HOST_CONFIG_POLICY.config_path
+            ),
         )
     except PrivilegedProtocolError as error:
         _write_error(error="invalid-request", message=str(error))

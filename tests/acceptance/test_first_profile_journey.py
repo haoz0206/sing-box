@@ -5,6 +5,10 @@ from textual.containers import VerticalScroll
 from textual.widgets import Button, Input, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.config_adoption import (
+    ConfigAdoptionPlan,
+    ConfigAdoptionResult,
+)
 from sb_manager.application.host_diagnostics import (
     HostCondition,
     HostDiagnosticsReport,
@@ -37,7 +41,7 @@ from sb_manager.transactions.apply import (
     RollbackResult,
 )
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
-from sb_manager.ui.app import ManagerApp
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
 
 
 class RecordingProfileApplier:
@@ -112,6 +116,25 @@ class CommitFailingProfileApplier:
         )
 
 
+class PreconditionFailingProfileApplier:
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        return ApplyProfileResult(
+            transaction=ApplyTransactionResult(
+                outcome=ApplyOutcome.PRECONDITION_FAILED,
+                validation=ConfigValidationResult(valid=True, diagnostics="valid"),
+                runtime_refresh=None,
+                postcondition=None,
+                rollback=None,
+                commit=CommitResult(
+                    success=False,
+                    diagnostics="Live configuration fingerprint changed after review",
+                ),
+            ),
+            committed_revision=None,
+        )
+
+
 class UnavailableProfileApplier:
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
@@ -170,6 +193,23 @@ class MissingProfileDetailsReader:
         raise ProfileDetailsNotFoundError(profile_id)
 
 
+class RecordingConfigAdopter:
+    def __init__(self) -> None:
+        self.confirmations: list[tuple[ConfigAdoptionPlan, bool]] = []
+
+    def plan(self) -> ConfigAdoptionPlan:
+        return ConfigAdoptionPlan(base_revision=0, config_sha256="a" * 64)
+
+    def adopt(
+        self,
+        plan: ConfigAdoptionPlan,
+        *,
+        confirmed: bool,
+    ) -> ConfigAdoptionResult:
+        self.confirmations.append((plan, confirmed))
+        return ConfigAdoptionResult(committed_revision=1, config_sha256=plan.config_sha256)
+
+
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
     app = ManagerApp()
 
@@ -187,6 +227,42 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
 
         assert selection_title.content == "选择适合你的协议"
         assert str(reality_option.label) == "VLESS Reality · 推荐"
+
+
+async def test_operator_can_review_and_confirm_existing_config_adoption() -> None:
+    adopter = RecordingConfigAdopter()
+    app = ManagerApp(host_tools=ManagerAppHostTools(config_adopter=adopter))
+
+    async with app.run_test() as pilot:
+        assert str(app.screen.query_one("#adopt-existing-config", Button).label) == (
+            "检查并接管现有配置"
+        )
+
+        await pilot.click("#adopt-existing-config")
+        await pilot.pause()
+
+        assert app.screen.query_one("#config-adoption-title", Static).content == (
+            "确认现有配置接管计划"
+        )
+        assert app.screen.query_one("#config-adoption-fingerprint", Static).content == (
+            f"当前配置 SHA-256：{'a' * 64}"
+        )
+        assert app.screen.query_one("#config-adoption-safety", Static).content == (
+            "接管不会修改服务器，也不会把现有 JSON 导入为 profile。"
+        )
+
+        await pilot.click("#confirm-config-adoption")
+        await pilot.pause()
+
+        assert adopter.confirmations == [
+            (ConfigAdoptionPlan(base_revision=0, config_sha256="a" * 64), True)
+        ]
+        assert app.screen.query_one("#config-adoption-result-title", Static).content == (
+            "现有配置已被记录为替换前置条件"
+        )
+        assert app.screen.query_one("#config-adoption-result-revision", Static).content == (
+            "desired state revision 1"
+        )
 
 
 async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> None:
@@ -214,7 +290,7 @@ async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> 
     )
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation)),
-        host_diagnostics=HealthyHostDiagnostics(),
+        host_tools=ManagerAppHostTools(host_diagnostics=HealthyHostDiagnostics()),
     )
 
     async with app.run_test() as pilot:
@@ -230,7 +306,7 @@ async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> 
 
 
 async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics() -> None:
-    app = ManagerApp(host_diagnostics=UnhealthyHostDiagnostics())
+    app = ManagerApp(host_tools=ManagerAppHostTools(host_diagnostics=UnhealthyHostDiagnostics()))
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -423,6 +499,39 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
         ]
 
 
+async def test_changed_live_configuration_is_reported_without_claiming_a_rollback() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="saved-draft",
+                profile_name="待应用手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_applier=PreconditionFailingProfileApplier(),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#apply-profile-0")
+        await pilot.click("#confirm-apply")
+
+        assert app.screen.query_one("#apply-result-title", Static).content == ("服务器配置已变化")
+        assert app.screen.query_one("#apply-result-details", Static).content == (
+            "Live configuration fingerprint changed after review"
+        )
+        assert app.screen.query_one("#apply-result-safety", Static).content == (
+            "本次尚未写入配置，请重新检查并确认接管状态。"
+        )
+
+
 async def test_operator_sees_applied_status_after_reopening_the_tui() -> None:
     installation = ManagedInstallation(
         schema_version=1,
@@ -463,7 +572,7 @@ async def test_operator_can_reopen_an_applied_profile_and_retrieve_its_share_uri
     )
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation)),
-        profile_details_reader=FixedProfileDetailsReader(),
+        host_tools=ManagerAppHostTools(profile_details_reader=FixedProfileDetailsReader()),
     )
 
     async with app.run_test() as pilot:
@@ -498,7 +607,7 @@ async def test_profile_detail_lookup_failure_is_presented_without_crashing_the_t
     )
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation)),
-        profile_details_reader=MissingProfileDetailsReader(),
+        host_tools=ManagerAppHostTools(profile_details_reader=MissingProfileDetailsReader()),
     )
 
     async with app.run_test() as pilot:

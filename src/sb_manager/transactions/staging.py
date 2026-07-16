@@ -1,5 +1,6 @@
 """Isolated filesystem staging for generated configuration."""
 
+import hashlib
 import json
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -28,7 +29,15 @@ class ConfigurationStager:
         with TemporaryDirectory(prefix=".sb-manager-", dir=self._parent) as temporary:
             root = Path(temporary)
             config_path = root / "config.json"
-            with config_path.open("w", encoding="utf-8") as config_file:
-                json.dump(document, config_file, ensure_ascii=False, indent=2, sort_keys=True)
-                config_file.write("\n")
+            config_path.write_bytes(render_configuration(document))
             yield StagedConfiguration(root=root, config_path=config_path)
+
+
+def render_configuration(document: Mapping[str, object]) -> bytes:
+    """Render the one canonical byte representation committed by transactions."""
+    return (json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+
+
+def configuration_sha256(document: Mapping[str, object]) -> str:
+    """Fingerprint the exact canonical bytes that a successful apply commits."""
+    return hashlib.sha256(render_configuration(document)).hexdigest()

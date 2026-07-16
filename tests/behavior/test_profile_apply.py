@@ -38,7 +38,9 @@ from sb_manager.tls.catalog import (
 from sb_manager.transactions.apply import (
     ApplyOutcome,
     ApplyTransactionResult,
+    ConfigTargetPrecondition,
 )
+from sb_manager.transactions.staging import configuration_sha256
 
 FIXED_LISTEN_PORT = 4433
 EXPECTED_COMMITTED_REVISION = 2
@@ -109,9 +111,16 @@ class FixedPortSource:
 class RecordingSuccessfulApplier:
     def __init__(self) -> None:
         self.document: Mapping[str, object] | None = None
+        self.precondition: ConfigTargetPrecondition | None = None
 
-    def apply(self, document: Mapping[str, object]) -> ApplyTransactionResult:
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition | None = None,
+    ) -> ApplyTransactionResult:
         self.document = document
+        self.precondition = precondition
         return ApplyTransactionResult(
             outcome=ApplyOutcome.APPLIED,
             validation=ConfigValidationResult(valid=True, diagnostics="valid"),
@@ -196,6 +205,9 @@ def test_confirmed_reality_draft_is_applied_and_committed_to_desired_state() -> 
         ],
         "outbounds": [{"type": "direct", "tag": "direct"}],
     }
+    assert applier.precondition == ConfigTargetPrecondition.absent()
+    assert applier.document is not None
+    committed_config_sha256 = configuration_sha256(applier.document)
     assert state_store.load() == ManagedInstallation(
         schema_version=1,
         revision=EXPECTED_COMMITTED_REVISION,
@@ -211,7 +223,48 @@ def test_confirmed_reality_draft_is_applied_and_committed_to_desired_state() -> 
                 server_address="vpn.example.com",
             ),
         ),
+        expected_config_sha256=committed_config_sha256,
     )
+
+
+def test_apply_requires_the_live_configuration_fingerprint_recorded_in_desired_state() -> None:
+    reviewed_config_sha256 = "a" * 64
+    draft = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=FIXED_LISTEN_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=1,
+            profiles=(draft,),
+            expected_config_sha256=reviewed_config_sha256,
+        )
+    )
+    applier = RecordingSuccessfulApplier()
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=reality_catalog(),
+        port_source=FixedPortSource(),
+        applier=applier,
+        apply_lock=TrackingApplyLock(),
+    )
+
+    service.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert applier.precondition == ConfigTargetPrecondition.matching_sha256(reviewed_config_sha256)
+    assert applier.document is not None
+    assert state_store.load().expected_config_sha256 == configuration_sha256(applier.document)
 
 
 def test_unconfirmed_profile_apply_is_rejected_before_external_effects() -> None:

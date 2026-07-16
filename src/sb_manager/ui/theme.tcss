@@ -22,7 +22,8 @@ Footer {
 #vmess-grpc-form,
 #plan-preview, #draft-saved, #apply-confirmation, #apply-result, #host-diagnostics,
 #profile-details, #profile-details-error,
-#core-update-form, #core-update-plan, #core-update-result, #core-update-error {
+#core-update-form, #core-update-plan, #core-update-result, #core-update-error,
+#config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
     max-width: 90%;
     height: auto;
@@ -42,7 +43,8 @@ Footer {
 #vmess-websocket-form-title,
 #vmess-grpc-form-title,
 #draft-saved-title, #diagnostics-title, #profile-details-title,
-#profile-details-error-title {
+#profile-details-error-title, #config-adoption-title,
+#config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;
     text-style: bold;
 }

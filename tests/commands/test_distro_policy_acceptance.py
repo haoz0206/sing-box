@@ -31,6 +31,9 @@ def test_container_command_preserves_wheel_name_and_explicit_network(tmp_path: P
     assert (
         "sb-manager-install-policy --authorization sudo --group sing-box-manager --confirm"
     ) in command[-1]
+    assert '"operation":"inspect-config"' in command[-1]
+    assert "inspection-output" in command[-1]
+    assert '"status": "observed"' in command[-1]
 
 
 def test_reviewed_wheelhouse_disables_package_index(tmp_path: Path) -> None:

@@ -176,9 +176,16 @@ It also allows a fixed-target configuration transaction:
 {
   "schema_version": 1,
   "operation": "apply-config",
-  "sha256": "FULL_64_CHARACTER_LOWERCASE_SHA256"
+  "sha256": "FULL_64_CHARACTER_LOWERCASE_SHA256",
+  "expected_config_sha256": null
 }
 ```
+
+`expected_config_sha256` is `null` only when the live target must still be
+absent. After explicit adoption or a successful manager apply it is the exact
+64-character fingerprint previously recorded in desired state. A missing,
+unexpected, or changed target is rejected after candidate validation but before
+backup or commit.
 
 The corresponding incoming filename is derived as `config-<sha256>.json`.
 The request cannot choose its destination, validator, init system, service, or
@@ -192,6 +199,19 @@ before any host transaction. On an active systemd host the helper uses
 `/usr/bin/systemctl sing-box.service`; otherwise it accepts fixed
 `/sbin/rc-service sing-box`. It reuses the transactional validator, atomic
 commit, health check, and rollback behavior.
+
+The read-only adoption workflow uses a separate request:
+
+```json
+{
+  "schema_version": 1,
+  "operation": "inspect-config"
+}
+```
+
+Its response contains only `exists` and `sha256`; configuration content and
+secrets never cross the helper protocol. The TUI re-runs this inspection during
+confirmation before recording the replacement precondition.
 
 The unprivileged TUI client is available through:
 

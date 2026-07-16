@@ -143,6 +143,11 @@ def _container_script(
         chown -R root:root /opt/sing-box-manager/venv
         chmod -R go-w /opt/sing-box-manager/venv
         {INSTALLER} --authorization {case.authorization} --group sing-box-manager --confirm
+        printf '%s' '{{"schema_version":1,"operation":"inspect-config"}}' \
+          > /tmp/inspection.json
+        {allowed_command} < /tmp/inspection.json > /tmp/inspection-output
+        grep -q '"status": "observed"' /tmp/inspection-output
+        grep -q '"exists": false' /tmp/inspection-output
         printf "{{}}" > /tmp/request.json
         set +e
         {allowed_command} < /tmp/request.json > /tmp/helper-output 2>&1

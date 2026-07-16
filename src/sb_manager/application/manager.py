@@ -354,6 +354,7 @@ class Manager:
                 schema_version=installation.schema_version,
                 revision=installation.revision + 1,
                 profiles=(*installation.profiles, profile),
+                expected_config_sha256=installation.expected_config_sha256,
             )
         )
 

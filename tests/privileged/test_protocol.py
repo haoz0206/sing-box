@@ -11,6 +11,7 @@ from sb_manager.privileged.protocol import (
     execute_privileged_request,
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.config_target import LiveConfigObservation
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.core_activator import CoreActivationRequest
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
@@ -52,6 +53,15 @@ class RecordingConfigApplier:
             rollback=None,
             commit=CommitResult(success=True, diagnostics="configuration committed"),
         )
+
+
+class RecordingConfigInspector:
+    def __init__(self) -> None:
+        self.inspections = 0
+
+    def inspect(self) -> LiveConfigObservation:
+        self.inspections += 1
+        return LiveConfigObservation(exists=True, sha256="c" * 64)
 
 
 def valid_request_json() -> str:
@@ -118,6 +128,7 @@ def test_apply_config_request_cannot_select_host_policy_and_returns_outcome() ->
                 "schema_version": 1,
                 "operation": "apply-config",
                 "sha256": sha256,
+                "expected_config_sha256": None,
             }
         ),
         effective_user_id=0,
@@ -125,7 +136,7 @@ def test_apply_config_request_cannot_select_host_policy_and_returns_outcome() ->
         config_applier=applier,
     )
 
-    assert applier.requests == [ApplyConfigRequest(sha256=sha256)]
+    assert applier.requests == [ApplyConfigRequest(sha256=sha256, expected_config_sha256=None)]
     assert json.loads(result) == {
         "schema_version": 1,
         "status": "applied",
@@ -137,6 +148,24 @@ def test_apply_config_request_cannot_select_host_policy_and_returns_outcome() ->
             "postcondition": {"healthy": True, "diagnostics": "service active"},
             "rollback": None,
         },
+    }
+
+
+def test_inspect_config_returns_only_existence_and_fingerprint() -> None:
+    inspector = RecordingConfigInspector()
+
+    result = execute_privileged_request(
+        json.dumps({"schema_version": 1, "operation": "inspect-config"}),
+        effective_user_id=0,
+        core_activator=RecordingCoreActivator(),
+        config_inspector=inspector,
+    )
+
+    assert inspector.inspections == 1
+    assert json.loads(result) == {
+        "schema_version": 1,
+        "status": "observed",
+        "config": {"exists": True, "sha256": "c" * 64},
     }
 
 

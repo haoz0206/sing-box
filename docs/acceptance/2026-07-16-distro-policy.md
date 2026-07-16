@@ -1,15 +1,16 @@
 # Distribution policy acceptance — 2026-07-16
 
 Scope: root-owned wheel installation, fixed directory permissions, native
-authorization parser, non-interactive operator access, and no-arguments helper
-restriction. This is container acceptance, not a live init-system smoke test.
+authorization parser, non-interactive operator access, read-only live-config
+inspection, and no-arguments helper restriction. This is container acceptance,
+not a live init-system smoke test.
 
 ## Inputs
 
 - Debian 12: `docker.io/library/debian@sha256:63a496b5d3b99214b39f5ed70eb71a61e590a77979c79cbee4faf991f8c0783e`
 - Ubuntu 24.04: `docker.io/library/ubuntu@sha256:52df9b1ee71626e0088f7d400d5c6b5f7bb916f8f0c82b474289a4ece6cf3faf`
 - Alpine 3.20: `docker.io/library/alpine@sha256:c64c687cbea9300178b30c95835354e34c4e4febc4badfe27102879de0483b5e`
-- Final tested wheel SHA-256: `0af9c451139288d8c709438e11a81005a0c8280fb8004329fcc5de8586d1a234`
+- Final tested wheel SHA-256: `8ad6565fb05bdd4260b02b29e5b394d4cb68069b2e369cdd2d64c3e56689bfad`
 - Dependency mode: explicitly authorized package index (`--allow-index`).
 - Container engine: Podman 6.0.1.
 
@@ -40,6 +41,9 @@ All three cases emitted `DISTRO_POLICY_ACCEPTANCE_OK`.
   `root:sing-box-manager`.
 - The dedicated non-root operator reached the helper via `sudo -n` or `doas -n`
   without a password prompt.
+- The operator invoked `inspect-config` through that policy and received only
+  existence state plus an optional SHA-256 fingerprint; configuration content
+  was never returned.
 - An extra command-line argument was denied by sudo/doas rather than reaching
   the helper.
 

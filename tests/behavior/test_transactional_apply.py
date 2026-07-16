@@ -1,9 +1,14 @@
+import hashlib
 import json
 from pathlib import Path
 
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
-from sb_manager.transactions.apply import ApplyCoordinator, ApplyOutcome
+from sb_manager.transactions.apply import (
+    ApplyCoordinator,
+    ApplyOutcome,
+    ConfigTargetPrecondition,
+)
 from sb_manager.transactions.staging import ConfigurationStager
 
 
@@ -91,6 +96,128 @@ class RuntimeWhoseRollbackRefreshFails:
             "运行 systemctl restart sing-box。",
             "运行 systemctl status sing-box --no-pager。",
         )
+
+
+def test_absent_precondition_refuses_to_replace_an_unmanaged_configuration(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "etc/sing-box/config.json"
+    config_path.parent.mkdir(parents=True)
+    unmanaged_bytes = b'{"inbounds": [{"tag": "unmanaged"}]}\n'
+    config_path.write_bytes(unmanaged_bytes)
+    coordinator = ApplyCoordinator(
+        config_path=config_path,
+        stager=ConfigurationStager(parent=tmp_path / "staging"),
+        validator=AcceptingValidator(),
+        runtime=RuntimeThatMustNotBeCalled(),
+    )
+
+    result = coordinator.apply(
+        {
+            "inbounds": [{"type": "vless", "tag": "candidate"}],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        },
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+
+    assert result.outcome is ApplyOutcome.PRECONDITION_FAILED
+    assert result.commit is not None and not result.commit.success
+    assert result.commit.diagnostics == "Live configuration exists but absence was required"
+    assert result.runtime_refresh is None
+    assert result.rollback is None
+    assert config_path.read_bytes() == unmanaged_bytes
+    assert not coordinator.backup_path.exists()
+
+
+def test_absent_precondition_refuses_to_replace_a_dangling_symlink(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "etc/sing-box/config.json"
+    config_path.parent.mkdir(parents=True)
+    symlink_target = tmp_path / "missing.json"
+    config_path.symlink_to(symlink_target)
+    coordinator = ApplyCoordinator(
+        config_path=config_path,
+        stager=ConfigurationStager(parent=tmp_path / "staging"),
+        validator=AcceptingValidator(),
+        runtime=RuntimeThatMustNotBeCalled(),
+    )
+
+    result = coordinator.apply(
+        {
+            "inbounds": [{"type": "vless", "tag": "candidate"}],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        },
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+
+    assert result.outcome is ApplyOutcome.PRECONDITION_FAILED
+    assert result.commit is not None and not result.commit.success
+    assert result.commit.diagnostics == "Live configuration exists but absence was required"
+    assert config_path.is_symlink()
+    assert config_path.readlink() == symlink_target
+    assert not coordinator.backup_path.exists()
+
+
+def test_matching_fingerprint_allows_an_adopted_configuration_to_be_replaced(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "etc/sing-box/config.json"
+    config_path.parent.mkdir(parents=True)
+    adopted_bytes = b'{"inbounds": [{"tag": "adopted"}]}\n'
+    config_path.write_bytes(adopted_bytes)
+    runtime = HealthyRuntime()
+    coordinator = ApplyCoordinator(
+        config_path=config_path,
+        stager=ConfigurationStager(parent=tmp_path / "staging"),
+        validator=AcceptingValidator(),
+        runtime=runtime,
+    )
+
+    result = coordinator.apply(
+        {
+            "inbounds": [{"type": "vless", "tag": "candidate"}],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        },
+        precondition=ConfigTargetPrecondition.matching_sha256(
+            hashlib.sha256(adopted_bytes).hexdigest()
+        ),
+    )
+
+    assert result.outcome is ApplyOutcome.APPLIED
+    assert coordinator.backup_path.read_bytes() == adopted_bytes
+    assert runtime.calls == ["refresh", "health"]
+
+
+def test_changed_adopted_configuration_fails_the_fingerprint_precondition(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "etc/sing-box/config.json"
+    config_path.parent.mkdir(parents=True)
+    reviewed_bytes = b'{"inbounds": [{"tag": "reviewed"}]}\n'
+    changed_bytes = b'{"inbounds": [{"tag": "changed-after-review"}]}\n'
+    config_path.write_bytes(changed_bytes)
+    coordinator = ApplyCoordinator(
+        config_path=config_path,
+        stager=ConfigurationStager(parent=tmp_path / "staging"),
+        validator=AcceptingValidator(),
+        runtime=RuntimeThatMustNotBeCalled(),
+    )
+
+    result = coordinator.apply(
+        {
+            "inbounds": [{"type": "vless", "tag": "candidate"}],
+            "outbounds": [{"type": "direct", "tag": "direct"}],
+        },
+        precondition=ConfigTargetPrecondition.matching_sha256(
+            hashlib.sha256(reviewed_bytes).hexdigest()
+        ),
+    )
+
+    assert result.outcome is ApplyOutcome.PRECONDITION_FAILED
+    assert result.commit is not None and not result.commit.success
+    assert result.commit.diagnostics == "Live configuration fingerprint changed after review"
+    assert config_path.read_bytes() == changed_bytes
 
 
 def test_failed_validation_preserves_the_running_configuration(tmp_path: Path) -> None:

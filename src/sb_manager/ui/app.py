@@ -10,6 +10,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
 from sb_manager.application.host_diagnostics import (
     HostCondition,
@@ -49,6 +50,7 @@ from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
+from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 
 
@@ -293,6 +295,21 @@ class ApplyResultScreen(Screen[None]):
                     id="apply-result-details",
                 )
                 yield Static("原有配置和服务均未改变。", id="apply-result-safety")
+            elif self.result.transaction.outcome is ApplyOutcome.PRECONDITION_FAILED:
+                yield Static("服务器配置已变化", id="apply-result-title")
+                commit = self.result.transaction.commit
+                yield Static(
+                    (
+                        commit.diagnostics
+                        if commit is not None
+                        else "服务器配置不再符合已确认的接管前置条件"
+                    ),
+                    id="apply-result-details",
+                )
+                yield Static(
+                    "本次尚未写入配置，请重新检查并确认接管状态。",
+                    id="apply-result-safety",
+                )
             elif self.result.transaction.outcome is ApplyOutcome.COMMIT_FAILED:
                 yield Static("无法写入配置", id="apply-result-title")
                 commit = self.result.transaction.commit
@@ -834,6 +851,15 @@ class ProtocolSelectionScreen(Screen[None]):
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ManagerAppHostTools:
+    """Read-only and adoption capabilities available from the dashboard."""
+
+    host_diagnostics: HostDiagnostics | None = None
+    profile_details_reader: ProfileDetailsReader | None = None
+    config_adopter: ConfigAdopter | None = None
+
+
 class ManagerApp(App[None]):
     """Guided terminal manager for sing-box."""
 
@@ -852,16 +878,17 @@ class ManagerApp(App[None]):
         manager: Manager | None = None,
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
-        host_diagnostics: HostDiagnostics | None = None,
-        profile_details_reader: ProfileDetailsReader | None = None,
+        host_tools: ManagerAppHostTools | None = None,
     ) -> None:
         super().__init__()
+        tools = host_tools or ManagerAppHostTools()
         self.manager = manager or Manager(state_store=MemoryStateStore())
         self.profile_applier = profile_applier
         self.core_updater = core_updater
-        self.host_diagnostics = host_diagnostics
+        self.host_diagnostics = tools.host_diagnostics
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
-        self.profile_details_reader = profile_details_reader
+        self.profile_details_reader = tools.profile_details_reader
+        self.config_adopter = tools.config_adopter
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -897,6 +924,8 @@ class ManagerApp(App[None]):
                 yield Static(next_action, id="dashboard-next-action")
                 if self.host_diagnostics is not None:
                     yield Button("查看诊断", id="view-diagnostics", disabled=True)
+                if self.config_adopter is not None and installation.expected_config_sha256 is None:
+                    yield Button("检查并接管现有配置", id="adopt-existing-config")
                 for index, profile in enumerate(installation.profiles):
                     port = (
                         "自动选择端口"
@@ -945,6 +974,8 @@ class ManagerApp(App[None]):
                 yield Static(next_action, id="dashboard-next-action")
                 if self.host_diagnostics is not None:
                     yield Button("查看诊断", id="view-diagnostics", disabled=True)
+                if self.config_adopter is not None and installation.expected_config_sha256 is None:
+                    yield Button("检查并接管现有配置", id="adopt-existing-config")
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
                 yield Button(
                     "创建第一个配置",
@@ -1028,3 +1059,8 @@ class ManagerApp(App[None]):
     def open_core_update(self) -> None:
         if self.core_updater is not None:
             self.push_screen(CoreUpdateFormScreen(self.core_updater))
+
+    @on(Button.Pressed, "#adopt-existing-config")
+    def open_config_adoption(self) -> None:
+        if self.config_adopter is not None:
+            self.push_screen(ConfigAdoptionScreen(self.config_adopter))

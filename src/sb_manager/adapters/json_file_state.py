@@ -151,6 +151,7 @@ class InstallationData(TypedDict):
     schema_version: int
     revision: int
     profiles: list[ProfileData]
+    expected_config_sha256: str | None
 
 
 class JsonFileStateStore:
@@ -174,6 +175,7 @@ class JsonFileStateStore:
             schema_version=data["schema_version"],
             revision=data["revision"],
             profiles=tuple(self._profile_from_data(profile) for profile in data["profiles"]),
+            expected_config_sha256=data.get("expected_config_sha256"),
         )
 
     def save(self, installation: ManagedInstallation) -> None:
@@ -233,6 +235,7 @@ class JsonFileStateStore:
         return InstallationData(
             schema_version=installation.schema_version,
             revision=installation.revision,
+            expected_config_sha256=installation.expected_config_sha256,
             profiles=[
                 ProfileData(
                     profile_id=profile.profile_id,

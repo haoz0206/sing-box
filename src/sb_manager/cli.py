@@ -6,11 +6,15 @@ from pathlib import Path
 
 from sb_manager.adapters.anytls_material import SecureAnyTlsMaterialSource
 from sb_manager.adapters.file_apply_lock import FileApplyLock
+from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
 from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
+from sb_manager.adapters.privileged_config_target import (
+    PrivilegedConfigurationTargetInspector,
+)
 from sb_manager.adapters.privileged_core_activator import PrivilegedCoreActivator
 from sb_manager.adapters.reality_material import SingBoxRealityMaterialSource
 from sb_manager.adapters.secure_random import SecureRandomSource
@@ -23,6 +27,7 @@ from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
+from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.core_update import CoreUpdateService
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
 from sb_manager.application.manager import Manager
@@ -39,13 +44,14 @@ from sb_manager.protocols.catalog import (
     VlessTlsHandler,
     VmessTlsHandler,
 )
+from sb_manager.seams.config_target import ConfigurationTargetInspector
 from sb_manager.seams.configuration_applier import ConfigurationApplier
 from sb_manager.seams.runtime import Runtime, RuntimeKind
 from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCatalog
 from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import TransportCatalog
-from sb_manager.ui.app import ManagerApp
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
 
 
 def create_runtime(
@@ -207,12 +213,17 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         service_name=arguments.service_name,
     )
     applier: ConfigurationApplier
+    config_inspector: ConfigurationTargetInspector
     if arguments.apply_mode == "privileged":
+        config_inspector = PrivilegedConfigurationTargetInspector(
+            helper_command=privileged_helper_command
+        )
         applier = PrivilegedConfigurationApplier(
             incoming_directory=arguments.privileged_incoming_dir,
             helper_command=privileged_helper_command,
         )
     else:
+        config_inspector = FileConfigurationTargetInspector(config_path=arguments.config_file)
         applier = ApplyCoordinator(
             config_path=arguments.config_file,
             stager=ConfigurationStager(parent=arguments.staging_dir),
@@ -239,10 +250,17 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
-        host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
-        profile_details_reader=ProfileDetailsService(
-            state_store=state_store,
-            protocol_catalog=protocol_catalog,
+        host_tools=ManagerAppHostTools(
+            host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
+            profile_details_reader=ProfileDetailsService(
+                state_store=state_store,
+                protocol_catalog=protocol_catalog,
+            ),
+            config_adopter=ConfigAdoptionService(
+                state_store=state_store,
+                config_inspector=config_inspector,
+                mutation_lock=mutation_lock,
+            ),
         ),
     )
 

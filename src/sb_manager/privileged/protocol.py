@@ -7,6 +7,10 @@ from typing import Protocol
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.privileged.config_apply import ApplyConfigRequest
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
+from sb_manager.seams.config_target import (
+    ConfigurationTargetInspector,
+    LiveConfigObservation,
+)
 from sb_manager.seams.core_activator import CoreActivationRequest
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
 
@@ -24,7 +28,9 @@ APPLY_CONFIG_FIELDS = {
     "schema_version",
     "operation",
     "sha256",
+    "expected_config_sha256",
 }
+INSPECT_CONFIG_FIELDS = {"schema_version", "operation"}
 
 
 class PrivilegeRequiredError(PermissionError):
@@ -49,6 +55,7 @@ def execute_privileged_request(
     effective_user_id: int,
     core_activator: CoreActivator,
     config_applier: ConfigApplier | None = None,
+    config_inspector: ConfigurationTargetInspector | None = None,
 ) -> str:
     """Authorize, parse, execute, and serialize one privileged operation."""
     if effective_user_id != 0:
@@ -67,6 +74,7 @@ def execute_privileged_request(
         {
             "activate-core": ACTIVATE_CORE_FIELDS,
             "apply-config": APPLY_CONFIG_FIELDS,
+            "inspect-config": INSPECT_CONFIG_FIELDS,
         }.get(operation)
         if isinstance(operation, str)
         else None
@@ -82,12 +90,25 @@ def execute_privileged_request(
         or schema_version != REQUEST_SCHEMA_VERSION
     ):
         raise PrivilegedProtocolError(f"Unsupported privileged schema version: {schema_version!r}")
+    if operation == "inspect-config":
+        if config_inspector is None:
+            raise PrivilegedProtocolError("inspect-config operation is not available")
+        return _serialize_config_observation(config_inspector.inspect())
+
     sha256 = _required_sha256(raw_request)
     if operation == "apply-config":
         if config_applier is None:
             raise PrivilegedProtocolError("apply-config operation is not available")
         return _serialize_config_result(
-            config_applier.apply_config(ApplyConfigRequest(sha256=sha256))
+            config_applier.apply_config(
+                ApplyConfigRequest(
+                    sha256=sha256,
+                    expected_config_sha256=_optional_sha256(
+                        raw_request,
+                        "expected_config_sha256",
+                    ),
+                )
+            )
         )
 
     version = _required_string(raw_request, "version")
@@ -145,6 +166,21 @@ def _required_sha256(request: dict[str, object]) -> str:
     return sha256
 
 
+def _optional_sha256(request: dict[str, object], field: str) -> str | None:
+    value = request[field]
+    if value is None:
+        return None
+    if (
+        not isinstance(value, str)
+        or len(value) != SHA256_HEX_LENGTH
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise PrivilegedProtocolError(
+            f"Request field {field} must be null or 64 lowercase hex characters"
+        )
+    return value
+
+
 def _serialize_config_result(result: ApplyTransactionResult) -> str:
     return json.dumps(
         {
@@ -189,6 +225,20 @@ def _serialize_config_result(result: ApplyTransactionResult) -> str:
                     if result.rollback is not None
                     else None
                 ),
+            },
+        },
+        sort_keys=True,
+    )
+
+
+def _serialize_config_observation(observation: LiveConfigObservation) -> str:
+    return json.dumps(
+        {
+            "schema_version": REQUEST_SCHEMA_VERSION,
+            "status": "observed",
+            "config": {
+                "exists": observation.exists,
+                "sha256": observation.sha256,
             },
         },
         sort_keys=True,

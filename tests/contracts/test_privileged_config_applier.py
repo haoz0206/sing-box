@@ -10,7 +10,12 @@ from sb_manager.adapters.privileged_config_applier import (
 )
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
-from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult, CommitResult
+from sb_manager.transactions.apply import (
+    ApplyOutcome,
+    ApplyTransactionResult,
+    CommitResult,
+    ConfigTargetPrecondition,
+)
 
 SHA256_HEX_LENGTH = 64
 
@@ -62,7 +67,7 @@ def test_config_is_staged_for_helper_and_typed_transaction_is_restored(tmp_path:
     result = PrivilegedConfigurationApplier(
         incoming_directory=incoming_directory,
         helper_command=(str(helper),),
-    ).apply(document)
+    ).apply(document, precondition=ConfigTargetPrecondition.absent())
 
     assert result == ApplyTransactionResult(
         outcome=ApplyOutcome.APPLIED,
@@ -78,6 +83,7 @@ def test_config_is_staged_for_helper_and_typed_transaction_is_restored(tmp_path:
         "schema_version": 1,
         "operation": "apply-config",
         "sha256": helper_log["request"]["sha256"],
+        "expected_config_sha256": None,
     }
     assert len(helper_log["request"]["sha256"]) == SHA256_HEX_LENGTH
     assert list(incoming_directory.iterdir()) == []
@@ -100,7 +106,10 @@ def test_helper_failure_is_actionable_and_incoming_config_is_removed(tmp_path: P
     )
 
     with pytest.raises(PrivilegedHelperExecutionError, match="authorization denied"):
-        applier.apply({"inbounds": []})
+        applier.apply(
+            {"inbounds": []},
+            precondition=ConfigTargetPrecondition.absent(),
+        )
 
     assert list(incoming_directory.iterdir()) == []
 
@@ -124,7 +133,10 @@ def test_helper_response_requires_exact_boolean_types(tmp_path: Path) -> None:
         PrivilegedConfigurationApplier(
             incoming_directory=incoming_directory,
             helper_command=(str(helper),),
-        ).apply({"inbounds": []})
+        ).apply(
+            {"inbounds": []},
+            precondition=ConfigTargetPrecondition.absent(),
+        )
 
     assert list(incoming_directory.iterdir()) == []
 
@@ -137,4 +149,7 @@ def test_incoming_path_failure_is_reported_as_operational_error(tmp_path: Path) 
         PrivilegedConfigurationApplier(
             incoming_directory=incoming_path,
             helper_command=("unused-helper",),
-        ).apply({"inbounds": []})
+        ).apply(
+            {"inbounds": []},
+            precondition=ConfigTargetPrecondition.absent(),
+        )

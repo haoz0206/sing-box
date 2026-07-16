@@ -49,6 +49,7 @@ def test_json_state_store_survives_reopen(tmp_path: Path) -> None:
                 ),
             ),
         ),
+        expected_config_sha256="f" * 64,
     )
 
     JsonFileStateStore(state_path).save(expected)

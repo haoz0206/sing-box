@@ -15,7 +15,11 @@ from sb_manager.privileged.incoming import (
     require_real_directory,
 )
 from sb_manager.seams.runtime import Runtime
-from sb_manager.transactions.apply import ApplyCoordinator, ApplyTransactionResult
+from sb_manager.transactions.apply import (
+    ApplyCoordinator,
+    ApplyTransactionResult,
+    ConfigTargetPrecondition,
+)
 from sb_manager.transactions.staging import ConfigurationStager
 
 MAX_CONFIG_BYTES = 4 * 1024 * 1024
@@ -27,6 +31,7 @@ class ApplyConfigRequest:
     """Identify one exact incoming configuration without selecting a destination."""
 
     sha256: str
+    expected_config_sha256: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +86,14 @@ class PrivilegedConfigApplyService:
                     ),
                     validator=SingBoxConfigValidator(binary=self._policy.core_binary),
                     runtime=self._runtime,
-                ).apply(document)
+                ).apply(
+                    document,
+                    precondition=(
+                        ConfigTargetPrecondition.matching_sha256(request.expected_config_sha256)
+                        if request.expected_config_sha256 is not None
+                        else ConfigTargetPrecondition.absent()
+                    ),
+                )
         finally:
             private_config.unlink(missing_ok=True)
 
@@ -91,6 +103,14 @@ class PrivilegedConfigApplyService:
             character not in "0123456789abcdef" for character in request.sha256
         ):
             raise PrivilegedInputError("Configuration SHA-256 must be 64 lowercase hex characters")
+        expected = request.expected_config_sha256
+        if expected is not None and (
+            len(expected) != SHA256_HEX_LENGTH
+            or any(character not in "0123456789abcdef" for character in expected)
+        ):
+            raise PrivilegedInputError(
+                "Expected configuration SHA-256 must be 64 lowercase hex characters"
+            )
 
     @staticmethod
     def _load_document(path: Path) -> dict[str, object]:
