@@ -53,7 +53,15 @@ def test_root_command_installs_selected_policy_and_emits_evidence(
     )
     monkeypatch.setattr(policy_cli, "PosixFileOwnership", CurrentUserOwnership)
 
-    policy_cli.main(["--authorization", "sudo", "--group", "sing-box-manager"])
+    policy_cli.main(
+        [
+            "--authorization",
+            "sudo",
+            "--group",
+            "sing-box-manager",
+            "--confirm",
+        ]
+    )
 
     result = json.loads(capsys.readouterr().out)
     policy_path = root / "etc/sudoers.d/sing-box-manager"
@@ -66,7 +74,40 @@ def test_root_command_installs_selected_policy_and_emits_evidence(
     assert stat.S_IMODE(policy_path.stat().st_mode) == SUDO_POLICY_MODE
 
 
-def test_non_root_command_fails_before_parsing_or_writing(
+def test_command_without_confirmation_prints_plan_without_root_or_writes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(policy_cli, "HOST_ROOT", tmp_path)
+    monkeypatch.setattr(policy_cli.os, "geteuid", lambda: 1000)
+
+    policy_cli.main(["--authorization", "sudo", "--group", "sing-box-manager"])
+
+    result = json.loads(capsys.readouterr().out)
+    assert result == {
+        "authorization_path": str(tmp_path / "etc/sudoers.d/sing-box-manager"),
+        "directories": [
+            {"mode": "0750", "path": str(tmp_path / "var/lib/sing-box-manager")},
+            {
+                "mode": "0770",
+                "path": str(tmp_path / "var/lib/sing-box-manager/incoming"),
+            },
+            {"mode": "0700", "path": str(tmp_path / "var/lib/sing-box-manager/work")},
+            {"mode": "0700", "path": str(tmp_path / "var/lib/sing-box-manager/acme")},
+            {"mode": "0755", "path": str(tmp_path / "opt/sing-box-manager/core")},
+            {"mode": "0755", "path": str(tmp_path / "etc/sing-box")},
+            {"mode": "0755", "path": str(tmp_path / "etc/sing-box-manager/tls")},
+        ],
+        "group": "sing-box-manager",
+        "helper_path": str(tmp_path / HELPER_RELATIVE_PATH),
+        "provider": "sudo",
+        "status": "planned",
+    }
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_confirmed_non_root_command_fails_before_writing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -75,7 +116,7 @@ def test_non_root_command_fails_before_parsing_or_writing(
     monkeypatch.setattr(policy_cli.os, "geteuid", lambda: 1000)
 
     with pytest.raises(SystemExit) as exit_info:
-        policy_cli.main(["--authorization", "sudo"])
+        policy_cli.main(["--authorization", "sudo", "--confirm"])
 
     assert exit_info.value.code == policy_cli.EX_NOPERM
     error = json.loads(capsys.readouterr().err)

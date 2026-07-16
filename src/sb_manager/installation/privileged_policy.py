@@ -54,6 +54,25 @@ class PolicyInstallResult:
 
 
 @dataclass(frozen=True, slots=True)
+class DirectoryInstallPlan:
+    """One root-owned directory the confirmed installation will reconcile."""
+
+    path: Path
+    mode: int
+
+
+@dataclass(frozen=True, slots=True)
+class HostPolicyPlan:
+    """Pure, reviewable description of one privileged host policy change."""
+
+    provider: AuthorizationProvider
+    group_name: str
+    authorization_path: Path
+    helper_path: Path
+    directories: tuple[DirectoryInstallPlan, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class HostOwnershipPolicy:
     """Numeric identities resolved by the root-only composition boundary."""
 
@@ -79,6 +98,11 @@ DIRECTORY_POLICIES = (
     _DirectoryPolicy(Path("etc/sing-box-manager/tls"), 0o755, False),
 )
 
+AUTHORIZATION_POLICIES = {
+    AuthorizationProvider.SUDO: (Path("etc/sudoers.d/sing-box-manager"), 0o440),
+    AuthorizationProvider.DOAS: (Path("etc/doas.d/sing-box-manager.conf"), 0o600),
+}
+
 
 def render_authorization_policy(
     provider: AuthorizationProvider,
@@ -92,6 +116,27 @@ def render_authorization_policy(
     if provider is AuthorizationProvider.SUDO:
         return f'%{group_name} ALL=(root) NOPASSWD: {helper} ""\n'
     return f"permit nopass :{group_name} as root cmd {helper} args\n"
+
+
+def build_host_policy_plan(
+    *,
+    root: Path,
+    provider: AuthorizationProvider,
+    group_name: str,
+) -> HostPolicyPlan:
+    """Build a reviewable plan without constructing privileged adapters."""
+    render_authorization_policy(provider, group_name=group_name)
+    relative_policy_path, _ = AUTHORIZATION_POLICIES[provider]
+    return HostPolicyPlan(
+        provider=provider,
+        group_name=group_name,
+        authorization_path=root / relative_policy_path,
+        helper_path=root / HELPER_RELATIVE_PATH,
+        directories=tuple(
+            DirectoryInstallPlan(path=root / policy.relative_path, mode=policy.mode)
+            for policy in DIRECTORY_POLICIES
+        ),
+    )
 
 
 class HostPolicyInstaller:
@@ -110,15 +155,36 @@ class HostPolicyInstaller:
         self._validator = validator
         self._ownership = ownership or PosixFileOwnership()
 
-    def install(
+    def plan(
         self,
         provider: AuthorizationProvider,
         *,
         group_name: str,
+    ) -> HostPolicyPlan:
+        """Describe the fixed host changes without reading or writing the host."""
+        return build_host_policy_plan(
+            root=self._root,
+            provider=provider,
+            group_name=group_name,
+        )
+
+    def install(
+        self,
+        plan: HostPolicyPlan,
+        *,
+        confirmed: bool,
     ) -> PolicyInstallResult:
-        policy_content = render_authorization_policy(provider, group_name=group_name)
+        if not confirmed:
+            raise HostPolicyInstallError("Host policy installation requires explicit confirmation")
+        expected_plan = self.plan(plan.provider, group_name=plan.group_name)
+        if plan != expected_plan:
+            raise HostPolicyInstallError("Host policy plan does not match this installer root")
+        policy_content = render_authorization_policy(
+            plan.provider,
+            group_name=plan.group_name,
+        )
         self._require_real_root()
-        helper_path = self._root / HELPER_RELATIVE_PATH
+        helper_path = plan.helper_path
         self._require_trusted_helper(helper_path)
         for policy in DIRECTORY_POLICIES:
             self._ensure_directory(
@@ -130,24 +196,21 @@ class HostPolicyInstaller:
                     else self._ownership_policy.root_gid
                 ),
             )
-        relative_policy_path, policy_mode = {
-            AuthorizationProvider.SUDO: (Path("etc/sudoers.d/sing-box-manager"), 0o440),
-            AuthorizationProvider.DOAS: (Path("etc/doas.d/sing-box-manager.conf"), 0o600),
-        }[provider]
-        authorization_path = self._root / relative_policy_path
+        _, policy_mode = AUTHORIZATION_POLICIES[plan.provider]
+        authorization_path = plan.authorization_path
         self._ensure_directory(
             authorization_path.parent,
             mode=0o755,
             gid=self._ownership_policy.root_gid,
         )
         self._install_policy_file(
-            provider,
+            plan.provider,
             authorization_path,
             content=policy_content,
             mode=policy_mode,
         )
         return PolicyInstallResult(
-            provider=provider,
+            provider=plan.provider,
             authorization_path=authorization_path,
             helper_path=helper_path,
         )

@@ -16,7 +16,9 @@ from sb_manager.installation.privileged_policy import (
     HostOwnershipPolicy,
     HostPolicyInstaller,
     HostPolicyInstallError,
+    HostPolicyPlan,
     PosixFileOwnership,
+    build_host_policy_plan,
 )
 
 EX_NOPERM = 77
@@ -26,13 +28,7 @@ HOST_ROOT = Path("/")
 
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Install one native authorization fragment after root and group checks."""
-    if os.geteuid() != ROOT_UID:
-        _write_error(
-            error="privilege-required",
-            message="Policy installer must run as root",
-        )
-        raise SystemExit(EX_NOPERM)
+    """Preview or confirm one native authorization fragment installation."""
     parser = argparse.ArgumentParser(
         prog="sb-manager-install-policy",
         description="安装 sing-box manager 最小权限 helper 授权策略",
@@ -48,7 +44,31 @@ def main(argv: Sequence[str] | None = None) -> None:
         default="sing-box-manager",
         help="已经存在且包含获授权运维用户的专用组",
     )
+    parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="确认执行预览中列出的主机文件系统变更",
+    )
     arguments = parser.parse_args(argv)
+    provider = AuthorizationProvider(arguments.authorization)
+    try:
+        plan = build_host_policy_plan(
+            root=HOST_ROOT,
+            provider=provider,
+            group_name=arguments.group,
+        )
+    except ValueError as error:
+        _write_error(error="plan-rejected", message=str(error))
+        raise SystemExit(EX_CONFIG) from error
+    if not arguments.confirm:
+        _write_plan(plan)
+        return
+    if os.geteuid() != ROOT_UID:
+        _write_error(
+            error="privilege-required",
+            message="Confirmed policy installation must run as root",
+        )
+        raise SystemExit(EX_NOPERM)
     try:
         root_gid = grp.getgrnam("root").gr_gid
         manager_gid = grp.getgrnam(arguments.group).gr_gid
@@ -59,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         raise SystemExit(EX_CONFIG) from error
     try:
-        result = HostPolicyInstaller(
+        installer = HostPolicyInstaller(
             root=HOST_ROOT,
             ownership_policy=HostOwnershipPolicy(
                 root_uid=ROOT_UID,
@@ -68,9 +88,10 @@ def main(argv: Sequence[str] | None = None) -> None:
             ),
             validator=SubprocessAuthorizationPolicyValidator(),
             ownership=PosixFileOwnership(),
-        ).install(
-            AuthorizationProvider(arguments.authorization),
-            group_name=arguments.group,
+        )
+        result = installer.install(
+            installer.plan(provider, group_name=arguments.group),
+            confirmed=True,
         )
     except (HostPolicyInstallError, OSError, ValueError) as error:
         _write_error(error="install-rejected", message=str(error))
@@ -82,6 +103,26 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "provider": result.provider.value,
                 "authorization_path": str(result.authorization_path),
                 "helper_path": str(result.helper_path),
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _write_plan(plan: HostPolicyPlan) -> None:
+    sys.stdout.write(
+        json.dumps(
+            {
+                "status": "planned",
+                "provider": plan.provider.value,
+                "group": plan.group_name,
+                "authorization_path": str(plan.authorization_path),
+                "helper_path": str(plan.helper_path),
+                "directories": [
+                    {"path": str(directory.path), "mode": f"{directory.mode:04o}"}
+                    for directory in plan.directories
+                ],
             },
             sort_keys=True,
         )

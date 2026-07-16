@@ -47,7 +47,14 @@ sudo chown -R root:root /opt/sing-box-manager/venv
 sudo chmod -R go-w /opt/sing-box-manager/venv
 sudo /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
   --authorization sudo --group sing-box-manager
+sudo /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
+  --authorization sudo --group sing-box-manager --confirm
 ```
+
+The first installer command is a read-only preview and prints the exact JSON
+plan. Review its helper, authorization, and directory paths before repeating
+the command with `--confirm`. Only the confirmed command requires root and
+changes the host.
 
 The generated sudoers fragment uses the sudoers empty argument string `""`, so
 the fixed helper cannot be invoked with command-line arguments. The installer
@@ -68,7 +75,11 @@ doas chown -R root:root /opt/sing-box-manager/venv
 doas chmod -R go-w /opt/sing-box-manager/venv
 doas /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
   --authorization doas --group sing-box-manager
+doas /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
+  --authorization doas --group sing-box-manager --confirm
 ```
+
+As with sudo, omit `--confirm` first to review the read-only JSON plan.
 
 The generated doas fragment ends in bare `args`, which requires the helper to
 run without arguments. The installer validates it with `/usr/bin/doas -C`

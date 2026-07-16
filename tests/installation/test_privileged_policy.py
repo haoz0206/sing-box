@@ -106,7 +106,8 @@ def test_installer_creates_fixed_directories_and_validated_authorization(
     write_helper(root)
     policy_installer, validator, ownership = installer(root)
 
-    result = policy_installer.install(provider, group_name="sing-box-manager")
+    plan = policy_installer.plan(provider, group_name="sing-box-manager")
+    result = policy_installer.install(plan, confirmed=True)
 
     expected_directories = {
         Path("var/lib/sing-box-manager"): 0o750,
@@ -137,6 +138,29 @@ def test_installer_creates_fixed_directories_and_validated_authorization(
     assert any(path == root / "var/lib/sing-box-manager/incoming" for path, _, _ in ownership.calls)
 
 
+def test_unconfirmed_install_is_a_pure_preview_without_filesystem_effects(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "host"
+    root.mkdir()
+    policy_installer, validator, ownership = installer(root)
+
+    plan = policy_installer.plan(
+        AuthorizationProvider.SUDO,
+        group_name="sing-box-manager",
+    )
+
+    with pytest.raises(HostPolicyInstallError, match="explicit confirmation"):
+        policy_installer.install(plan, confirmed=False)
+
+    assert plan.authorization_path == root / "etc/sudoers.d/sing-box-manager"
+    assert plan.helper_path == root / HELPER_RELATIVE_PATH
+    assert not (root / "var").exists()
+    assert not (root / "etc").exists()
+    assert validator.calls == []
+    assert ownership.calls == []
+
+
 def test_installer_rejects_a_helper_writable_by_group_or_other(tmp_path: Path) -> None:
     root = tmp_path / "host"
     root.mkdir()
@@ -144,7 +168,11 @@ def test_installer_rejects_a_helper_writable_by_group_or_other(tmp_path: Path) -
     policy_installer, validator, _ = installer(root)
 
     with pytest.raises(HostPolicyInstallError, match="group or other"):
-        policy_installer.install(AuthorizationProvider.SUDO, group_name="sing-box-manager")
+        plan = policy_installer.plan(
+            AuthorizationProvider.SUDO,
+            group_name="sing-box-manager",
+        )
+        policy_installer.install(plan, confirmed=True)
 
     assert validator.calls == []
     assert not (root / "etc/sudoers.d/sing-box-manager").exists()
@@ -162,7 +190,11 @@ def test_installer_rejects_symlinked_managed_directories(tmp_path: Path) -> None
     policy_installer, validator, _ = installer(root)
 
     with pytest.raises(HostPolicyInstallError, match="symlink"):
-        policy_installer.install(AuthorizationProvider.DOAS, group_name="sing-box-manager")
+        plan = policy_installer.plan(
+            AuthorizationProvider.DOAS,
+            group_name="sing-box-manager",
+        )
+        policy_installer.install(plan, confirmed=True)
 
     assert validator.calls == []
 
@@ -186,7 +218,11 @@ def test_validator_rejection_preserves_existing_authorization(tmp_path: Path) ->
     )
 
     with pytest.raises(HostPolicyInstallError, match="native parser rejected"):
-        policy_installer.install(AuthorizationProvider.SUDO, group_name="sing-box-manager")
+        plan = policy_installer.plan(
+            AuthorizationProvider.SUDO,
+            group_name="sing-box-manager",
+        )
+        policy_installer.install(plan, confirmed=True)
 
     assert policy_path.read_text(encoding="utf-8") == "existing safe policy\n"
     assert not any(policy_path.parent.glob(".sing-box-manager.*"))

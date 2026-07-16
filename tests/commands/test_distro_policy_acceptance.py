@@ -28,6 +28,9 @@ def test_container_command_preserves_wheel_name_and_explicit_network(tmp_path: P
     assert f"{wheel.resolve()}:/tmp/sing_box_manager-0.1.0-py3-none-any.whl:ro" in command
     assert command[-3:-1] == ["/bin/sh", "-ceu"]
     assert "pip install /tmp/sing_box_manager-0.1.0-py3-none-any.whl" in command[-1]
+    assert (
+        "sb-manager-install-policy --authorization sudo --group sing-box-manager --confirm"
+    ) in command[-1]
 
 
 def test_reviewed_wheelhouse_disables_package_index(tmp_path: Path) -> None:

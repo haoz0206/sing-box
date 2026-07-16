@@ -142,7 +142,7 @@ def _container_script(
         /opt/sing-box-manager/venv/bin/{pip_install}
         chown -R root:root /opt/sing-box-manager/venv
         chmod -R go-w /opt/sing-box-manager/venv
-        {INSTALLER} --authorization {case.authorization} --group sing-box-manager
+        {INSTALLER} --authorization {case.authorization} --group sing-box-manager --confirm
         printf "{{}}" > /tmp/request.json
         set +e
         {allowed_command} < /tmp/request.json > /tmp/helper-output 2>&1
