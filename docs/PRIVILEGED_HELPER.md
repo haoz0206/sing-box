@@ -57,8 +57,25 @@ Schema version 1 allows `activate-core`:
 ```
 
 Unknown, missing, or duplicate fields fail. `architecture` is `amd64` or
-`arm64`. The helper emits the active binary path and previous activation target
-without echoing request bytes or file contents.
+`arm64`. On success the helper returns complete activation evidence without
+echoing request bytes or file contents:
+
+```json
+{
+  "schema_version": 1,
+  "status": "activated",
+  "activation": {
+    "version": "1.14.0-alpha.45",
+    "distribution_directory": "/opt/sing-box-manager/core/versions/1.14.0-alpha.45-SHA256",
+    "binary_path": "/opt/sing-box-manager/core/current/sing-box",
+    "activated_target": "versions/1.14.0-alpha.45-SHA256",
+    "previous_target": null
+  }
+}
+```
+
+The unprivileged client requires this exact response shape and verifies that
+the returned version matches the requested version.
 
 It also allows a fixed-target configuration transaction:
 

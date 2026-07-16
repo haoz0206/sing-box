@@ -7,6 +7,10 @@ from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 
 
+class CoreActivationError(RuntimeError):
+    """One requested core activation did not produce trusted host evidence."""
+
+
 @dataclass(frozen=True, slots=True)
 class CoreActivationRequest:
     """Exact artifact identity allowed to cross the privileged seam."""

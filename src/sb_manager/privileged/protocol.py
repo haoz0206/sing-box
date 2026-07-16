@@ -108,9 +108,13 @@ def execute_privileged_request(
         {
             "schema_version": REQUEST_SCHEMA_VERSION,
             "status": "activated",
-            "version": activation.version,
-            "binary_path": str(activation.binary_path),
-            "previous_target": activation.previous_target,
+            "activation": {
+                "version": activation.version,
+                "distribution_directory": str(activation.distribution_directory),
+                "binary_path": str(activation.binary_path),
+                "activated_target": activation.activated_target,
+                "previous_target": activation.previous_target,
+            },
         },
         sort_keys=True,
     )

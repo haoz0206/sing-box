@@ -85,9 +85,13 @@ def test_root_request_executes_one_allowlisted_operation_and_returns_redacted_js
     assert json.loads(result) == {
         "schema_version": 1,
         "status": "activated",
-        "version": "1.14.0-alpha.45",
-        "binary_path": "/opt/sing-box-manager/core/current/sing-box",
-        "previous_target": None,
+        "activation": {
+            "version": "1.14.0-alpha.45",
+            "distribution_directory": "/opt/sing-box-manager/core/versions/release",
+            "binary_path": "/opt/sing-box-manager/core/current/sing-box",
+            "activated_target": "versions/release",
+            "previous_target": None,
+        },
     }
 
 
