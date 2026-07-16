@@ -207,6 +207,14 @@ resolution, certificate expiry, semantic generated-config validation, port
 ownership, apply history, and redacted raw-log drill-down are delivered as
 later complete checks rather than UI-side subprocess parsing.
 
+Actionable findings may carry one typed navigation action. The report exposes
+only the action belonging to its highest-priority finding, and the Textual
+screen renders it only when the destination application module and its safety
+prerequisites are available. Initial actions open the existing configuration
+adoption review and trusted core-update form. Opening an action never adopts,
+downloads, activates, or otherwise mutates the host; the destination workflow
+retains its own plan and explicit confirmation.
+
 ### 5.8 Settings
 
 Owns language, color/accessibility preferences, update channel, paths, and
@@ -572,6 +580,11 @@ Current implementation status (2026-07-17):
   matching, missing, changed, and failed-probe states produce distinct typed
   results while corrupt desired state still leaves readiness/runtime evidence
   available;
+- typed diagnostic actions: an untracked live configuration can open the exact
+  fingerprint adoption review, while a missing core can open the trusted update
+  form only after the privileged helper is ready; actions follow report
+  priority, disappear when their destination is unavailable, and never bypass
+  the destination workflow's plan or confirmation;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed

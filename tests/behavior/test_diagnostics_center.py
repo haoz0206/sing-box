@@ -1,5 +1,6 @@
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.diagnostics_center import (
+    DiagnosticAction,
     DiagnosticCode,
     DiagnosticCondition,
     DiagnosticsCenterService,
@@ -599,3 +600,86 @@ def test_action_required_runtime_guidance_precedes_readiness_attention() -> None
     assert report.recommended_action == (
         "运行 systemctl restart sing-box.service。 重新检查服务状态。"
     )
+
+
+def test_missing_core_recommendation_exposes_trusted_install_action() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        host_readiness=FixedHostReadiness(
+            HostReadinessReport(
+                items=(
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.PRIVILEGED_HELPER,
+                        state=ReadinessState.READY,
+                        title="最小权限 helper",
+                        summary="最小权限 helper 可用",
+                        diagnostics="ready",
+                        guidance="",
+                    ),
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.CORE,
+                        state=ReadinessState.ACTION_REQUIRED,
+                        title="sing-box 核心",
+                        summary="sing-box 核心尚不可用",
+                        diagnostics="sing-box not found",
+                        guidance="选择可信版本并安装 sing-box 核心",
+                    ),
+                )
+            )
+        ),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
+
+
+def test_missing_core_action_is_withheld_until_privileged_helper_is_ready() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        host_readiness=FixedHostReadiness(
+            HostReadinessReport(
+                items=(
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.PRIVILEGED_HELPER,
+                        state=ReadinessState.ATTENTION,
+                        title="最小权限 helper",
+                        summary="直接模式可用，但 helper 尚未安装",
+                        diagnostics="policy missing",
+                        guidance="安装最小权限策略以启用核心升级",
+                    ),
+                    HostReadinessItem(
+                        code=HostReadinessItemCode.CORE,
+                        state=ReadinessState.ACTION_REQUIRED,
+                        title="sing-box 核心",
+                        summary="sing-box 核心尚不可用",
+                        diagnostics="sing-box not found",
+                        guidance="选择可信版本并安装 sing-box 核心",
+                    ),
+                )
+            )
+        ),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    assert report.recommended_action == "选择可信版本并安装 sing-box 核心"
+    assert report.recommended_action_kind is None

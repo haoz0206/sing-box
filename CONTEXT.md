@@ -86,3 +86,10 @@ with the exact replacement precondition recorded in desired state. It can prove
 that the target is absent, untracked, unchanged, missing, or changed without
 returning configuration content.
 _Avoid_: Generated configuration validation, imported configuration, runtime health
+
+**Diagnostic action**:
+Optional typed navigation from the report's highest-priority finding into an
+existing safe review or planning workflow. Opening the destination never
+confirms or performs the underlying mutation, and the action is unavailable
+when its prerequisite application module is absent or not ready.
+_Avoid_: Shell command button, parsing guidance text, bypassing confirmation

@@ -1,6 +1,16 @@
 from textual.widgets import Button, Static
 
+from sb_manager.application.config_adoption import (
+    ConfigAdoptionPlan,
+    ConfigAdoptionResult,
+)
+from sb_manager.application.core_update import (
+    CoreUpdatePlan,
+    CoreUpdateResult,
+    PlanCoreUpdateRequest,
+)
 from sb_manager.application.diagnostics_center import (
+    DiagnosticAction,
     DiagnosticCode,
     DiagnosticCondition,
     DiagnosticItem,
@@ -39,6 +49,27 @@ class HealthyHostDiagnostics:
             diagnostics="active",
             recovery_instructions=(),
         )
+
+
+class RecordingConfigAdopter:
+    def plan(self) -> ConfigAdoptionPlan:
+        return ConfigAdoptionPlan(base_revision=0, config_sha256="b" * 64)
+
+    def adopt(
+        self,
+        plan: ConfigAdoptionPlan,
+        *,
+        confirmed: bool,
+    ) -> ConfigAdoptionResult:
+        raise AssertionError("opening the review must not confirm adoption")
+
+
+class NeverCalledCoreUpdater:
+    def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        raise AssertionError("opening the form must not plan an update")
+
+    def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
+        raise AssertionError("opening the form must not activate a core")
 
 
 def report_with_actions() -> DiagnosticsCenterReport:
@@ -93,6 +124,92 @@ def healthy_report() -> DiagnosticsCenterReport:
             ),
         )
     )
+
+
+def untracked_configuration_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.LIVE_CONFIGURATION,
+                condition=DiagnosticCondition.ACTION_REQUIRED,
+                title="实时配置身份",
+                summary="发现尚未由 manager 接管的现有配置",
+                diagnostics=f"当前配置 SHA-256：{'b' * 64}",
+                guidance=(
+                    "打开现有配置接管流程，先审查并确认这个精确指纹。接管不会导入或改写配置。"
+                ),
+                action=DiagnosticAction.REVIEW_CONFIG_ADOPTION,
+            ),
+        )
+    )
+
+
+def missing_core_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.CORE,
+                condition=DiagnosticCondition.ACTION_REQUIRED,
+                title="sing-box 核心",
+                summary="sing-box 核心尚不可用",
+                diagnostics="sing-box not found",
+                guidance="选择可信版本并安装 sing-box 核心",
+                action=DiagnosticAction.MANAGE_CORE,
+            ),
+        )
+    )
+
+
+async def test_operator_opens_config_adoption_from_diagnostics_recommendation() -> None:
+    adopter = RecordingConfigAdopter()
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(untracked_configuration_report()),
+            config_adopter=adopter,
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        action = app.screen.query_one("#diagnostics-center-action", Button)
+        assert str(action.label) == "审查并接管现有配置"
+        assert not action.has_class("hidden")
+
+        await pilot.click("#diagnostics-center-action")
+        await pilot.pause()
+
+        assert app.screen.query_one("#config-adoption-title", Static).content == (
+            "确认现有配置接管计划"
+        )
+        assert app.screen.query_one("#config-adoption-fingerprint", Static).content == (
+            f"当前配置 SHA-256：{'b' * 64}"
+        )
+
+
+async def test_operator_opens_trusted_core_update_from_diagnostics_recommendation() -> None:
+    updater = NeverCalledCoreUpdater()
+    app = ManagerApp(
+        core_updater=updater,
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(missing_core_report()),
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        action = app.screen.query_one("#diagnostics-center-action", Button)
+        assert str(action.label) == "安装或升级 sing-box 核心"
+        assert not action.has_class("hidden")
+
+        await pilot.click("#diagnostics-center-action")
+
+        assert app.screen.query_one("#core-update-form-title", Static).content == (
+            "安装或升级 sing-box 核心"
+        )
 
 
 async def test_operator_opens_one_prioritized_diagnostics_report_from_dashboard() -> None:

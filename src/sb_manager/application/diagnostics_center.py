@@ -10,6 +10,7 @@ from sb_manager.application.host_diagnostics import (
 )
 from sb_manager.application.host_readiness import (
     HostReadiness,
+    HostReadinessItemCode,
     ReadinessState,
 )
 from sb_manager.domain.installation import ManagedInstallation, ProfileStatus
@@ -26,6 +27,13 @@ class DiagnosticCondition(str, Enum):
     HEALTHY = "healthy"
     ATTENTION = "attention"
     ACTION_REQUIRED = "action-required"
+
+
+class DiagnosticAction(str, Enum):
+    """Typed navigation that can safely follow one diagnostic recommendation."""
+
+    REVIEW_CONFIG_ADOPTION = "review-config-adoption"
+    MANAGE_CORE = "manage-core"
 
 
 class DiagnosticCode(str, Enum):
@@ -50,6 +58,7 @@ class DiagnosticItem:
     summary: str
     diagnostics: str
     guidance: str
+    action: DiagnosticAction | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,14 +85,25 @@ class DiagnosticsCenterReport:
 
     @property
     def recommended_action(self) -> str:
+        item = self._recommended_item()
+        return (
+            item.guidance or item.summary if item is not None else "当前无需处理，可以安全继续操作"
+        )
+
+    @property
+    def recommended_action_kind(self) -> DiagnosticAction | None:
+        item = self._recommended_item()
+        return item.action if item is not None else None
+
+    def _recommended_item(self) -> DiagnosticItem | None:
         for condition in (
             DiagnosticCondition.ACTION_REQUIRED,
             DiagnosticCondition.ATTENTION,
         ):
             for item in self.items:
                 if item.condition is condition:
-                    return item.guidance or item.summary
-        return "当前无需处理，可以安全继续操作"
+                    return item
+        return None
 
 
 class DiagnosticsCenter(Protocol):
@@ -127,6 +147,11 @@ class DiagnosticsCenterService:
                 )
             )
         else:
+            helper_ready = any(
+                item.code is HostReadinessItemCode.PRIVILEGED_HELPER
+                and item.state is ReadinessState.READY
+                for item in readiness.items
+            )
             items.extend(
                 DiagnosticItem(
                     code=DiagnosticCode(item.code.value),
@@ -143,6 +168,13 @@ class DiagnosticsCenterService:
                     summary=item.summary,
                     diagnostics=item.diagnostics,
                     guidance=item.guidance,
+                    action=(
+                        DiagnosticAction.MANAGE_CORE
+                        if item.code is HostReadinessItemCode.CORE
+                        and item.state is ReadinessState.ACTION_REQUIRED
+                        and helper_ready
+                        else None
+                    ),
                 )
                 for item in readiness.items
             )
@@ -212,6 +244,7 @@ class DiagnosticsCenterService:
                 guidance=(
                     "打开现有配置接管流程，先审查并确认这个精确指纹。接管不会导入或改写配置。"
                 ),
+                action=DiagnosticAction.REVIEW_CONFIG_ADOPTION,
             )
         if installation.expected_config_sha256 is not None and not observation.exists:
             return DiagnosticItem(

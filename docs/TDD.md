@@ -288,6 +288,10 @@ Release gate adds:
   missing, externally changed, and failed-probe observations, including
   single-snapshot desired-state failure isolation and direct/privileged
   production inspector composition;
+- typed diagnostic-action journeys from an untracked configuration to exact
+  fingerprint adoption review and from a helper-ready missing core to the
+  trusted update form, including withheld actions when prerequisites or
+  destination modules are unavailable;
 - headless TUI acceptance suite;
 - supported Python matrix;
 - semantic configuration fixtures;

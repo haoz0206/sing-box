@@ -1118,7 +1118,13 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, "#open-diagnostics-center")
     def open_diagnostics_center(self) -> None:
         if self.diagnostics_center is not None:
-            self.push_screen(DiagnosticsCenterScreen(self.diagnostics_center))
+            self.push_screen(
+                DiagnosticsCenterScreen(
+                    self.diagnostics_center,
+                    config_adopter=self.config_adopter,
+                    core_updater=self.core_updater,
+                )
+            )
 
     @on(Button.Pressed, "#view-readiness")
     def open_host_readiness(self) -> None:

@@ -9,13 +9,18 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
+from sb_manager.application.config_adoption import ConfigAdopter
+from sb_manager.application.core_update import CoreUpdater
 from sb_manager.application.diagnostics_center import (
+    DiagnosticAction,
     DiagnosticCode,
     DiagnosticCondition,
     DiagnosticItem,
     DiagnosticsCenter,
     DiagnosticsCenterReport,
 )
+from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
+from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 
 
 class DiagnosticsCenterScreen(Screen[None]):
@@ -23,9 +28,17 @@ class DiagnosticsCenterScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
 
-    def __init__(self, diagnostics_center: DiagnosticsCenter) -> None:
+    def __init__(
+        self,
+        diagnostics_center: DiagnosticsCenter,
+        *,
+        config_adopter: ConfigAdopter | None,
+        core_updater: CoreUpdater | None,
+    ) -> None:
         super().__init__()
         self.diagnostics_center = diagnostics_center
+        self.config_adopter = config_adopter
+        self.core_updater = core_updater
         self.report: DiagnosticsCenterReport | None = None
         self.error: str | None = None
 
@@ -42,6 +55,12 @@ class DiagnosticsCenterScreen(Screen[None]):
                 "",
                 id="diagnostics-center-recommended-action",
                 classes="hidden",
+            )
+            yield Button(
+                "审查并接管现有配置",
+                id="diagnostics-center-action",
+                classes="hidden",
+                variant="primary",
             )
             for code in DiagnosticCode:
                 item_id = code.value
@@ -94,6 +113,21 @@ class DiagnosticsCenterScreen(Screen[None]):
         recommended = self.query_one("#diagnostics-center-recommended-action", Static)
         recommended.update(f"建议：{report.recommended_action}")
         recommended.remove_class("hidden")
+        action = self.query_one("#diagnostics-center-action", Button)
+        if (
+            report.recommended_action_kind is DiagnosticAction.REVIEW_CONFIG_ADOPTION
+            and self.config_adopter is not None
+        ):
+            action.label = "审查并接管现有配置"
+            action.remove_class("hidden")
+        elif (
+            report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
+            and self.core_updater is not None
+        ):
+            action.label = "安装或升级 sing-box 核心"
+            action.remove_class("hidden")
+        else:
+            action.add_class("hidden")
         self._hide_items()
         for item in report.items:
             self._show_item(item)
@@ -105,6 +139,7 @@ class DiagnosticsCenterScreen(Screen[None]):
         loading = self.query_one("#diagnostics-center-loading", Static)
         loading.update(f"无法完成诊断检查：{diagnostics}")
         loading.remove_class("hidden")
+        self.query_one("#diagnostics-center-action", Button).add_class("hidden")
         self.query_one("#refresh-diagnostics-center", Button).disabled = False
 
     @on(Button.Pressed, "#refresh-diagnostics-center")
@@ -113,12 +148,28 @@ class DiagnosticsCenterScreen(Screen[None]):
         self.error = None
         self.query_one("#diagnostics-center-summary", Static).add_class("hidden")
         self.query_one("#diagnostics-center-recommended-action", Static).add_class("hidden")
+        self.query_one("#diagnostics-center-action", Button).add_class("hidden")
         self._hide_items()
         loading = self.query_one("#diagnostics-center-loading", Static)
         loading.update("正在重新检查 desired state、主机准备度与运行状态…")
         loading.remove_class("hidden")
         self.query_one("#refresh-diagnostics-center", Button).disabled = True
         self.load_report()
+
+    @on(Button.Pressed, "#diagnostics-center-action")
+    def open_recommended_action(self) -> None:
+        if (
+            self.report is not None
+            and self.report.recommended_action_kind is DiagnosticAction.REVIEW_CONFIG_ADOPTION
+            and self.config_adopter is not None
+        ):
+            self.app.push_screen(ConfigAdoptionScreen(self.config_adopter))
+        elif (
+            self.report is not None
+            and self.report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
+            and self.core_updater is not None
+        ):
+            self.app.push_screen(CoreUpdateFormScreen(self.core_updater))
 
     @staticmethod
     def _summary(report: DiagnosticsCenterReport) -> str:
