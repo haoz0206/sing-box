@@ -23,7 +23,7 @@ and publication of stable sing-box 1.14.
 - The official artifact acceptance downloads the immutable alpha.45 release,
   verifies and stages it, activates it atomically, and proves rollback.
 - The final wheel SHA-256 is
-  `0af9c451139288d8c709438e11a81005a0c8280fb8004329fcc5de8586d1a234`.
+  `aa7f1ee436029551aa14020c522d087bcfcf04e293c8e8dbda6103bdfb5b43d0`.
   That exact wheel passed the pinned Debian 12, Ubuntu 24.04, and Alpine 3.20
   package and authorization acceptance.
 - Host policy installation now emits a read-only plan by default and mutates
@@ -35,9 +35,12 @@ and publication of stable sing-box 1.14.
 ## External release gates
 
 1. Run the opt-in systemd smoke on approved Debian 12 and Ubuntu 24.04 hosts
-   with a recoverable `sing-box.service`.
+   with a recoverable, initially healthy `sing-box.service`, using the exact
+   `refresh:systemd:sing-box.service` confirmation printed by the read-only
+   plan.
 2. Run the opt-in OpenRC smoke on an approved Alpine 3.20 host with a
-   recoverable `sing-box` service.
+   recoverable, initially healthy `sing-box` service, using the exact
+   `refresh:openrc:sing-box` confirmation printed by the read-only plan.
 3. After upstream publishes stable sing-box 1.14, repeat the real configuration
    and official artifact suites against that stable release. As of this audit,
    upstream's latest validated 1.14 artifact is

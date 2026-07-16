@@ -504,8 +504,10 @@ Current implementation status (2026-07-16):
 - release integration: product-generated configurations for every supported
   protocol and the VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
   against official 1.14.0-alpha.45;
-- release harness: systemd/OpenRC service refresh and health checks require
-  explicit host authorization;
+- release harness: a read-only systemd/OpenRC acceptance plan prints recovery
+  actions and an authorization value bound to the exact runtime and service;
+  execution refuses an unhealthy precondition, refreshes once, and requires a
+  healthy postcondition;
 - artifact acquisition: exact immutable official releases require an API
   SHA-256, safe archive staging, and staged core version self-verification;
 - artifact activation: isolated-root tests and the real official artifact prove

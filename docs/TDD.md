@@ -276,7 +276,8 @@ Release gate adds:
 - real `sing-box check` integration suite;
 - adapter contract suites;
 - isolated-root transactional apply/rollback suite;
-- explicitly opted-in systemd/OpenRC host smoke tests.
+- explicitly opted-in systemd/OpenRC host smoke tests whose authorization is
+  bound to the exact runtime and service, with healthy pre- and postconditions.
 
 ## 12. Definition of done for a slice
 

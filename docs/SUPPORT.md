@@ -73,23 +73,47 @@ SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE=1 \
 
 ## Host runtime smoke
 
-The host marker exercises the production runtime adapter by refreshing the
-configured service and then checking its health. It changes live service state.
-Run it only on an approved acceptance host with a recoverable sing-box service:
+The packaged acceptance module defaults to a read-only JSON plan. It prints a
+confirmation bound to the exact init system and service, plus the recovery
+commands, without observing or changing the service:
 
 ```bash
-SB_MANAGER_HOST_SMOKE=refresh \
+.venv/bin/python -m sb_manager.release.host_runtime_acceptance \
+  --runtime systemd \
+  --service sing-box.service
+```
+
+Run the mutating phase only on an approved acceptance host with a recoverable,
+already-healthy sing-box service. Copy the exact confirmation from the plan:
+
+```bash
+.venv/bin/python -m sb_manager.release.host_runtime_acceptance \
+  --runtime systemd \
+  --service sing-box.service \
+  --confirm-service-refresh refresh:systemd:sing-box.service
+```
+
+The command refuses to refresh a service that is not healthy beforehand. It
+then refreshes through the production adapter and requires a healthy
+postcondition; failures include the adapter's recovery commands. Use `openrc`
+and service name `sing-box` on Alpine. An alternate command path can be supplied
+through `--runtime-binary`.
+
+The equivalent pytest marker remains available for release automation. Its
+authorization value is also bound to the exact runtime and service:
+
+```bash
+SB_MANAGER_HOST_SMOKE=refresh:systemd:sing-box.service \
 SB_MANAGER_HOST_RUNTIME=systemd \
 SB_MANAGER_HOST_SERVICE=sing-box.service \
 .venv/bin/pytest -q -m host
 ```
 
-Use `openrc` and service name `sing-box` on Alpine. An alternate command path
-can be supplied through `SB_MANAGER_HOST_RUNTIME_BINARY`. Without the exact
-`SB_MANAGER_HOST_SMOKE=refresh` authorization, the test skips before invoking
-the runtime. Providing this harness is not evidence that a target distribution
-has passed live runtime acceptance; each row remains pending until the command
-succeeds on an approved, recoverable host.
+Without `SB_MANAGER_HOST_SMOKE`, the test skips before inspecting the service.
+A mismatched value fails before invoking the runtime. Providing this harness is
+not evidence that a target distribution has passed live runtime acceptance;
+each row remains pending until the command succeeds on an approved,
+recoverable host.
 
 ## sing-box
 
