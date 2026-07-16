@@ -334,7 +334,11 @@ staging, replacement, and rollback. GitHub and local files are initial adapters.
 The initial network trust and staging policy is fixed by ADR-0003: exact
 immutable releases, mandatory SHA-256 verification, safe archive inspection,
 and version self-verification occur before the later privileged replacement
-seam.
+seam. The TUI exposes this as an exact-version plan/confirm workflow. Blocking
+metadata, download, and helper calls run in a Textual thread worker; UI updates
+return to the application thread. Acquisition failures are reported before any
+privileged request, while helper failures conservatively report an unknown host
+activation result.
 
 ### 7.8 Privileged helper
 

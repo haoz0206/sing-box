@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from sb_manager.application.core_update import (
+    CoreArtifactAcquisitionError,
     CorePrereleaseConsentRequiredError,
     CoreUpdateConfirmationRequiredError,
     CoreUpdateService,
@@ -54,6 +55,16 @@ class RecordingCoreActivator:
             activated_target="versions/release",
             previous_target="versions/previous",
         )
+
+
+class FailingArtifactSource:
+    def acquire(
+        self,
+        request: CoreArtifactRequest,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        raise OSError("network unavailable")
 
 
 def service(
@@ -154,3 +165,24 @@ def test_confirmed_update_acquires_activates_and_removes_incoming_archive(
     ]
     assert result.activation.version == "1.14.0-alpha.45"
     assert list((tmp_path / "incoming").iterdir()) == []
+
+
+def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path: Path) -> None:
+    activator = RecordingCoreActivator()
+    core_updates = CoreUpdateService(
+        artifact_source=FailingArtifactSource(),
+        core_activator=activator,
+        incoming_directory=tmp_path / "incoming",
+    )
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+
+    with pytest.raises(CoreArtifactAcquisitionError, match="network unavailable"):
+        core_updates.execute(plan, confirmed=True)
+
+    assert activator.requests == []

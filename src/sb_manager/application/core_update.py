@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.seams.artifact_source import (
@@ -18,6 +19,10 @@ class CorePrereleaseConsentRequiredError(PermissionError):
 
 class CoreUpdateConfirmationRequiredError(PermissionError):
     """Artifact acquisition and host activation require explicit confirmation."""
+
+
+class CoreArtifactAcquisitionError(RuntimeError):
+    """The exact release artifact could not be acquired and verified."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +52,14 @@ class CoreUpdateResult:
     """Evidence returned by the privileged atomic activation."""
 
     activation: CoreActivation
+
+
+class CoreUpdater(Protocol):
+    """Public application seam consumed by the operator interface."""
+
+    def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan: ...
+
+    def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult: ...
 
 
 class CoreUpdateService:
@@ -90,14 +103,17 @@ class CoreUpdateService:
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
         if not confirmed:
             raise CoreUpdateConfirmationRequiredError("Core update requires explicit confirmation")
-        artifact = self._artifact_source.acquire(
-            CoreArtifactRequest(
-                version=plan.version,
-                architecture=plan.architecture,
-                allow_prerelease=plan.allow_prerelease,
-            ),
-            destination_directory=self._incoming_directory,
-        )
+        try:
+            artifact = self._artifact_source.acquire(
+                CoreArtifactRequest(
+                    version=plan.version,
+                    architecture=plan.architecture,
+                    allow_prerelease=plan.allow_prerelease,
+                ),
+                destination_directory=self._incoming_directory,
+            )
+        except Exception as error:
+            raise CoreArtifactAcquisitionError(str(error)) from error
         try:
             activation = self._core_activator.activate_core(
                 CoreActivationRequest(

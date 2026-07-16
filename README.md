@@ -9,6 +9,7 @@
 目前已经具备：
 
 - Textual 引导式 TUI：配置列表、协议引导、计划预览、二次确认与类型化结果；
+- 核心安装/升级向导：精确版本与架构选择、预发布风险确认、后台下载、可信校验及激活证据；
 - 版本化 desired state、原子 JSON 保存、修订冲突保护和上一版备份；
 - VLESS Reality、VLESS/VMess TLS WebSocket/gRPC、Shadowsocks 2022、Hysteria2、Trojan、AnyTLS 与 TUIC 的引导、凭据生成、连接 URI 和多 profile 配置；
 - sing-box 1.14 共享 ACME certificate provider 与运维证书文件 TLS 策略；
@@ -20,7 +21,7 @@
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
-最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 可通过显式 privileged apply 模式调用它。Caddy 工作流仍未完成；引导式 TLS 表单目前只开放 ACME，运维证书文件已经由后端支持但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要 root-owned 安装/授权验收与受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
+最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 的核心向导始终通过非交互 helper 激活，配置应用则可通过显式 privileged apply 模式调用它。Caddy 工作流仍未完成；引导式 TLS 表单目前只开放 ACME，运维证书文件已经由后端支持但尚未接入高级表单。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实发行前还需要 root-owned 安装/授权验收与受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
 ## 开发运行
 

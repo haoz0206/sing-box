@@ -3,6 +3,7 @@ from pathlib import Path
 
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
+from sb_manager.application.core_update import PlanCoreUpdateRequest
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     PlanProfileRequest,
@@ -25,6 +26,7 @@ from sb_manager.domain.protocol_material import (
     VlessMaterial,
     VmessMaterial,
 )
+from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.ui.app import ManagerApp
 
@@ -146,6 +148,22 @@ def test_cli_composes_the_tui_with_a_persistent_state_store(tmp_path: Path) -> N
     app.manager.save_profile_draft(plan)
 
     assert JsonFileStateStore(state_path).load().profiles[0].profile_name == "手机"
+
+
+def test_cli_composes_an_exact_core_update_path() -> None:
+    app = create_app([])
+
+    assert app.core_updater is not None
+    plan = app.core_updater.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0-alpha.45",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    )
+
+    assert plan.asset_name == "sing-box-1.14.0-alpha.45-linux-amd64.tar.gz"
+    assert plan.mutates_host is False
 
 
 def test_cli_composes_a_complete_isolated_apply_path(tmp_path: Path) -> None:

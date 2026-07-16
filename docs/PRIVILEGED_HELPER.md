@@ -100,8 +100,13 @@ The unprivileged TUI client is available through:
 sb-manager --apply-mode privileged
 ```
 
-It writes deterministic mode-`0600` incoming JSON, sends only its SHA-256 to
-the helper, restores the typed transaction response, and removes the incoming
-file. The privilege runner is always invoked with `-n`, so missing
-authorization fails instead of opening a hidden password prompt inside the TUI.
-Operator authorization packaging and supported-host execution remain pending.
+Configuration apply in this mode writes deterministic mode-`0600` incoming
+JSON, sends only its SHA-256 to the helper, restores the typed transaction
+response, and removes the incoming file. The TUI core update action is
+available independently of configuration apply mode: it requires an exact
+version and architecture, presents a side-effect-free plan, downloads and
+verifies the official immutable asset in a thread worker, then sends the exact
+version, architecture, and digest to `activate-core`. The privilege runner is
+always invoked with `-n`, so missing authorization fails instead of opening a
+hidden password prompt inside the TUI. Operator authorization packaging and
+supported-host execution remain pending.

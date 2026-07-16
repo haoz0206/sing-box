@@ -6,10 +6,12 @@ from pathlib import Path
 
 from sb_manager.adapters.anytls_material import SecureAnyTlsMaterialSource
 from sb_manager.adapters.file_apply_lock import FileApplyLock
+from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
 from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
+from sb_manager.adapters.privileged_core_activator import PrivilegedCoreActivator
 from sb_manager.adapters.reality_material import SingBoxRealityMaterialSource
 from sb_manager.adapters.secure_random import SecureRandomSource
 from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSource
@@ -18,8 +20,10 @@ from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.adapters.systemd_runtime import SystemdRuntime
 from sb_manager.adapters.trojan_material import SecureTrojanMaterialSource
 from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
+from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
+from sb_manager.application.core_update import CoreUpdateService
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.protocols.catalog import (
@@ -185,6 +189,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         help="Reality 默认伪装站点",
     )
     arguments = parser.parse_args(argv)
+    privileged_helper_command = (
+        str(arguments.privilege_runner),
+        "-n",
+        str(arguments.privileged_helper_binary),
+    )
     state_store = JsonFileStateStore(arguments.state_file)
     mutation_lock = FileApplyLock(
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
@@ -194,11 +203,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     if arguments.apply_mode == "privileged":
         applier = PrivilegedConfigurationApplier(
             incoming_directory=arguments.privileged_incoming_dir,
-            helper_command=(
-                str(arguments.privilege_runner),
-                "-n",
-                str(arguments.privileged_helper_binary),
-            ),
+            helper_command=privileged_helper_command,
         )
     else:
         runtime = create_runtime(
@@ -222,7 +227,16 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         applier=applier,
         apply_lock=mutation_lock,
     )
-    return ManagerApp(manager=manager, profile_applier=profile_applier)
+    core_updater = CoreUpdateService(
+        artifact_source=GitHubArtifactSource(http_client=UrllibHttpClient()),
+        core_activator=PrivilegedCoreActivator(helper_command=privileged_helper_command),
+        incoming_directory=arguments.privileged_incoming_dir,
+    )
+    return ManagerApp(
+        manager=manager,
+        profile_applier=profile_applier,
+        core_updater=core_updater,
+    )
 
 
 def main() -> None:
