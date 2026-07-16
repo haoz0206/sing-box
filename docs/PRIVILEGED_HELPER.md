@@ -21,8 +21,73 @@ and not writable by the invoking user or group:
 
 Use an absolute helper path in authorization policy. Never authorize a generic
 Python interpreter, shell, user-selected script path, or arbitrary arguments.
-The repository intentionally does not install authorization policy because its
-owner, invoking account, and host controls are operator decisions.
+The policy installer requires the operator to select sudo or doas and an
+already existing dedicated group; it never creates accounts or grants general
+administrative access.
+
+## Root-owned installation
+
+Build the wheel in CI or a trusted development environment and deploy it with a
+reviewed dependency wheelhouse. The privileged venv and every parent of the
+helper must be owned by root and must not be writable by group or other users.
+The interactive manager may execute from this venv; only the small helper is
+authorized as root.
+
+On Debian or Ubuntu:
+
+```bash
+sudo groupadd --system sing-box-manager
+sudo usermod --append --groups sing-box-manager OPERATOR_USER
+sudo install -d -o root -g root -m 0755 /opt/sing-box-manager
+sudo python3 -m venv /opt/sing-box-manager/venv
+sudo /opt/sing-box-manager/venv/bin/pip install \
+  --no-index --find-links /path/to/reviewed-wheelhouse \
+  /path/to/sing_box_manager-0.1.0-py3-none-any.whl
+sudo chown -R root:root /opt/sing-box-manager/venv
+sudo chmod -R go-w /opt/sing-box-manager/venv
+sudo /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
+  --authorization sudo --group sing-box-manager
+```
+
+The generated sudoers fragment uses the sudoers empty argument string `""`, so
+the fixed helper cannot be invoked with command-line arguments. The installer
+runs `/usr/sbin/visudo -cf` on a temporary fragment before atomically replacing
+`/etc/sudoers.d/sing-box-manager`.
+
+On Alpine:
+
+```bash
+doas addgroup -S sing-box-manager
+doas addgroup OPERATOR_USER sing-box-manager
+doas install -d -o root -g root -m 0755 /opt/sing-box-manager
+doas python3 -m venv /opt/sing-box-manager/venv
+doas /opt/sing-box-manager/venv/bin/pip install \
+  --no-index --find-links /path/to/reviewed-wheelhouse \
+  /path/to/sing_box_manager-0.1.0-py3-none-any.whl
+doas chown -R root:root /opt/sing-box-manager/venv
+doas chmod -R go-w /opt/sing-box-manager/venv
+doas /opt/sing-box-manager/venv/bin/sb-manager-install-policy \
+  --authorization doas --group sing-box-manager
+```
+
+The generated doas fragment ends in bare `args`, which requires the helper to
+run without arguments. The installer validates it with `/usr/bin/doas -C`
+before atomically replacing `/etc/doas.d/sing-box-manager.conf`. Alpine's doas
+package loads `/etc/doas.d/*.conf`; confirm this remains enabled in the host's
+`/etc/doas.conf`.
+
+Group membership normally requires a new login. Then verify non-interactive
+authorization before opening the TUI:
+
+```bash
+/usr/bin/sudo -n /opt/sing-box-manager/venv/bin/sb-manager-privileged </dev/null
+/usr/bin/doas -n /opt/sing-box-manager/venv/bin/sb-manager-privileged </dev/null
+```
+
+Exactly one of these commands is expected for the selected host. An empty
+request should be rejected as invalid JSON, which proves authorization reached
+the helper without granting a shell. Never authorize `sb-manager`, Python,
+pip, a shell, or an operator-writable wrapper as root.
 
 ## Fixed host paths
 
@@ -108,5 +173,5 @@ version and architecture, presents a side-effect-free plan, downloads and
 verifies the official immutable asset in a thread worker, then sends the exact
 version, architecture, and digest to `activate-core`. The privilege runner is
 always invoked with `-n`, so missing authorization fails instead of opening a
-hidden password prompt inside the TUI. Operator authorization packaging and
-supported-host execution remain pending.
+hidden password prompt inside the TUI. Supported-host execution remains pending
+until the host smoke commands in `SUPPORT.md` pass on each target distribution.

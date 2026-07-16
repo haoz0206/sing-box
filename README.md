@@ -18,6 +18,7 @@
 - systemd/OpenRC runtime、后置健康检查、自动回滚与人工恢复步骤；
 - 官方 immutable release 的精确版本获取、SHA-256 校验、安全 staging、版本自证，以及版本目录的原子激活/rollback；
 - root-only、无网络、固定路径与版本化 JSON 协议的 core activation/config apply helper；
+- root-owned 目录与 sudo/doas 最小授权策略安装命令，落盘前调用原生语法校验器；
 - `sb-manager` 安装命令和可注入的系统边界；
 - pytest、Ruff 与 mypy strict 质量门。
 
