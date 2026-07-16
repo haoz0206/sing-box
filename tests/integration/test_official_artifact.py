@@ -7,7 +7,11 @@ from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.artifacts.installation import CoreDistributionInstaller
-from sb_manager.artifacts.staging import CoreArtifactStager
+from sb_manager.privileged.core_install import (
+    ActivateCoreRequest,
+    PrivilegedCoreInstallPolicy,
+    PrivilegedCoreInstallService,
+)
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
 
 
@@ -30,25 +34,29 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
             architecture=selected_architecture,
             allow_prerelease=os.environ.get("SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE") == "1",
         ),
-        destination_directory=tmp_path / "downloads",
+        destination_directory=tmp_path / "incoming",
     )
-    staged = CoreArtifactStager().stage(
-        artifact,
-        destination_directory=tmp_path / "staging",
-    )
-    installer = CoreDistributionInstaller(
+    policy = PrivilegedCoreInstallPolicy(
+        incoming_directory=tmp_path / "incoming",
+        working_directory=tmp_path / "work",
         installation_root=tmp_path / "installation",
-        apply_lock=FileApplyLock(tmp_path / "install.lock"),
+        lock_path=tmp_path / "install.lock",
     )
-    activation = installer.activate(staged)
+    activation = PrivilegedCoreInstallService(policy=policy).activate_core(
+        ActivateCoreRequest(
+            version=version,
+            architecture=selected_architecture,
+            sha256=artifact.sha256,
+        )
+    )
 
-    assert staged.version == version
-    assert staged.architecture is selected_architecture
-    assert staged.binary_path.is_file()
-    assert staged.source_sha256 == artifact.sha256
+    assert activation.version == version
     assert activation.binary_path.resolve() == activation.distribution_directory / "sing-box"
 
-    rollback = installer.rollback(activation)
+    rollback = CoreDistributionInstaller(
+        installation_root=policy.installation_root,
+        apply_lock=FileApplyLock(policy.lock_path),
+    ).rollback(activation)
 
     assert rollback.active_target is None
     assert rollback.binary_path is None

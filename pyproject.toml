@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 sb-manager = "sb_manager.cli:main"
+sb-manager-privileged = "sb_manager.privileged_cli:main"
 
 [project.optional-dependencies]
 dev = [
