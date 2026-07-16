@@ -29,6 +29,23 @@ class DistroCase:
     policy_mode: str
 
 
+def _apt_install_dependencies() -> str:
+    packages = "python3 python3-venv sudo ca-certificates"
+    return (
+        "for attempt in 1 2 3 4 5; do\n"
+        "  if apt-get -o Acquire::Retries=5 update; then break; fi\n"
+        '  test "$attempt" -eq 5 && exit 1\n'
+        "  sleep 2\n"
+        "done\n"
+        "for attempt in 1 2 3 4 5; do\n"
+        "  if DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=5 "
+        f"install -y --no-install-recommends {packages}; then break; fi\n"
+        '  test "$attempt" -eq 5 && exit 1\n'
+        "  sleep 2\n"
+        "done"
+    )
+
+
 DISTRO_CASES = {
     "debian12": DistroCase(
         name="Debian 12",
@@ -37,11 +54,7 @@ DISTRO_CASES = {
             "sha256:63a496b5d3b99214b39f5ed70eb71a61e590a77979c79cbee4faf991f8c0783e"
         ),
         authorization="sudo",
-        install_dependencies=(
-            "apt-get update\n"
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
-            "python3 python3-venv sudo ca-certificates"
-        ),
+        install_dependencies=_apt_install_dependencies(),
         create_identity=(
             "groupadd --system sing-box-manager\n"
             "useradd --create-home --gid sing-box-manager operator"
@@ -58,11 +71,7 @@ DISTRO_CASES = {
             "sha256:52df9b1ee71626e0088f7d400d5c6b5f7bb916f8f0c82b474289a4ece6cf3faf"
         ),
         authorization="sudo",
-        install_dependencies=(
-            "apt-get update\n"
-            "DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "
-            "python3 python3-venv sudo ca-certificates"
-        ),
+        install_dependencies=_apt_install_dependencies(),
         create_identity=(
             "groupadd --system sing-box-manager\n"
             "useradd --create-home --gid sing-box-manager operator"
@@ -127,10 +136,18 @@ def _container_script(
     use_wheelhouse: bool,
 ) -> str:
     bootstrap_install = (
-        f"{BOOTSTRAP_ROOT}/bin/pip install --no-index --find-links /tmp/wheelhouse "
+        f"{BOOTSTRAP_ROOT}/bin/pip install --retries 5 --timeout 60 "
+        "--no-index --find-links /tmp/wheelhouse "
         f"/tmp/{wheel_name}"
         if use_wheelhouse
-        else f"{BOOTSTRAP_ROOT}/bin/pip install /tmp/{wheel_name}"
+        else (f"{BOOTSTRAP_ROOT}/bin/pip install --retries 5 --timeout 60 /tmp/{wheel_name}")
+    )
+    bootstrap_with_retry = (
+        "for attempt in 1 2 3 4 5; do\n"
+        f"  if {bootstrap_install}; then break; fi\n"
+        '  test "$attempt" -eq 5 && exit 1\n'
+        "  sleep 2\n"
+        "done"
     )
     dependency_arguments = "--wheelhouse /tmp/wheelhouse" if use_wheelhouse else "--allow-index"
     package_install = (
@@ -153,7 +170,7 @@ def _container_script(
         {case.install_dependencies}
         {case.create_identity}
         python3 -m venv {BOOTSTRAP_ROOT}
-        {bootstrap_install}
+        {bootstrap_with_retry}
         {package_install}
         test -L {PACKAGE_ROOT}/current
         test -x {PACKAGE_ROOT}/bin/sb-manager

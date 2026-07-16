@@ -51,6 +51,9 @@ For a release run, prefer a reviewed dependency wheelhouse:
 loopback. Images are referenced by immutable platform digest in the tool.
 Passing this acceptance does not exercise systemd or OpenRC as PID 1 and is not
 equivalent to the live runtime smoke below.
+The Debian and Ubuntu cases retry transient apt transport failures up to five
+times. All cases also retry transient bootstrap package downloads up to five
+times with an explicit read timeout. Exhausted retries still fail acceptance.
 
 The real configuration integration check is also opt in. Point
 `SB_MANAGER_REAL_SING_BOX` at a trusted compatible sing-box executable and run:

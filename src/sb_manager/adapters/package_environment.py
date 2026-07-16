@@ -7,6 +7,8 @@ from sb_manager.seams.package_environment import PackageEnvironmentBuildRequest
 
 VENV_TIMEOUT_SECONDS = 120
 PIP_TIMEOUT_SECONDS = 600
+PIP_NETWORK_RETRIES = 5
+PIP_READ_TIMEOUT_SECONDS = 60
 
 
 class PackageEnvironmentBuildError(RuntimeError):
@@ -42,6 +44,10 @@ class SubprocessPackageEnvironmentBuilder:
             "pip",
             "install",
             "--disable-pip-version-check",
+            "--retries",
+            str(PIP_NETWORK_RETRIES),
+            "--timeout",
+            str(PIP_READ_TIMEOUT_SECONDS),
         ]
         if request.wheelhouse is not None:
             install_command.extend(("--no-index", "--find-links", str(request.wheelhouse)))

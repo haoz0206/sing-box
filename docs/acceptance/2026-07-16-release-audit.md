@@ -14,17 +14,17 @@ and publication of stable sing-box 1.14.
 
 - The complete pytest suite passes without root or network authorization.
 - Ruff formatting and lint checks pass for the repository.
-- mypy passes for all 88 source files.
+- mypy passes for all 109 source files.
 - `git diff --check` passes.
 - The wheel and source distribution build successfully.
 - Every generated protocol configuration, including VLESS/VMess WebSocket and
-  gRPC variants plus operator-file TLS, passes the real
-  `sing-box 1.14.0-alpha.45 check` integration suite: 11 passed and 1 skipped
-  host-only case.
+  gRPC variants plus operator-file TLS and the quiescent zero-inbound document
+  produced after final-profile removal, passes the real
+  `sing-box 1.14.0-alpha.45 check` integration suite: 12 passed.
 - The official artifact acceptance downloads the immutable alpha.45 release,
   verifies and stages it, activates it atomically, and proves rollback.
 - The final wheel SHA-256 is
-  `bf4610a201b902eb74ca2c1852825516e012e96dda0882191455a5d100ac0c30`.
+  `c65eb9d3d745f06b07103f533ee56d45e694bf80bbfd82088b3d5aeb761469c3`.
   That exact wheel passed the pinned Debian 12, Ubuntu 24.04, and Alpine 3.20
   package and authorization acceptance.
 - Host policy installation now emits a read-only plan by default and mutates
@@ -35,6 +35,10 @@ and publication of stable sing-box 1.14.
 - Reopening the TUI exposes each persisted draft's apply action and sends the
   selected stable profile ID plus current revision through the existing
   confirmation and background-apply path.
+- Profile details expose planned removal. Draft removal is desired-state-only;
+  applied removal transactionally projects and applies the remaining profiles,
+  commits desired state only after host success, and preserves the selected
+  profile when validation, commit, runtime health, or rollback does not succeed.
 
 ## External release gates
 
@@ -54,5 +58,5 @@ and publication of stable sing-box 1.14.
 ## Deferred after first stable
 
 - Caddy edge orchestration and its separate artifact/runtime trust model.
-- Broader profile editing, deletion, and diagnostics-center workflows beyond
-  the create, persist, resume, apply, rollback, and core-update release slice.
+- Broader profile editing and diagnostics-center workflows beyond the create,
+  persist, resume, apply, planned removal, rollback, and core-update release slice.
