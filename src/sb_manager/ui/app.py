@@ -42,6 +42,7 @@ from sb_manager.application.profile_details import (
     ProfileDetailsError,
     ProfileDetailsReader,
 )
+from sb_manager.application.profile_editing import ProfileEditor
 from sb_manager.application.profile_removal import (
     ProfileRemovalNotFoundError,
     ProfileRemover,
@@ -59,6 +60,7 @@ from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTranspor
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
+from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
 
 
@@ -219,10 +221,12 @@ class ProfileDetailsScreen(Screen[None]):
         self,
         details: ProfileDetails,
         *,
+        profile_editor: ProfileEditor | None = None,
         profile_remover: ProfileRemover | None = None,
     ) -> None:
         super().__init__()
         self.details = details
+        self.profile_editor = profile_editor
         self.profile_remover = profile_remover
 
     def compose(self) -> ComposeResult:
@@ -251,9 +255,16 @@ class ProfileDetailsScreen(Screen[None]):
                     "该配置尚无可用连接信息。应用草案并设置服务器地址后生成。",
                     id="profile-details-no-connection",
                 )
+            if self.profile_editor is not None:
+                yield Button("编辑配置", id="edit-profile", variant="primary")
             if self.profile_remover is not None:
                 yield Button("移除此配置", id="remove-profile", variant="error")
         yield Footer()
+
+    @on(Button.Pressed, "#edit-profile")
+    def open_profile_editing(self) -> None:
+        if self.profile_editor is not None:
+            self.app.push_screen(ProfileEditFormScreen(self.profile_editor, details=self.details))
 
     @on(Button.Pressed, "#remove-profile")
     def open_profile_removal(self) -> None:
@@ -888,6 +899,7 @@ class ManagerAppHostTools:
     host_diagnostics: HostDiagnostics | None = None
     host_readiness: HostReadiness | None = None
     profile_details_reader: ProfileDetailsReader | None = None
+    profile_editor: ProfileEditor | None = None
     profile_remover: ProfileRemover | None = None
     config_adopter: ConfigAdopter | None = None
 
@@ -922,6 +934,7 @@ class ManagerApp(App[None]):
         self.host_readiness = tools.host_readiness
         self.host_readiness_report: HostReadinessReport | None = None
         self.profile_details_reader = tools.profile_details_reader
+        self.profile_editor = tools.profile_editor
         self.profile_remover = tools.profile_remover
         self.config_adopter = tools.config_adopter
 
@@ -1153,6 +1166,7 @@ class ManagerApp(App[None]):
         self.push_screen(
             ProfileDetailsScreen(
                 details,
+                profile_editor=self.profile_editor,
                 profile_remover=self.profile_remover,
             )
         )

@@ -11,6 +11,10 @@ from sb_manager.application.manager import (
     WebSocketTransportRequest,
 )
 from sb_manager.application.profile_apply import ApplyProfileRequest
+from sb_manager.application.profile_editing import (
+    PlanProfileEditRequest,
+    ProfileEditScope,
+)
 from sb_manager.application.profile_removal import ProfileRemovalScope
 from sb_manager.cli import create_app
 from sb_manager.domain.installation import (
@@ -233,6 +237,46 @@ def test_cli_composes_transactional_applied_profile_removal(tmp_path: Path) -> N
     assert result.committed_revision == EXPECTED_REMOVED_REVISION
     assert JsonFileStateStore(state_path).load().profiles == ()
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"] == []
+
+
+def test_cli_composes_transactional_applied_profile_editing(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    profile_plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="手机",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=listen_port,
+            server_address="old.example.com",
+        )
+    )
+    app.manager.save_profile_draft(profile_plan)
+    assert app.profile_applier is not None
+    app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert app.profile_editor is not None
+    edit_plan = app.profile_editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id="profile-1",
+            profile_name="平板",
+            server_address="new.example.com",
+        )
+    )
+    result = app.profile_editor.apply_edit(edit_plan, confirmed=True)
+
+    assert edit_plan.scope is ProfileEditScope.LIVE_CONFIGURATION
+    assert result.committed_revision == EXPECTED_REMOVED_REVISION
+    installation = JsonFileStateStore(state_path).load()
+    assert installation.profiles[0].profile_name == "平板"
+    assert installation.profiles[0].server_address == "new.example.com"
+    inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
+    assert inbound["users"][0]["name"] == "平板"
 
 
 def test_cli_refuses_unmanaged_config_until_exact_adoption_is_confirmed(

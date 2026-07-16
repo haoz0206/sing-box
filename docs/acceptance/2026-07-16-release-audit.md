@@ -12,19 +12,21 @@ and publication of stable sing-box 1.14.
 
 ## Repository-local evidence
 
-- The complete pytest suite passes without root or network authorization.
+- The complete pytest suite passes without root or network authorization: 307
+  passed and 16 opt-in integration cases skipped.
 - Ruff formatting and lint checks pass for the repository.
-- mypy passes for all 109 source files.
+- mypy passes for all 111 source files.
 - `git diff --check` passes.
 - The wheel and source distribution build successfully.
 - Every generated protocol configuration, including VLESS/VMess WebSocket and
   gRPC variants plus operator-file TLS and the quiescent zero-inbound document
   produced after final-profile removal, passes the real
-  `sing-box 1.14.0-alpha.45 check` integration suite: 12 passed.
+  `sing-box 1.14.0-alpha.45 check` integration suite: 13 passed, including
+  reprojection after an applied-profile name edit.
 - The official artifact acceptance downloads the immutable alpha.45 release,
   verifies and stages it, activates it atomically, and proves rollback.
 - The final wheel SHA-256 is
-  `c65eb9d3d745f06b07103f533ee56d45e694bf80bbfd82088b3d5aeb761469c3`.
+  `f89dfff7ea4362485547430a2f70713208bda5237c53d1fe11a6a616e2faabdd`.
   That exact wheel passed the pinned Debian 12, Ubuntu 24.04, and Alpine 3.20
   package and authorization acceptance.
 - Host policy installation now emits a read-only plan by default and mutates
@@ -39,6 +41,11 @@ and publication of stable sing-box 1.14.
   applied removal transactionally projects and applies the remaining profiles,
   commits desired state only after host success, and preserves the selected
   profile when validation, commit, runtime health, or rollback does not succeed.
+- Profile details expose a prefilled metadata editor. Plans normalize the name
+  and public address, bind to one desired-state revision, and explain whether
+  confirmation is desired-state-only or requires a complete live transaction;
+  every typed failure keeps desired state uncommitted and guides the operator
+  toward retry, fresh planning, or exact recovery steps.
 
 ## External release gates
 
@@ -58,5 +65,6 @@ and publication of stable sing-box 1.14.
 ## Deferred after first stable
 
 - Caddy edge orchestration and its separate artifact/runtime trust model.
-- Broader profile editing and diagnostics-center workflows beyond the create,
-  persist, resume, apply, planned removal, rollback, and core-update release slice.
+- Protocol/port/TLS profile editing and diagnostics-center workflows beyond the
+  create, metadata edit, persist, resume, apply, planned removal, rollback, and
+  core-update release slice.

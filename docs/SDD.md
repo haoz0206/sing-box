@@ -147,6 +147,14 @@ planned and confirmed: a draft removal changes desired state only, while an
 applied removal transactionally projects and applies all remaining profiles
 before desired state is committed.
 
+Profile metadata editing starts with display name and public server address.
+The stable identifier, protocol, port, credentials, TLS, and transport remain
+unchanged. Every edit is normalized, revision-bound, previewed, and confirmed.
+Draft edits and public-address-only edits update desired state without host
+effects. Renaming an applied profile transactionally projects and applies the
+complete configuration because the display name is present in generated
+sing-box user records. Desired state advances only after host success.
+
 ### 5.4 Profile wizard
 
 The wizard uses progressive disclosure:
@@ -581,6 +589,14 @@ Current implementation status (2026-07-16):
   rollback, and unknown-result states and recomposes the dashboard after success;
   removing the final applied profile produces a real-sing-box-validated quiescent
   document with zero inbounds and the fixed direct outbound;
+- profile metadata editing: profile details expose a prefilled form for the
+  display name and public server address without planning on navigation; the
+  normalized plan identifies changed fields and separates desired-state-only
+  address/draft changes from applied-name live transactions; confirmation runs
+  under the shared mutation lock, rechecks the revision and reviewed content,
+  reuses complete configuration projection and fingerprint preconditions, and
+  presents typed validation, commit, rollback, recovery, and unknown-result
+  states before recomposing the dashboard;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

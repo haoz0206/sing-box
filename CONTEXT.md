@@ -65,3 +65,10 @@ desired state. Removing a draft changes desired state only; removing an applied
 profile first transactionally applies the complete remaining managed
 configuration and commits desired state only after host success.
 _Avoid_: Delete inbound JSON, forget profile, unlink configuration
+
+**Profile edit**:
+An operator-confirmed, revision-bound change to the mutable metadata of one
+stable profile. Changing only a public server address updates desired state;
+renaming an applied profile transactionally replaces the complete live
+configuration because the name is present in generated sing-box user records.
+_Avoid_: Patch generated JSON, recreate profile, rotate credentials

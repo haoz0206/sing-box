@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -171,3 +172,42 @@ def test_real_sing_box_accepts_configuration_after_final_profile_removal(
 
     assert result.valid, result.diagnostics
     ManagedConfigurationPolicy().validate(document)
+
+
+@pytest.mark.integration
+def test_real_sing_box_accepts_reprojected_applied_profile_name_edit(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    catalog = create_protocol_catalog(
+        sing_box_binary=real_sing_box_binary,
+        reality_server_name="www.cloudflare.com",
+    )
+    materialized = catalog.materialize(
+        ManagedProfile(
+            profile_name="旧名称",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=18443,
+            port_selection=PortSelection.FIXED,
+            status=ProfileStatus.DRAFT,
+            profile_id="profile-1",
+            server_address="proxy.example.com",
+        ),
+        listen_port=18443,
+    )
+    edited = replace(materialized.profile, profile_name="新名称")
+    document = ManagedConfigurationProjector(protocol_catalog=catalog).project((edited,))
+    config_path = tmp_path / "edited-profile.json"
+    config_path.write_text(json.dumps(document), encoding="utf-8")
+
+    result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
+
+    assert result.valid, result.diagnostics
+    ManagedConfigurationPolicy().validate(document)
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    users = inbound["users"]
+    assert isinstance(users, list)
+    assert users[0]["name"] == "新名称"

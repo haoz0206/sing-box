@@ -276,6 +276,10 @@ Release gate adds:
   desired-state-only deletion, transactional live projection, failed-host state
   preservation, final-profile zero-inbound validation against the privileged
   allowlist and real sing-box, and the complete Textual confirmation/result journey;
+- profile edit plans for normalized mutable metadata, no-op and field
+  validation, desired-state-only versus live-configuration scope, revision and
+  reviewed-content conflicts, transactional failure preservation, every typed
+  TUI result, production composition, and real sing-box reprojection;
 - headless TUI acceptance suite;
 - supported Python matrix;
 - semantic configuration fixtures;
