@@ -16,15 +16,41 @@ The manager targets Linux servers reached through a terminal or SSH session.
 
 | Host family | Runtime adapter | Support level |
 |---|---|---|
-| Debian 12/13 | systemd | target; opt-in host smoke test required before stable release |
-| Ubuntu 22.04/24.04 | systemd | target; opt-in host smoke test required before stable release |
-| Alpine 3.20+ | OpenRC | target; opt-in host smoke test required before stable release |
+| Debian 12 | systemd | wheel + sudo policy accepted in pinned container; live host smoke pending |
+| Debian 13 | systemd | target; acceptance pending |
+| Ubuntu 24.04 | systemd | wheel + sudo policy accepted in pinned container; live host smoke pending |
+| Ubuntu 22.04 | systemd | target; acceptance pending |
+| Alpine 3.20 | OpenRC | wheel + doas policy accepted in pinned container; live host smoke pending |
+| Alpine newer than 3.20 | OpenRC | target; acceptance pending |
 | Other Linux | systemd/OpenRC | best effort after adapter contract tests |
 | macOS/Windows/BSD | none | unsupported as managed hosts |
 
 Unit, behavior, command, and headless TUI tests remain rootless and
 network-independent. Privileged host smoke tests are separate and explicitly
 opt in.
+
+## Distribution policy acceptance
+
+The pinned-container acceptance installs the built wheel into a root-owned
+venv, creates a dedicated non-root operator group, installs a native sudo/doas
+policy through `sb-manager-install-policy`, verifies file modes and group
+ownership, proves argument-free `-n` access reaches the helper, and proves an
+extra helper argument is denied by the authorization layer.
+
+For a release run, prefer a reviewed dependency wheelhouse:
+
+```bash
+.venv/bin/python -m build
+.venv/bin/python -m sb_manager.release.distro_policy_acceptance \
+  --wheel dist/sing_box_manager-0.1.0-py3-none-any.whl \
+  --wheelhouse /path/to/reviewed-wheelhouse
+```
+
+`--allow-index` is an explicit alternative for development acceptance. Use
+`--network host` only when the configured package proxy is bound to host
+loopback. Images are referenced by immutable platform digest in the tool.
+Passing this acceptance does not exercise systemd or OpenRC as PID 1 and is not
+equivalent to the live runtime smoke below.
 
 The real configuration integration check is also opt in. Point
 `SB_MANAGER_REAL_SING_BOX` at a trusted compatible sing-box executable and run:
@@ -62,7 +88,8 @@ Use `openrc` and service name `sing-box` on Alpine. An alternate command path
 can be supplied through `SB_MANAGER_HOST_RUNTIME_BINARY`. Without the exact
 `SB_MANAGER_HOST_SMOKE=refresh` authorization, the test skips before invoking
 the runtime. Providing this harness is not evidence that a target distribution
-has passed; each row remains pending until the command succeeds on that host.
+has passed live runtime acceptance; each row remains pending until the command
+succeeds on an approved, recoverable host.
 
 ## sing-box
 

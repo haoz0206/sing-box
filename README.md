@@ -69,6 +69,7 @@ python -m venv .venv
 - [最小权限 helper 决策](docs/adr/0004-minimal-privileged-helper.md)
 - [权限 helper 部署约束](docs/PRIVILEGED_HELPER.md)
 - [支持平台矩阵](docs/SUPPORT.md)
+- [2026-07-16 发行版授权验收记录](docs/acceptance/2026-07-16-distro-policy.md)
 
 核心数据流为：
 
