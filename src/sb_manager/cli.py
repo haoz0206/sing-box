@@ -40,6 +40,56 @@ from sb_manager.transports.catalog import TransportCatalog
 from sb_manager.ui.app import ManagerApp
 
 
+def create_protocol_catalog(
+    *,
+    sing_box_binary: str | Path,
+    reality_server_name: str,
+) -> ProtocolCatalog:
+    """Build the complete production protocol catalog behind one composition seam."""
+    random_source = SecureRandomSource()
+    tls_catalog = TlsCatalog((AcmeTlsHandler(), OperatorFileTlsHandler()))
+    return ProtocolCatalog(
+        (
+            RealityHandler(
+                material_source=SingBoxRealityMaterialSource(
+                    binary=sing_box_binary,
+                    random_source=random_source,
+                    server_name=reality_server_name,
+                )
+            ),
+            ShadowsocksHandler(
+                material_source=SecureShadowsocksMaterialSource(random_source=random_source)
+            ),
+            Hysteria2Handler(
+                material_source=SecureHysteria2MaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+            ),
+            TrojanHandler(
+                material_source=SecureTrojanMaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+            ),
+            AnyTlsHandler(
+                material_source=SecureAnyTlsMaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+            ),
+            TuicHandler(
+                material_source=SecureTuicMaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+            ),
+            VlessTlsHandler(
+                material_source=SecureVlessMaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+                transport_catalog=TransportCatalog(),
+            ),
+            VmessTlsHandler(
+                material_source=SecureVmessMaterialSource(random_source=random_source),
+                tls_catalog=tls_catalog,
+                transport_catalog=TransportCatalog(),
+            ),
+        )
+    )
+
+
 def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     """Build the TUI with production adapters selected from command arguments."""
     parser = argparse.ArgumentParser(
@@ -115,79 +165,9 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     )
     profile_applier = ProfileApplyService(
         state_store=state_store,
-        protocol_catalog=ProtocolCatalog(
-            (
-                RealityHandler(
-                    material_source=SingBoxRealityMaterialSource(
-                        binary=arguments.sing_box_binary,
-                        random_source=SecureRandomSource(),
-                        server_name=arguments.reality_server_name,
-                    )
-                ),
-                ShadowsocksHandler(
-                    material_source=SecureShadowsocksMaterialSource(
-                        random_source=SecureRandomSource()
-                    )
-                ),
-                Hysteria2Handler(
-                    material_source=SecureHysteria2MaterialSource(
-                        random_source=SecureRandomSource()
-                    ),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                ),
-                TrojanHandler(
-                    material_source=SecureTrojanMaterialSource(random_source=SecureRandomSource()),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                ),
-                AnyTlsHandler(
-                    material_source=SecureAnyTlsMaterialSource(random_source=SecureRandomSource()),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                ),
-                TuicHandler(
-                    material_source=SecureTuicMaterialSource(random_source=SecureRandomSource()),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                ),
-                VlessTlsHandler(
-                    material_source=SecureVlessMaterialSource(random_source=SecureRandomSource()),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                    transport_catalog=TransportCatalog(),
-                ),
-                VmessTlsHandler(
-                    material_source=SecureVmessMaterialSource(random_source=SecureRandomSource()),
-                    tls_catalog=TlsCatalog(
-                        (
-                            AcmeTlsHandler(),
-                            OperatorFileTlsHandler(),
-                        )
-                    ),
-                    transport_catalog=TransportCatalog(),
-                ),
-            )
+        protocol_catalog=create_protocol_catalog(
+            sing_box_binary=arguments.sing_box_binary,
+            reality_server_name=arguments.reality_server_name,
         ),
         port_source=SocketPortSource(),
         applier=applier,

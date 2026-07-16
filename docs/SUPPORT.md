@@ -37,7 +37,9 @@ The real configuration integration check is also opt in. Point
 
 Generated configuration currently targets the sing-box 1.14 pre-release schema
 because shared ACME certificate providers use `certificate_provider`. It was
-last verified against official `1.14.0-alpha.45` on 2026-07-16.
+last verified against official `1.14.0-alpha.45` on 2026-07-16. That verification
+covers every supported protocol plus both WebSocket and gRPC variants for VLESS
+and VMess.
 
 There is no stable 1.14 release at the time of that verification. This is
 pre-release compatibility and blocks a stable manager release until sing-box
