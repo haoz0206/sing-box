@@ -482,7 +482,9 @@ Current implementation status (2026-07-16):
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
 - shared TLS strategies: sing-box 1.14 ACME certificate providers and
   operator-provided certificate files;
-- pending: release-level semantic fixtures and supported-platform verification.
+- release integration: product-generated Hysteria2 + shared ACME configuration
+  passes `sing-box check` against official 1.14.0-alpha.45;
+- pending: the stable sing-box 1.14 release and supported-host smoke tests.
 
 ## 13. Release acceptance criteria
 

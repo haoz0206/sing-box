@@ -26,8 +26,20 @@ Unit, behavior, command, and headless TUI tests remain rootless and
 network-independent. Privileged host smoke tests are separate and explicitly
 opt in.
 
+The real configuration integration check is also opt in. Point
+`SB_MANAGER_REAL_SING_BOX` at a trusted compatible sing-box executable and run:
+
+```bash
+.venv/bin/pytest -q -m integration
+```
+
 ## sing-box
 
-Generated configuration targets sing-box 1.14 or newer because shared ACME
-certificate providers use the 1.14 `certificate_provider` schema. A future
-artifact installer must enforce this minimum before apply.
+Generated configuration currently targets the sing-box 1.14 pre-release schema
+because shared ACME certificate providers use `certificate_provider`. It was
+last verified against official `1.14.0-alpha.45` on 2026-07-16.
+
+There is no stable 1.14 release at the time of that verification. This is
+pre-release compatibility and blocks a stable manager release until sing-box
+1.14 becomes stable and the suite passes against it. A future artifact installer
+must enforce the accepted core version before apply.

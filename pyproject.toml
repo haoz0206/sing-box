@@ -7,7 +7,7 @@ name = "sing-box-manager"
 version = "0.1.0"
 description = "A guided terminal manager for building and operating sing-box proxy services"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.10,<3.15"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 dependencies = [
@@ -30,6 +30,9 @@ dev = [
 asyncio_mode = "auto"
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "integration: opt-in checks against explicitly configured host binaries",
+]
 
 [tool.ruff]
 line-length = 100
