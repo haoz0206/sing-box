@@ -1,115 +1,64 @@
-# 介绍
+# Sing-box Manager
 
-最好用的 sing-box 一键安装脚本 & 管理脚本
+一个以安全计划、显式确认和可恢复变更为核心的 sing-box 管理 TUI。
 
-# 特点
+本 fork 正在把原有 Bash 管理脚本重写为 Python 应用。这是新的产品设计，不以复刻旧脚本行为为目标。旧 Bash 文件暂时保留作迁移与功能覆盖参考，不会被 Python 入口调用。
 
-- 快速安装
-- 无敌好用
-- 零学习成本
-- 自动化 TLS
-- 简化所有流程
-- 兼容 sing-box 命令
-- 强大的快捷参数
-- 支持所有常用协议
-- 一键添加 VLESS-REALITY (默认)
-- 一键添加 TUIC
-- 一键添加 Trojan
-- 一键添加 Hysteria2
-- 一键添加 AnyTLS
-- 一键添加 Shadowsocks 2022
-- 一键添加 VMess-(TCP/HTTP/QUIC)
-- 一键添加 VMess-(WS/H2/HTTPUpgrade)-TLS
-- 一键添加 VLESS-(WS/H2/HTTPUpgrade)-TLS
-- 一键添加 Trojan-(WS/H2/HTTPUpgrade)-TLS
-- 一键启用 BBR
-- 一键更改伪装网站
-- 一键更改 (端口/UUID/密码/域名/路径/加密方式/SNI/等...)
-- 还有更多...
+## 当前状态
 
-# 设计理念
+目前已经具备：
 
-设计理念为：**高效率，超快速，极易用**
+- Textual 引导式 TUI：配置列表、协议引导、计划预览、二次确认与类型化结果；
+- 版本化 desired state、原子 JSON 保存、修订冲突保护和上一版备份；
+- VLESS Reality、Shadowsocks 2022、Hysteria2、Trojan、AnyTLS 与 TUIC 的引导、凭据生成、连接 URI 和多 profile 配置；
+- sing-box 1.14 共享 ACME certificate provider 与运维证书文件 TLS 策略；
+- 独占 manager lock、隔离 staging、恢复备份与原子配置提交；
+- `sing-box check -c` 类型化验证适配器；
+- systemd/OpenRC runtime、后置健康检查、自动回滚与人工恢复步骤；
+- `sb-manager` 安装命令和可注入的系统边界；
+- pytest、Ruff 与 mypy strict 质量门。
 
-脚本基于作者的自身使用需求，以 **多配置同时运行** 为核心设计
+当前尚未完成权限提升代理、sing-box 安装/升级、Caddy/制品工作流，以及 VMess/VLESS 传输族等 M6 能力。引导式 TLS 表单目前只开放 ACME；运维证书文件已经由后端支持，但尚未接入高级表单。直接写入 `/etc/sing-box/config.json` 时，当前进程必须已经拥有目标文件和服务管理权限。真实发行前还需要受支持发行版上的 opt-in 主机冒烟测试，因此当前版本仍不应视为完整生产替代品。
 
-并且专门优化了，添加、更改、查看、删除、这四项常用功能
+## 开发运行
 
-你只需要一条命令即可完成 添加、更改、查看、删除、等操作
+需要 Python 3.10 或更高版本。
 
-例如，添加一个配置仅需不到 1 秒！瞬间完成添加！其他操作亦是如此！
-
-脚本的参数非常高效率并且超级易用，请掌握参数的使用
-
-# 文档
-
-安装及使用：https://233boy.com/sing-box/sing-box-script/
-
-# 帮助
-
-使用：`sing-box help`
-
+```bash
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/sb-manager
 ```
-sing-box script v1.0 by 233boy
-Usage: sing-box [options]... [args]...
 
-基本:
-   v, version                                      显示当前版本
-   ip                                              返回当前主机的 IP
-   pbk                                             同等于 sing-box generate reality-keypair
-   get-port                                        返回一个可用的端口
-   ss2022                                          返回一个可用于 Shadowsocks 2022 的密码
+默认状态文件为 `~/.local/state/sing-box-manager/state.json`。开发或隔离测试时可指定其他位置：
 
-一般:
-   a, add [protocol] [args... | auto]              添加配置
-   c, change [name] [option] [args... | auto]      更改配置
-   d, del [name]                                   删除配置**
-   i, info [name]                                  查看配置
-   qr [name]                                       二维码信息
-   url [name]                                      URL 信息
-   log                                             查看日志
-更改:
-   full [name] [...]                               更改多个参数
-   id [name] [uuid | auto]                         更改 UUID
-   host [name] [domain]                            更改域名
-   port [name] [port | auto]                       更改端口
-   path [name] [path | auto]                       更改路径
-   passwd [name] [password | auto]                 更改密码
-   key [name] [Private key | auto] [Public key]    更改密钥
-   method [name] [method | auto]                   更改加密方式
-   sni [name] [ ip | domain]                       更改 serverName
-   new [name] [...]                                更改协议
-   web [name] [domain]                             更改伪装网站
-
-进阶:
-   dns [...]                                       设置 DNS
-   dd, ddel [name...]                              删除多个配置**
-   fix [name]                                      修复一个配置
-   fix-all                                         修复全部配置
-   fix-caddyfile                                   修复 Caddyfile
-   fix-config.json                                 修复 config.json
-   import                                          导入 sing-box/v2ray 脚本配置
-
-管理:
-   un, uninstall                                   卸载
-   u, update [core | sh | caddy] [ver]             更新
-   U, update.sh                                    更新脚本
-   s, status                                       运行状态
-   start, stop, restart [caddy]                    启动, 停止, 重启
-   t, test                                         测试运行
-   reinstall                                       重装脚本
-
-测试:
-   debug [name]                                    显示一些 debug 信息, 仅供参考
-   gen [...]                                       同等于 add, 但只显示 JSON 内容, 不创建文件, 测试使用
-   no-auto-tls [...]                               同等于 add, 但禁止自动配置 TLS, 可用于 *TLS 相关协议
-其他:
-   bbr                                             启用 BBR, 如果支持
-   bin [...]                                       运行 sing-box 命令, 例如: sing-box bin help
-   [...] [...]                                     兼容绝大多数的 sing-box 命令, 例如: sing-box generate uuid
-   h, help                                         显示此帮助界面
-
-谨慎使用 del, ddel, 此选项会直接删除配置; 无需确认
-反馈问题) https://github.com/233boy/sing-box/issues
-文档(doc) https://233boy.com/sing-box/sing-box-script/
+```bash
+.venv/bin/sb-manager --state-file /tmp/sb-manager-state.json
 ```
+
+## 质量门
+
+```bash
+.venv/bin/pytest -q
+.venv/bin/ruff format --check .
+.venv/bin/ruff check .
+.venv/bin/mypy src
+```
+
+测试以公开边界为主：Textual Pilot 用户行为、Manager 用例、协议语义、系统适配器契约和安装命令。单元及行为测试不需要 root 或网络。
+
+## 设计文档
+
+- [软件设计说明](docs/SDD.md)
+- [TDD 执行方法](docs/TDD.md)
+- [Python + Textual 重写决策](docs/adr/0001-python-textual-rewrite.md)
+- [深协议 catalog 决策](docs/adr/0002-deep-protocol-catalog.md)
+
+核心数据流为：
+
+```text
+用户意图 -> validated desired state -> execution plan -> 显式确认
+        -> staged artifacts -> 外部校验 -> 原子提交 -> 运行时验证/回滚
+```
+
+任何协议扩展都应作为完整的 UI-to-config 垂直切片交付，而不是把协议判断继续堆进 UI 或系统脚本。
