@@ -41,6 +41,12 @@ path without granting sudo/doas access to a symlink or generic interpreter.
    package installer, policy installer, and privileged helper together.
 9. sudo/doas policy authorizes only the stable real
    `/opt/sing-box-manager/bin/sb-manager-privileged` launcher with no arguments.
+10. `sb-manager-install --rollback-to <version>-<wheel-sha256>` previews an
+    exact retained release without mutation. Confirmed rollback requires root,
+    reacquires the package install lock, recomputes the plan from current host
+    state, rejects a missing, differently owned, or group/other-writable release
+    tree, and atomically switches only `current`. It never guesses a previous
+    version from timestamps or version ordering.
 
 ## Consequences
 
@@ -51,8 +57,8 @@ path without granting sudo/doas access to a symlink or generic interpreter.
   deployed runtime.
 - Offline wheelhouse deployment remains the recommended trust mode. Index use
   is visible and requires an explicit flag.
-- Package release retention and explicit rollback policy can be added without
-  changing launcher or authorization paths.
+- Retained releases provide an explicit rollback target without changing
+  launcher or authorization paths; retention pruning remains a separate policy.
 
 ## Rejected alternatives
 

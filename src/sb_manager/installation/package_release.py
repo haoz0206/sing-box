@@ -80,6 +80,32 @@ class PackageInstallResult:
     previous_target: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class PackageRollbackRequest:
+    """Operator-selected immutable package release to reactivate."""
+
+    target_release: str
+
+
+@dataclass(frozen=True, slots=True)
+class PackageRollbackPlan:
+    """Read-only preview of one exact retained-release activation."""
+
+    active_target: str
+    target_release: str
+    target_directory: Path
+    current_link: Path
+    mutates_host: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PackageRollbackResult:
+    """Atomic activation result for one retained package release."""
+
+    active_target: str
+    previous_target: str
+
+
 class VersionedPackageInstaller:
     """Own package identity and fixed versioned host destinations."""
 
@@ -115,6 +141,34 @@ class VersionedPackageInstaller:
             wheelhouse=(request.wheelhouse.resolve() if request.wheelhouse is not None else None),
         )
 
+    def plan_rollback(self, request: PackageRollbackRequest) -> PackageRollbackPlan:
+        """Inspect one retained release without changing package activation."""
+        self._validate_existing_root()
+        if ACTIVE_RELEASE_PATTERN.fullmatch(request.target_release) is None:
+            raise PackageInstallError(
+                f"Invalid retained package release: {request.target_release!r}"
+            )
+        current_link = self._root / "current"
+        active_target = self._current_target(current_link)
+        if active_target is None:
+            raise PackageInstallError("No active package release is available to roll back")
+        target = f"releases/{request.target_release}"
+        if target == active_target:
+            raise PackageInstallError(f"Package release is already active: {target}")
+        target_directory = self._root / target
+        if target_directory.is_symlink() or not target_directory.is_dir():
+            raise PackageInstallError(
+                f"Retained package release is missing or unsafe: {target_directory}"
+            )
+        self._verify_retained_release(target_directory)
+        self._verify_release_commands(target_directory)
+        return PackageRollbackPlan(
+            active_target=active_target,
+            target_release=request.target_release,
+            target_directory=target_directory,
+            current_link=current_link,
+        )
+
     def install(
         self,
         plan: PackageInstallPlan,
@@ -125,6 +179,29 @@ class VersionedPackageInstaller:
             raise PackageInstallError("Package installation requires explicit confirmation")
         with self._install_lock.acquire():
             return self._install_locked(plan)
+
+    def rollback(
+        self,
+        plan: PackageRollbackPlan,
+        *,
+        confirmed: bool,
+    ) -> PackageRollbackResult:
+        if not confirmed:
+            raise PackageInstallError("Package rollback requires explicit confirmation")
+        with self._install_lock.acquire():
+            expected_plan = self.plan_rollback(
+                PackageRollbackRequest(target_release=plan.target_release)
+            )
+            if plan != expected_plan:
+                raise PackageInstallError(
+                    "Package rollback plan no longer matches active package state"
+                )
+            target = str(plan.target_directory.relative_to(self._root))
+            self._switch_current(plan.current_link, target=target)
+            return PackageRollbackResult(
+                active_target=target,
+                previous_target=plan.active_target,
+            )
 
     def _install_locked(self, plan: PackageInstallPlan) -> PackageInstallResult:
         expected_plan = self.plan(
@@ -225,6 +302,16 @@ class VersionedPackageInstaller:
                 f"Package installation root is writable by group or other: {self._root}"
             )
 
+    def _validate_existing_root(self) -> None:
+        if self._root.is_symlink() or not self._root.is_dir():
+            raise PackageInstallError(
+                f"Package installation root is missing or unsafe: {self._root}"
+            )
+        if stat.S_IMODE(self._root.stat().st_mode) & 0o022:
+            raise PackageInstallError(
+                f"Package installation root is writable by group or other: {self._root}"
+            )
+
     @staticmethod
     def _verify_release_commands(release_directory: Path) -> None:
         command_directory = release_directory / "venv/bin"
@@ -237,6 +324,19 @@ class VersionedPackageInstaller:
             ):
                 raise PackageInstallError(
                     f"Installed package command is missing or unsafe: {command_path}"
+                )
+
+    def _verify_retained_release(self, release_directory: Path) -> None:
+        trusted_uid = self._root.stat().st_uid
+        for path in (release_directory, *release_directory.rglob("*")):
+            metadata = path.lstat()
+            if metadata.st_uid != trusted_uid:
+                raise PackageInstallError(
+                    f"Retained package release has an untrusted owner: {path}"
+                )
+            if not stat.S_ISLNK(metadata.st_mode) and stat.S_IMODE(metadata.st_mode) & 0o022:
+                raise PackageInstallError(
+                    f"Retained package release is writable by group or other: {path}"
                 )
 
     def _install_launchers(self, launcher_directory: Path) -> None:

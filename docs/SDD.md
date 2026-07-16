@@ -566,7 +566,9 @@ Current implementation status (2026-07-16):
   copy under an exclusive lock, and activates an immutable package release
   through one atomic `current` link; stable real launchers keep the TUI and
   privileged helper on the same selected release and give sudo/doas a fixed
-  non-symlink command path;
+  non-symlink command path; an explicit retained-release rollback plan rechecks
+  current state and immutable tree trust under the same lock before atomically
+  reactivating exactly the operator-selected release;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

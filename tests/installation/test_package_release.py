@@ -10,6 +10,7 @@ from sb_manager.installation.package_release import (
     DependencySource,
     PackageInstallError,
     PackageInstallRequest,
+    PackageRollbackRequest,
     VersionedPackageInstaller,
 )
 from sb_manager.seams.apply_lock import ApplyLockUnavailableError
@@ -26,6 +27,9 @@ PACKAGE_COMMANDS = (
 
 
 class FixtureEnvironmentBuilder:
+    def __init__(self, *, label: str = "0.1.0") -> None:
+        self.label = label
+
     def build(self, request: PackageEnvironmentBuildRequest) -> None:
         command_directory = request.release_directory / "venv/bin"
         command_directory.mkdir(parents=True)
@@ -34,7 +38,7 @@ class FixtureEnvironmentBuilder:
             command_path.write_text(
                 "#!/usr/bin/env python3\n"
                 "import sys\n"
-                f"print('fixture {command} 0.1.0', *sys.argv[1:])\n",
+                f"print('fixture {command} {self.label}', *sys.argv[1:])\n",
                 encoding="utf-8",
             )
             command_path.chmod(0o755)
@@ -48,6 +52,7 @@ class FailingEnvironmentBuilder:
 
 class SourceReplacingEnvironmentBuilder(FixtureEnvironmentBuilder):
     def __init__(self, *, source_wheel: Path) -> None:
+        super().__init__()
         self.source_wheel = source_wheel
 
     def build(self, request: PackageEnvironmentBuildRequest) -> None:
@@ -145,6 +150,215 @@ def test_confirmed_install_activates_all_commands_through_stable_launchers(
         text=True,
     )
     assert completed.stdout == "fixture sb-manager 0.1.0 --probe\n"
+
+
+def test_operator_can_preview_rollback_to_one_exact_retained_release(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "opt/sing-box-manager"
+    installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(),
+    )
+    first_wheel = _write_fixture_wheel(tmp_path / "sing_box_manager-0.1.0-py3-none-any.whl")
+    first_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=first_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    installer.install(first_plan, confirmed=True)
+    second_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.2.0-py3-none-any.whl",
+        version="0.2.0",
+    )
+    second_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=second_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    second = installer.install(second_plan, confirmed=True)
+
+    rollback_plan = installer.plan_rollback(
+        PackageRollbackRequest(target_release=first_plan.release_directory.name)
+    )
+
+    assert rollback_plan.active_target == second.active_target
+    assert rollback_plan.target_release == first_plan.release_directory.name
+    assert rollback_plan.target_directory == first_plan.release_directory
+    assert rollback_plan.current_link == root / "current"
+    assert rollback_plan.mutates_host is False
+    assert str(rollback_plan.current_link.readlink()) == second.active_target
+
+
+def test_package_rollback_requires_explicit_confirmation(tmp_path: Path) -> None:
+    root = tmp_path / "opt/sing-box-manager"
+    installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(),
+    )
+    first_wheel = _write_fixture_wheel(tmp_path / "sing_box_manager-0.1.0-py3-none-any.whl")
+    first_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=first_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    installer.install(first_plan, confirmed=True)
+    second_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.2.0-py3-none-any.whl",
+        version="0.2.0",
+    )
+    second_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=second_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    second = installer.install(second_plan, confirmed=True)
+    rollback_plan = installer.plan_rollback(
+        PackageRollbackRequest(target_release=first_plan.release_directory.name)
+    )
+
+    with pytest.raises(PackageInstallError, match="explicit confirmation"):
+        installer.rollback(rollback_plan, confirmed=False)
+
+    assert str(rollback_plan.current_link.readlink()) == second.active_target
+
+
+def test_confirmed_rollback_atomically_reactivates_the_exact_retained_release(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "opt/sing-box-manager"
+    first_installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(label="0.1.0"),
+    )
+    first_wheel = _write_fixture_wheel(tmp_path / "sing_box_manager-0.1.0-py3-none-any.whl")
+    first_plan = first_installer.plan(
+        PackageInstallRequest(
+            wheel_path=first_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    first = first_installer.install(first_plan, confirmed=True)
+    second_installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(label="0.2.0"),
+    )
+    second_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.2.0-py3-none-any.whl",
+        version="0.2.0",
+    )
+    second_plan = second_installer.plan(
+        PackageInstallRequest(
+            wheel_path=second_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    second = second_installer.install(second_plan, confirmed=True)
+    rollback_plan = second_installer.plan_rollback(
+        PackageRollbackRequest(target_release=first_plan.release_directory.name)
+    )
+
+    result = second_installer.rollback(rollback_plan, confirmed=True)
+
+    assert result.active_target == first.active_target
+    assert result.previous_target == second.active_target
+    assert str(rollback_plan.current_link.readlink()) == first.active_target
+    completed = subprocess.run(
+        [str(first_plan.launcher_directory / "sb-manager"), "--after-rollback"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.stdout == "fixture sb-manager 0.1.0 --after-rollback\n"
+
+
+def test_rollback_rechecks_that_retained_release_remains_immutable(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "opt/sing-box-manager"
+    installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(),
+    )
+    first_wheel = _write_fixture_wheel(tmp_path / "sing_box_manager-0.1.0-py3-none-any.whl")
+    first_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=first_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    installer.install(first_plan, confirmed=True)
+    second_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.2.0-py3-none-any.whl",
+        version="0.2.0",
+    )
+    second_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=second_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    second = installer.install(second_plan, confirmed=True)
+    rollback_plan = installer.plan_rollback(
+        PackageRollbackRequest(target_release=first_plan.release_directory.name)
+    )
+    target_command = first_plan.release_directory / "venv/bin/sb-manager"
+    target_command.chmod(0o775)
+
+    with pytest.raises(PackageInstallError, match="writable by group or other"):
+        installer.rollback(rollback_plan, confirmed=True)
+
+    assert str(rollback_plan.current_link.readlink()) == second.active_target
+
+
+def test_rollback_rejects_a_plan_after_active_release_changes(tmp_path: Path) -> None:
+    root = tmp_path / "opt/sing-box-manager"
+    installer = VersionedPackageInstaller(
+        root=root,
+        environment_builder=FixtureEnvironmentBuilder(),
+    )
+    first_wheel = _write_fixture_wheel(tmp_path / "sing_box_manager-0.1.0-py3-none-any.whl")
+    first_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=first_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    installer.install(first_plan, confirmed=True)
+    second_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.2.0-py3-none-any.whl",
+        version="0.2.0",
+    )
+    second_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=second_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    installer.install(second_plan, confirmed=True)
+    stale_plan = installer.plan_rollback(
+        PackageRollbackRequest(target_release=first_plan.release_directory.name)
+    )
+    third_wheel = _write_fixture_wheel(
+        tmp_path / "sing_box_manager-0.3.0-py3-none-any.whl",
+        version="0.3.0",
+    )
+    third_plan = installer.plan(
+        PackageInstallRequest(
+            wheel_path=third_wheel,
+            dependency_source=DependencySource.INDEX,
+        )
+    )
+    third = installer.install(third_plan, confirmed=True)
+
+    with pytest.raises(PackageInstallError, match="no longer matches"):
+        installer.rollback(stale_plan, confirmed=True)
+
+    assert str(stale_plan.current_link.readlink()) == third.active_target
 
 
 def test_failed_upgrade_preserves_the_active_release_and_launcher_behavior(

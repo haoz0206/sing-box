@@ -23,6 +23,8 @@
 - 现有 live configuration 的只读指纹检查、显式接管计划和 apply 前精确
   SHA-256 前置条件，避免静默覆盖或审阅后的竞态修改；
 - `sb-manager` 安装命令和可注入的系统边界；
+- 精确 retained release 的只读回退计划、显式 root 确认和原子 package
+  activation，不需要手工修改 `/opt` 下的链接；
 - pytest、Ruff 与 mypy strict 质量门。
 
 最小权限 helper 已支持 core 激活以及固定配置目标的校验、提交、runtime health 和 rollback；unprivileged TUI 的核心向导始终通过非交互 helper 激活，配置应用则可通过显式 privileged apply 模式调用它。引导式 TLS 表单支持推荐的 sing-box ACME，以及固定 trusted 目录下 root 管理证书文件的高级路径。Caddy 边缘编排明确后移到首个稳定版之后。直接模式写入 `/etc/sing-box/config.json` 时，当前进程仍必须拥有目标文件和服务管理权限。真实稳定发行前仍需要受支持发行版上的 live host 冒烟测试，以及上游稳定 sing-box 1.14，因此当前版本仍不应视为完整生产替代品。
@@ -53,6 +55,20 @@ sudo /opt/sing-box-manager/bin/sb-manager-install-policy \
 正式 package release 位于版本 + wheel SHA-256 命名的只读目录。四个稳定 launcher
 通过一个原子 `current` 链接同步切换，不会原地升级正在使用的 venv。Alpine 将
 `sudo` 和 `--authorization sudo` 分别替换为 `doas` 与 `--authorization doas`。
+
+若新 package release 出现回归，先从 `/opt/sing-box-manager/releases` 选择完整的
+`<version>-<wheel-sha256>` 名称并预览回退；命令不会猜测“上一个版本”：
+
+```bash
+/opt/sing-box-manager/bin/sb-manager-install \
+  --rollback-to 0.1.0-<完整的-64-位-wheel-sha256>
+sudo /opt/sing-box-manager/bin/sb-manager-install \
+  --rollback-to 0.1.0-<完整的-64-位-wheel-sha256> \
+  --confirm
+```
+
+确认阶段会在安装锁内重新检查当前目标、retained release 身份、所有权、写权限和
+稳定命令，然后只原子切换 `current`；现用 release 仍会保留，可用同一机制切回。
 
 ## 开发运行
 

@@ -270,6 +270,8 @@ mypy src
 Release gate adds:
 
 - package build and clean-environment install;
+- exact retained-package rollback plan, confirmation, stale-plan, and stable
+  launcher behavior;
 - headless TUI acceptance suite;
 - supported Python matrix;
 - semantic configuration fixtures;

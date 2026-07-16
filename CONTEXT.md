@@ -48,3 +48,13 @@ _Avoid_: Development virtual environment, in-place pip upgrade
 The package release selected by the root-owned atomic `current` link. Stable
 launchers resolve all manager commands through this one selection.
 _Avoid_: Latest downloaded wheel, whichever command appears first in PATH
+
+**Retained package release**:
+An inactive immutable package release still present below the root-owned
+`releases/` directory and eligible for an explicit rollback plan.
+_Avoid_: Previous version, backup venv
+
+**Package rollback**:
+An operator-confirmed atomic activation of one exact retained package release.
+It never guesses which release the operator intended.
+_Avoid_: Downgrade install, manual symlink edit

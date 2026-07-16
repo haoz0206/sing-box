@@ -1,6 +1,7 @@
 # Release readiness audit — 2026-07-16
 
-Audited implementation: `adcebbc` (`feat: resume saved drafts from dashboard`).
+Audited implementation: the repository state identified by the final wheel
+SHA-256 recorded below.
 
 ## Verdict
 
@@ -23,11 +24,14 @@ and publication of stable sing-box 1.14.
 - The official artifact acceptance downloads the immutable alpha.45 release,
   verifies and stages it, activates it atomically, and proves rollback.
 - The final wheel SHA-256 is
-  `aa7f1ee436029551aa14020c522d087bcfcf04e293c8e8dbda6103bdfb5b43d0`.
+  `bf4610a201b902eb74ca2c1852825516e012e96dda0882191455a5d100ac0c30`.
   That exact wheel passed the pinned Debian 12, Ubuntu 24.04, and Alpine 3.20
   package and authorization acceptance.
 - Host policy installation now emits a read-only plan by default and mutates
   only after explicit `--confirm`.
+- Package rollback targets one complete retained release identity, emits a
+  read-only plan, requires root confirmation, rechecks immutable release trust
+  under the package lock, and atomically switches the stable launchers.
 - Reopening the TUI exposes each persisted draft's apply action and sends the
   selected stable profile ID plus current revision through the existing
   confirmation and background-apply path.
