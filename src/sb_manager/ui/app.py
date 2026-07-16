@@ -47,6 +47,11 @@ from sb_manager.application.profile_availability import (
     ProfileAvailabilityNotFoundError,
     ProfileResumePortUnavailableError,
 )
+from sb_manager.application.profile_cloning import (
+    ProfileCloneError,
+    ProfileCloner,
+    ProfileCloneResult,
+)
 from sb_manager.application.profile_details import (
     ProfileDetails,
     ProfileDetailsError,
@@ -84,6 +89,7 @@ from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
     ProfileAvailabilityPlanScreen,
 )
+from sb_manager.ui.screens.profile_cloning import ProfileCloneScreen
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
 from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
@@ -265,12 +271,14 @@ class ProfileDetailsScreen(Screen[None]):
         profile_editor: ProfileEditor | None = None,
         profile_remover: ProfileRemover | None = None,
         profile_availability_manager: ProfileAvailabilityManager | None = None,
+        profile_cloner: ProfileCloner | None = None,
     ) -> None:
         super().__init__()
         self.details = details
         self.profile_editor = profile_editor
         self.profile_remover = profile_remover
         self.profile_availability_manager = profile_availability_manager
+        self.profile_cloner = profile_cloner
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -304,6 +312,8 @@ class ProfileDetailsScreen(Screen[None]):
                 )
             if self.profile_editor is not None:
                 yield Button("编辑配置", id="edit-profile", variant="primary")
+            if self.profile_cloner is not None:
+                yield Button("以此配置为模板", id="clone-profile")
             if (
                 self.profile_availability_manager is not None
                 and self.details.status is ProfileStatus.APPLIED
@@ -335,6 +345,26 @@ class ProfileDetailsScreen(Screen[None]):
             self.app.push_screen(ProfileDetailsErrorScreen())
             return
         self.app.push_screen(screen)
+
+    @on(Button.Pressed, "#clone-profile")
+    def open_profile_clone(self) -> None:
+        if self.profile_cloner is None:
+            return
+        try:
+            screen = ProfileCloneScreen(
+                self.profile_cloner,
+                source_profile_id=self.details.profile_id,
+            )
+        except ProfileCloneError:
+            self.app.push_screen(ProfileDetailsErrorScreen())
+            return
+        self.app.push_screen(screen, self.finish_profile_clone)
+
+    async def finish_profile_clone(self, result: ProfileCloneResult | None) -> None:
+        if result is None:
+            return
+        self.dismiss()
+        await self.app.recompose()
 
     @on(Button.Pressed, "#change-profile-availability")
     def open_profile_availability(self) -> None:
@@ -874,6 +904,7 @@ class ManagerAppHostTools:
     profile_editor: ProfileEditor | None = None
     profile_remover: ProfileRemover | None = None
     profile_availability_manager: ProfileAvailabilityManager | None = None
+    profile_cloner: ProfileCloner | None = None
     profile_recommendation_advisor: ProfileRecommendationAdvisor = field(
         default_factory=ProfileRecommendationService
     )
@@ -910,6 +941,7 @@ class ManagerApp(App[None]):
         self.profile_editor = tools.profile_editor
         self.profile_remover = tools.profile_remover
         self.profile_availability_manager = tools.profile_availability_manager
+        self.profile_cloner = tools.profile_cloner
         self.profile_recommendation_advisor = tools.profile_recommendation_advisor
         self.config_adopter = tools.config_adopter
         self.state_recovery_manager = tools.state_recovery_manager
@@ -1224,6 +1256,7 @@ class ManagerApp(App[None]):
                 profile_editor=self.profile_editor,
                 profile_remover=self.profile_remover,
                 profile_availability_manager=self.profile_availability_manager,
+                profile_cloner=self.profile_cloner,
             )
         )
 

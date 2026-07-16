@@ -575,6 +575,13 @@ the release acceptance criteria. It is not translated function by function.
 
 Current implementation status (2026-07-17):
 
+- secret-free profile templates: profile details can plan a uniquely named
+  draft from an existing applied, paused, or draft profile; protocol, public
+  address, TLS strategy, and transport intent are reviewably reused while
+  authentication material, listen port, and runtime status are always reset;
+  explicit confirmation rechecks the desired-state revision under the shared
+  mutation lock, commits desired state only, and returns to a recomposed
+  dashboard without invoking host or material adapters;
 - desired-state startup recovery: exact primary/backup byte snapshots are
   classified behind a storage seam; only a corrupt primary plus a
   current-schema readable backup produces a reviewable plan, explicit
@@ -723,6 +730,9 @@ Current implementation status (2026-07-17):
 
 ## 13. Release acceptance criteria
 
+- An operator can use an existing profile as a template while the review makes
+  copied intent and reset credentials/port/runtime state explicit; confirmation
+  creates only a revision-bound draft and never changes the host.
 - Corrupt desired state starts a bounded recovery page instead of terminating
   the TUI; restoration requires a valid current-schema backup, explicit
   confirmation, exact primary/backup hash rechecks, and preservation of the

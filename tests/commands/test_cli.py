@@ -19,6 +19,7 @@ from sb_manager.application.profile_availability import (
     PlanProfileAvailabilityRequest,
     ProfileAvailability,
 )
+from sb_manager.application.profile_cloning import PlanProfileCloneRequest
 from sb_manager.application.profile_editing import (
     PlanProfileEditRequest,
     ProfileEditScope,
@@ -202,6 +203,33 @@ def test_cli_composes_the_purpose_first_profile_advisor() -> None:
     report = app.profile_recommendation_advisor.recommend(ProfilePurpose.LOW_LATENCY)
 
     assert report.recommendations[0].variant is ProtocolVariant.HYSTERIA2
+
+
+def test_cli_composes_safe_profile_template_cloning(tmp_path: Path) -> None:
+    state_path = tmp_path / "manager" / "state.json"
+    source = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=443,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+    JsonFileStateStore(state_path).save(
+        ManagedInstallation(schema_version=1, revision=1, profiles=(source,))
+    )
+    app = create_app(["--state-file", str(state_path)])
+
+    assert app.profile_cloner is not None
+    plan = app.profile_cloner.plan(PlanProfileCloneRequest(source_profile_id="profile-1"))
+    result = app.profile_cloner.clone(plan, confirmed=True)
+
+    clone = JsonFileStateStore(state_path).load().profiles[-1]
+    assert result.profile_id == clone.profile_id
+    assert clone.profile_name == "手机 副本"
+    assert clone.status is ProfileStatus.DRAFT
+    assert clone.protocol_material is None
+    assert clone.listen_port is None
 
 
 def test_cli_composes_an_exact_core_update_path() -> None:

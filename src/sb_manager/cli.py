@@ -48,6 +48,7 @@ from sb_manager.application.host_readiness import (
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.application.profile_availability import ProfileAvailabilityService
+from sb_manager.application.profile_cloning import ProfileCloningService
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
@@ -327,6 +328,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                 port_source=port_source,
                 applier=applier,
                 apply_lock=mutation_lock,
+            ),
+            profile_cloner=ProfileCloningService(
+                state_store=state_store,
+                mutation_lock=mutation_lock,
             ),
             config_adopter=ConfigAdoptionService(
                 state_store=state_store,
