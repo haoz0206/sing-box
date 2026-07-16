@@ -549,6 +549,16 @@ Current implementation status (2026-07-16):
   parsed or silently replaced; the TUI reviews and confirms its exact
   fingerprint, desired state records that replacement precondition without host
   mutation, and direct/privileged apply rechecks it immediately before commit;
+- first-run readiness: one read-only application module classifies the
+  configuration target, minimum-privilege helper, and configured core as ready,
+  attention, or action-required; the dashboard prioritizes blocking setup work,
+  exposes detailed guidance, supports an explicit recheck, and routes to core
+  installation only after the helper is ready;
+- managed core continuity: privileged mode uses
+  `/opt/sing-box-manager/core/current/sing-box` by default for local material
+  generation and readiness checks, matching the core activated by the root
+  helper; direct development mode keeps the `PATH` default and both remain
+  explicitly overridable;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

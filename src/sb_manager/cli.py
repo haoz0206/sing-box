@@ -19,6 +19,7 @@ from sb_manager.adapters.privileged_core_activator import PrivilegedCoreActivato
 from sb_manager.adapters.reality_material import SingBoxRealityMaterialSource
 from sb_manager.adapters.secure_random import SecureRandomSource
 from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSource
+from sb_manager.adapters.sing_box_core_status import SingBoxCoreStatusInspector
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.adapters.systemd_runtime import SystemdRuntime
@@ -30,6 +31,10 @@ from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.core_update import CoreUpdateService
 from sb_manager.application.host_diagnostics import RuntimeHostDiagnostics
+from sb_manager.application.host_readiness import (
+    HostAccessMode,
+    HostReadinessService,
+)
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
 from sb_manager.application.profile_details import ProfileDetailsService
@@ -52,6 +57,8 @@ from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import TransportCatalog
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+MANAGED_CORE_BINARY = Path("/opt/sing-box-manager/core/current/sing-box")
 
 
 def create_runtime(
@@ -149,8 +156,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     parser.add_argument(
         "--sing-box-binary",
         type=Path,
-        default=Path("sing-box"),
-        help="sing-box 可执行文件",
+        help=(
+            "sing-box 可执行文件，privileged 模式默认使用 manager 激活的核心，"
+            "direct 模式默认从 PATH 查找"
+        ),
     )
     parser.add_argument(
         "--apply-mode",
@@ -197,6 +206,10 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         help="Reality 默认伪装站点",
     )
     arguments = parser.parse_args(argv)
+    access_mode = HostAccessMode(arguments.apply_mode)
+    sing_box_binary = arguments.sing_box_binary or (
+        MANAGED_CORE_BINARY if access_mode is HostAccessMode.PRIVILEGED else Path("sing-box")
+    )
     privileged_helper_command = (
         str(arguments.privilege_runner),
         "-n",
@@ -214,10 +227,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     )
     applier: ConfigurationApplier
     config_inspector: ConfigurationTargetInspector
-    if arguments.apply_mode == "privileged":
-        config_inspector = PrivilegedConfigurationTargetInspector(
-            helper_command=privileged_helper_command
-        )
+    privileged_config_inspector = PrivilegedConfigurationTargetInspector(
+        helper_command=privileged_helper_command
+    )
+    if access_mode is HostAccessMode.PRIVILEGED:
+        config_inspector = privileged_config_inspector
         applier = PrivilegedConfigurationApplier(
             incoming_directory=arguments.privileged_incoming_dir,
             helper_command=privileged_helper_command,
@@ -227,11 +241,11 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         applier = ApplyCoordinator(
             config_path=arguments.config_file,
             stager=ConfigurationStager(parent=arguments.staging_dir),
-            validator=SingBoxConfigValidator(binary=arguments.sing_box_binary),
+            validator=SingBoxConfigValidator(binary=sing_box_binary),
             runtime=runtime,
         )
     protocol_catalog = create_protocol_catalog(
-        sing_box_binary=arguments.sing_box_binary,
+        sing_box_binary=sing_box_binary,
         reality_server_name=arguments.reality_server_name,
     )
     profile_applier = ProfileApplyService(
@@ -252,6 +266,12 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         core_updater=core_updater,
         host_tools=ManagerAppHostTools(
             host_diagnostics=RuntimeHostDiagnostics(runtime=runtime),
+            host_readiness=HostReadinessService(
+                access_mode=access_mode,
+                config_inspector=config_inspector,
+                privileged_inspector=privileged_config_inspector,
+                core_inspector=SingBoxCoreStatusInspector(binary=sing_box_binary),
+            ),
             profile_details_reader=ProfileDetailsService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,

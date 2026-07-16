@@ -13,6 +13,12 @@ from sb_manager.application.host_diagnostics import (
     HostCondition,
     HostDiagnosticsReport,
 )
+from sb_manager.application.host_readiness import (
+    HostReadinessItem,
+    HostReadinessItemCode,
+    HostReadinessReport,
+    ReadinessState,
+)
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
@@ -168,6 +174,59 @@ class UnhealthyHostDiagnostics:
                 "运行 systemctl status sing-box.service --no-pager。",
             ),
         )
+
+
+class FixedHostReadiness:
+    def __init__(self, *reports: HostReadinessReport) -> None:
+        self.reports = reports
+        self.calls = 0
+
+    def inspect(self) -> HostReadinessReport:
+        report = self.reports[min(self.calls, len(self.reports) - 1)]
+        self.calls += 1
+        return report
+
+
+class NeverCalledCoreUpdater:
+    def plan(self, request: object) -> object:
+        raise AssertionError("opening the core form must not create a plan")
+
+    def execute(self, plan: object, *, confirmed: bool) -> object:
+        raise AssertionError("opening the core form must not activate a core")
+
+
+def _helper_readiness(state: ReadinessState) -> HostReadinessItem:
+    return HostReadinessItem(
+        code=HostReadinessItemCode.PRIVILEGED_HELPER,
+        state=state,
+        title="最小权限 helper",
+        summary=(
+            "最小权限 helper 与固定配置目标可用"
+            if state is ReadinessState.READY
+            else "最小权限 helper 或固定配置目标尚不可用"
+        ),
+        diagnostics="helper ready" if state is ReadinessState.READY else "sudo denied",
+        guidance=(
+            ""
+            if state is ReadinessState.READY
+            else "以 root 身份运行 sb-manager-install-policy --confirm，然后返回 TUI 重新检查。"
+        ),
+    )
+
+
+def _core_readiness(state: ReadinessState) -> HostReadinessItem:
+    return HostReadinessItem(
+        code=HostReadinessItemCode.CORE,
+        state=state,
+        title="sing-box 核心",
+        summary="sing-box 1.14.0 已可用" if state is ReadinessState.READY else "核心尚未安装",
+        diagnostics="sing-box version 1.14.0" if state is ReadinessState.READY else "not found",
+        guidance=(
+            ""
+            if state is ReadinessState.READY
+            else "选择“安装或升级 sing-box 核心”，完成可信安装后重新检查。"
+        ),
+    )
 
 
 class FixedProfileDetailsReader:
@@ -328,6 +387,104 @@ async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics(
         )
         assert app.screen.query_one("#diagnostics-recovery-0", Static).content == (
             "1. 运行 systemctl restart sing-box.service。"
+        )
+
+
+async def test_first_run_dashboard_prioritizes_host_readiness_before_profile_apply() -> None:
+    readiness = FixedHostReadiness(
+        HostReadinessReport(
+            items=(
+                _helper_readiness(ReadinessState.ACTION_REQUIRED),
+                _core_readiness(ReadinessState.ACTION_REQUIRED),
+            )
+        )
+    )
+    app = ManagerApp(
+        core_updater=NeverCalledCoreUpdater(),
+        host_tools=ManagerAppHostTools(host_readiness=readiness),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#host-readiness-status", Static).content == (
+            "主机准备度：需要完成 2 项"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：安装最小权限策略"
+        )
+        assert str(app.screen.query_one("#view-readiness", Button).label) == "查看准备度"
+
+        await pilot.click("#view-readiness")
+
+        assert app.screen.query_one("#host-readiness-title", Static).content == "主机准备度"
+        assert app.screen.query_one("#host-readiness-summary", Static).content == (
+            "应用前需要完成 2 项准备"
+        )
+        assert "sb-manager-install-policy --confirm" in str(
+            app.screen.query_one("#readiness-privileged-helper-guidance", Static).content
+        )
+        assert len(app.screen.query("#readiness-manage-core")) == 0
+
+
+async def test_readiness_screen_routes_core_install_after_helper_is_ready() -> None:
+    readiness = FixedHostReadiness(
+        HostReadinessReport(
+            items=(
+                _helper_readiness(ReadinessState.READY),
+                _core_readiness(ReadinessState.ACTION_REQUIRED),
+            )
+        )
+    )
+    app = ManagerApp(
+        core_updater=NeverCalledCoreUpdater(),
+        host_tools=ManagerAppHostTools(host_readiness=readiness),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#view-readiness")
+
+        assert str(app.screen.query_one("#readiness-manage-core", Button).label) == (
+            "安装或升级 sing-box 核心"
+        )
+
+        await pilot.click("#readiness-manage-core")
+
+        assert app.screen.query_one("#core-update-form-title", Static).content == (
+            "安装或升级 sing-box 核心"
+        )
+
+
+async def test_operator_can_refresh_host_readiness_after_setup() -> None:
+    readiness = FixedHostReadiness(
+        HostReadinessReport(
+            items=(
+                _helper_readiness(ReadinessState.READY),
+                _core_readiness(ReadinessState.ACTION_REQUIRED),
+            )
+        ),
+        HostReadinessReport(
+            items=(
+                _helper_readiness(ReadinessState.READY),
+                _core_readiness(ReadinessState.READY),
+            )
+        ),
+    )
+    app = ManagerApp(host_tools=ManagerAppHostTools(host_readiness=readiness))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.query_one("#host-readiness-status", Static).content == (
+            "主机准备度：需要完成 1 项"
+        )
+
+        await pilot.click("#refresh-readiness")
+        await pilot.pause()
+
+        assert readiness.calls == len(readiness.reports)
+        assert app.screen.query_one("#host-readiness-status", Static).content == (
+            "主机准备度：可以应用配置"
         )
 
 

@@ -9,7 +9,7 @@
 目前已经具备：
 
 - Textual 引导式 TUI：配置列表、后台服务健康检查、可操作诊断、协议引导、
-  计划预览、二次确认、持久化配置详情/连接链接与类型化结果；
+  首次启动主机准备度、计划预览、二次确认、持久化配置详情/连接链接与类型化结果；
 - 核心安装/升级向导：精确版本与架构选择、预发布风险确认、后台下载、可信校验及激活证据；
 - 版本化 desired state、原子 JSON 保存、修订冲突保护和上一版备份；
 - VLESS Reality、VLESS/VMess TLS WebSocket/gRPC、Shadowsocks 2022、Hysteria2、Trojan、AnyTLS 与 TUIC 的引导、凭据生成、连接 URI 和多 profile 配置；
@@ -44,6 +44,11 @@ python -m venv .venv
 ```
 
 该模式以非交互 `-n` 调用默认 `/usr/bin/sudo` 和 root-owned helper。开发隔离根或已有完整权限的进程可继续使用默认 `direct` 模式。
+
+dashboard 会在后台只读检查最小权限 helper、固定配置目标和 sing-box 核心，
+把阻塞项与仅影响核心升级的提醒分开，并给出下一步操作。`privileged` 模式默认使用
+manager 激活的 `/opt/sing-box-manager/core/current/sing-box`；`direct` 模式默认从
+`PATH` 查找。两种模式都可通过 `--sing-box-binary` 显式覆盖。
 
 默认状态文件为 `~/.local/state/sing-box-manager/state.json`。开发或隔离测试时可指定其他位置：
 

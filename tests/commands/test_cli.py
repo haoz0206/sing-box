@@ -4,6 +4,7 @@ from pathlib import Path
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.application.core_update import PlanCoreUpdateRequest
+from sb_manager.application.host_readiness import HostReadinessItemCode, ReadinessState
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     PlanProfileRequest,
@@ -44,6 +45,8 @@ def _write_fake_sing_box(tmp_path: Path) -> Path:
         "    print('PublicKey: public-key-value')\n"
         "elif sys.argv[1] == 'check':\n"
         "    print('configuration is valid')\n"
+        "elif sys.argv[1:] == ['version']:\n"
+        "    print('sing-box version 1.14.0-alpha.45')\n"
         "else:\n"
         "    raise SystemExit(2)\n",
         encoding="utf-8",
@@ -103,6 +106,10 @@ def _write_fake_privileged_helper(
         "import sys\n"
         "from pathlib import Path\n"
         "request = json.load(sys.stdin)\n"
+        "if request['operation'] == 'inspect-config':\n"
+        "    print(json.dumps({'schema_version': 1, 'status': 'observed', "
+        "'config': {'exists': False, 'sha256': None}}))\n"
+        "    raise SystemExit(0)\n"
         f"incoming = Path({str(incoming_directory)!r})\n"
         "config = incoming / f\"config-{request['sha256']}.json\"\n"
         f"Path({str(log_path)!r}).write_text(config.read_text(), encoding='utf-8')\n"
@@ -288,6 +295,32 @@ def test_cli_routes_privileged_apply_through_helper_without_direct_host_write(
     assert not direct_config_path.exists()
     helper_document = json.loads(helper_log.read_text(encoding="utf-8"))
     assert helper_document["inbounds"][0]["type"] == "shadowsocks"
+
+
+def test_cli_privileged_mode_checks_the_managed_core_path_by_default(tmp_path: Path) -> None:
+    incoming_directory = tmp_path / "incoming"
+    helper, _ = _write_fake_privileged_helper(tmp_path, incoming_directory)
+    app = create_app(
+        [
+            "--state-file",
+            str(tmp_path / "state.json"),
+            "--apply-mode",
+            "privileged",
+            "--privilege-runner",
+            str(_write_fake_privilege_runner(tmp_path)),
+            "--privileged-helper-binary",
+            str(helper),
+            "--privileged-incoming-dir",
+            str(incoming_directory),
+        ]
+    )
+
+    assert app.host_readiness is not None
+    report = app.host_readiness.inspect()
+    core = next(item for item in report.items if item.code is HostReadinessItemCode.CORE)
+
+    assert core.state is ReadinessState.ACTION_REQUIRED
+    assert "/opt/sing-box-manager/core/current/sing-box" in core.diagnostics
 
 
 def test_cli_composes_a_complete_shadowsocks_apply_path(tmp_path: Path) -> None:

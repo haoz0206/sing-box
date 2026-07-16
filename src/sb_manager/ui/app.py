@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
@@ -17,6 +18,7 @@ from sb_manager.application.host_diagnostics import (
     HostDiagnostics,
     HostDiagnosticsReport,
 )
+from sb_manager.application.host_readiness import HostReadiness, HostReadinessReport
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
@@ -52,6 +54,7 @@ from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
+from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 
 
 @dataclass(frozen=True, slots=True)
@@ -853,9 +856,10 @@ class ProtocolSelectionScreen(Screen[None]):
 
 @dataclass(frozen=True, slots=True)
 class ManagerAppHostTools:
-    """Read-only and adoption capabilities available from the dashboard."""
+    """Read-only host and adoption capabilities available from the dashboard."""
 
     host_diagnostics: HostDiagnostics | None = None
+    host_readiness: HostReadiness | None = None
     profile_details_reader: ProfileDetailsReader | None = None
     config_adopter: ConfigAdopter | None = None
 
@@ -887,6 +891,8 @@ class ManagerApp(App[None]):
         self.core_updater = core_updater
         self.host_diagnostics = tools.host_diagnostics
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
+        self.host_readiness = tools.host_readiness
+        self.host_readiness_report: HostReadinessReport | None = None
         self.profile_details_reader = tools.profile_details_reader
         self.config_adopter = tools.config_adopter
 
@@ -904,28 +910,21 @@ class ManagerApp(App[None]):
             if self.host_diagnostics is not None
             else "服务状态：未启用主机检查"
         )
-        next_action = (
-            f"建议：先审阅并应用 {draft_profiles} 个草案"
-            if draft_profiles
-            else (
-                "建议：创建第一个配置"
-                if not installation.profiles
-                else "建议：配置已应用，确认服务状态"
-            )
+        readiness_status = (
+            "主机准备度：正在检查…" if self.host_readiness is not None else "主机准备度：未启用检查"
         )
+        next_action = self._dashboard_next_action(installation)
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
                 yield Static("代理配置", id="profile-list-title")
                 yield Static(runtime_status, id="runtime-status")
+                yield Static(readiness_status, id="host-readiness-status")
                 yield Static(
                     f"配置：{applied_profiles} 已应用 · {draft_profiles} 草案",
                     id="profile-summary",
                 )
                 yield Static(next_action, id="dashboard-next-action")
-                if self.host_diagnostics is not None:
-                    yield Button("查看诊断", id="view-diagnostics", disabled=True)
-                if self.config_adopter is not None and installation.expected_config_sha256 is None:
-                    yield Button("检查并接管现有配置", id="adopt-existing-config")
+                yield from self._host_action_buttons(installation)
                 for index, profile in enumerate(installation.profiles):
                     port = (
                         "自动选择端口"
@@ -970,12 +969,10 @@ class ManagerApp(App[None]):
             with Vertical(id="dashboard-empty"):
                 yield Static("尚未创建代理配置", id="empty-state-title")
                 yield Static(runtime_status, id="runtime-status")
+                yield Static(readiness_status, id="host-readiness-status")
                 yield Static("配置：0 已应用 · 0 草案", id="profile-summary")
                 yield Static(next_action, id="dashboard-next-action")
-                if self.host_diagnostics is not None:
-                    yield Button("查看诊断", id="view-diagnostics", disabled=True)
-                if self.config_adopter is not None and installation.expected_config_sha256 is None:
-                    yield Button("检查并接管现有配置", id="adopt-existing-config")
+                yield from self._host_action_buttons(installation)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
                 yield Button(
                     "创建第一个配置",
@@ -987,9 +984,20 @@ class ManagerApp(App[None]):
                     yield Button("安装或升级 sing-box 核心", id="manage-core")
         yield Footer()
 
+    def _host_action_buttons(self, installation: ManagedInstallation) -> Iterator[Button]:
+        if self.host_diagnostics is not None:
+            yield Button("查看诊断", id="view-diagnostics", disabled=True)
+        if self.host_readiness is not None:
+            yield Button("查看准备度", id="view-readiness", disabled=True)
+            yield Button("重新检查", id="refresh-readiness", disabled=True)
+        if self.config_adopter is not None and installation.expected_config_sha256 is None:
+            yield Button("检查并接管现有配置", id="adopt-existing-config")
+
     def on_mount(self) -> None:
         if self.host_diagnostics is not None:
             self.load_host_diagnostics()
+        if self.host_readiness is not None:
+            self.load_host_readiness()
 
     @work(thread=True, exclusive=True)
     def load_host_diagnostics(self) -> None:
@@ -1007,15 +1015,75 @@ class ManagerApp(App[None]):
         )
         self.query_one("#runtime-status", Static).update(status)
         self.query_one("#view-diagnostics", Button).disabled = False
-        if report.condition is HostCondition.UNHEALTHY:
-            self.query_one("#dashboard-next-action", Static).update(
-                "建议：先检查 sing-box 服务，再进行配置变更"
-            )
+        self._update_dashboard_next_action()
+
+    @work(thread=True, exclusive=True)
+    def load_host_readiness(self) -> None:
+        if self.host_readiness is None:
+            return
+        report = self.host_readiness.inspect()
+        self.call_from_thread(self.show_host_readiness, report)
+
+    def show_host_readiness(self, report: HostReadinessReport) -> None:
+        self.host_readiness_report = report
+        status = (
+            "主机准备度：可以应用配置"
+            if report.ready_for_apply
+            else f"主机准备度：需要完成 {report.action_required_count} 项"
+        )
+        self.query_one("#host-readiness-status", Static).update(status)
+        self.query_one("#view-readiness", Button).disabled = False
+        self.query_one("#refresh-readiness", Button).disabled = False
+        self._update_dashboard_next_action()
+
+    def _dashboard_next_action(self, installation: ManagedInstallation) -> str:
+        if (
+            self.host_readiness_report is not None
+            and not self.host_readiness_report.ready_for_apply
+        ):
+            return f"建议：{self.host_readiness_report.recommended_action}"
+        if (
+            self.host_diagnostics_report is not None
+            and self.host_diagnostics_report.condition is HostCondition.UNHEALTHY
+        ):
+            return "建议：先检查 sing-box 服务，再进行配置变更"
+        draft_profiles = sum(
+            profile.status is ProfileStatus.DRAFT for profile in installation.profiles
+        )
+        if draft_profiles:
+            return f"建议：先审阅并应用 {draft_profiles} 个草案"
+        if not installation.profiles:
+            return "建议：创建第一个配置"
+        return "建议：配置已应用，确认服务状态"
+
+    def _update_dashboard_next_action(self) -> None:
+        self.query_one("#dashboard-next-action", Static).update(
+            self._dashboard_next_action(self.manager.get_installation())
+        )
 
     @on(Button.Pressed, "#view-diagnostics")
     def open_host_diagnostics(self) -> None:
         if self.host_diagnostics_report is not None:
             self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report))
+
+    @on(Button.Pressed, "#view-readiness")
+    def open_host_readiness(self) -> None:
+        if self.host_readiness_report is not None:
+            self.push_screen(
+                HostReadinessScreen(
+                    self.host_readiness_report,
+                    core_updater=self.core_updater,
+                )
+            )
+
+    @on(Button.Pressed, "#refresh-readiness")
+    def refresh_host_readiness(self) -> None:
+        if self.host_readiness is None:
+            return
+        self.query_one("#host-readiness-status", Static).update("主机准备度：正在检查…")
+        self.query_one("#view-readiness", Button).disabled = True
+        self.query_one("#refresh-readiness", Button).disabled = True
+        self.load_host_readiness()
 
     @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:
