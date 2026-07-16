@@ -542,6 +542,9 @@ Current implementation status (2026-07-16):
   result, and failure workflow now lives behind the single
   `CoreUpdateFormScreen(core_updater)` interface in `ui/screens/core_update.py`;
   `ManagerApp` owns only the navigation entry to that workflow;
+- UI presentation: the Textual stylesheet is isolated in `ui/theme.tcss` and
+  included as package data, so layout changes do not require editing screen
+  behavior and installed wheels retain the same rendering contract;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
 - pending: the stable sing-box 1.14 release and execution of that harness on

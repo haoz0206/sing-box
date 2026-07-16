@@ -845,78 +845,7 @@ class ManagerApp(App[None]):
         ProfileStatus.APPLIED: "已应用",
     }
 
-    CSS = """
-    Screen {
-        align: center middle;
-    }
-
-    Header, Footer {
-        dock: top;
-    }
-
-    Footer {
-        dock: bottom;
-    }
-
-    #dashboard-empty, #dashboard-profiles, #protocol-selection, #reality-form,
-    #shadowsocks-form,
-    #hysteria2-form,
-    #trojan-form,
-    #anytls-form,
-    #tuic-form,
-    #vless-websocket-form,
-    #vless-grpc-form,
-    #vmess-websocket-form,
-    #vmess-grpc-form,
-    #plan-preview, #draft-saved, #apply-confirmation, #apply-result, #host-diagnostics,
-    #profile-details, #profile-details-error,
-    #core-update-form, #core-update-plan, #core-update-result, #core-update-error {
-        width: 72;
-        max-width: 90%;
-        height: auto;
-        padding: 2 4;
-        border: round $primary;
-        background: $surface;
-    }
-
-    #empty-state-title, #protocol-selection-title, #reality-form-title,
-    #shadowsocks-form-title, #plan-title,
-    #hysteria2-form-title,
-    #trojan-form-title,
-    #anytls-form-title,
-    #tuic-form-title,
-    #vless-websocket-form-title,
-    #vless-grpc-form-title,
-    #vmess-websocket-form-title,
-    #vmess-grpc-form-title,
-    #draft-saved-title, #diagnostics-title, #profile-details-title,
-    #profile-details-error-title {
-        margin-bottom: 1;
-        text-style: bold;
-    }
-
-    .field-label {
-        margin-top: 0;
-    }
-
-    .field-error {
-        color: $error;
-    }
-
-    .hidden {
-        display: none;
-    }
-
-    Button {
-        margin-top: 1;
-        width: 100%;
-    }
-
-    #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form,
-    #vless-websocket-form, #vless-grpc-form, #vmess-websocket-form, #vmess-grpc-form {
-        max-height: 90%;
-    }
-    """
+    CSS_PATH = "theme.tcss"
 
     def __init__(
         self,

@@ -69,3 +69,6 @@ warn_unreachable = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+sb_manager = ["ui/*.tcss"]
