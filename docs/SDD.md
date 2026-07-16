@@ -331,6 +331,10 @@ protocols and workflows that explicitly communicate client verification needs.
 
 The artifact seam owns version discovery, acquisition, integrity verification,
 staging, replacement, and rollback. GitHub and local files are initial adapters.
+The initial network trust and staging policy is fixed by ADR-0003: exact
+immutable releases, mandatory SHA-256 verification, safe archive inspection,
+and version self-verification occur before the later privileged replacement
+seam.
 
 ## 8. Python project layout
 
@@ -511,7 +515,5 @@ Current implementation status (2026-07-16):
 
 ## 14. Open decisions
 
-- Choose the first artifact acquisition trust policy and supported update
-  channels.
 - Decide whether operator-provided TLS files enter the guided wizard or remain
   an advanced workflow.
