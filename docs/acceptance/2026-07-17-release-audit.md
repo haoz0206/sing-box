@@ -72,6 +72,7 @@ recoverable hosts, and publication of stable sing-box 1.14.
 ## Deferred after first stable
 
 - Caddy edge orchestration and its separate artifact/runtime trust model.
-- Protocol, port, and TLS profile editing.
-- Diagnostics for DNS reachability, domain and certificate expiry, generated
-  configuration drift, port ownership, apply history, and redacted raw logs.
+- Protocol and TLS-intent profile editing. Listen-port editing is now delivered.
+- Public end-to-end reachability checks that would make stronger network claims
+  than the delivered bounded DNS, certificate, generated-configuration,
+  listener-ownership, apply-history, and redacted-log diagnostics.

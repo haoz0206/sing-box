@@ -11,6 +11,7 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.apply_history import ApplyHistoryReader
 from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
 from sb_manager.application.diagnostics_center import DiagnosticsCenter
@@ -912,6 +913,7 @@ class ManagerAppHostTools:
     config_adopter: ConfigAdopter | None = None
     state_recovery_manager: StateRecoveryManager | None = None
     service_log_reader: ServiceLogReader | None = None
+    apply_history_reader: ApplyHistoryReader | None = None
 
 
 class ManagerApp(App[None]):
@@ -948,6 +950,7 @@ class ManagerApp(App[None]):
         self.config_adopter = tools.config_adopter
         self.state_recovery_manager = tools.state_recovery_manager
         self.service_log_reader = tools.service_log_reader
+        self.apply_history_reader = tools.apply_history_reader
         self._dashboard_ready = False
 
     def compose(self) -> ComposeResult:
@@ -1183,6 +1186,7 @@ class ManagerApp(App[None]):
                     config_adopter=self.config_adopter,
                     core_updater=self.core_updater,
                     service_log_reader=self.service_log_reader,
+                    apply_history_reader=self.apply_history_reader,
                 )
             )
 

@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
+from sb_manager.application.apply_history import (
+    ApplyHistoryCondition,
+    ApplyHistoryReader,
+)
 from sb_manager.application.certificate_diagnostics import CertificateDiagnostics
 from sb_manager.application.host_diagnostics import (
     HostCondition,
@@ -55,6 +59,7 @@ class DiagnosticCode(str, Enum):
     DOMAIN_RESOLUTION = "domain-resolution"
     CERTIFICATE_CONDITION = "certificate-condition"
     LISTENER_OWNERSHIP = "listener-ownership"
+    APPLY_HISTORY = "apply-history"
     CONFIG_TARGET = "config-target"
     PRIVILEGED_HELPER = "privileged-helper"
     CORE = "core"
@@ -134,6 +139,7 @@ class DiagnosticsCenterInspectors:
     domain_resolution: DomainResolutionInspector | None = None
     certificate_diagnostics: CertificateDiagnostics | None = None
     listener_diagnostics: ListenerDiagnostics | None = None
+    apply_history: ApplyHistoryReader | None = None
 
 
 _NO_ADDITIONAL_INSPECTORS = DiagnosticsCenterInspectors()
@@ -157,6 +163,7 @@ class DiagnosticsCenterService:
         self._domain_resolution_inspector = inspectors.domain_resolution
         self._certificate_diagnostics = inspectors.certificate_diagnostics
         self._listener_diagnostics = inspectors.listener_diagnostics
+        self._apply_history = inspectors.apply_history
         self._host_readiness = host_readiness
         self._host_diagnostics = host_diagnostics
 
@@ -257,6 +264,26 @@ class DiagnosticsCenterService:
                     summary=listener.summary,
                     diagnostics=listener.diagnostics,
                     guidance=listener.guidance,
+                )
+            )
+        if self._apply_history is not None:
+            history = self._apply_history.read_recent(limit=1)
+            items.append(
+                DiagnosticItem(
+                    code=DiagnosticCode.APPLY_HISTORY,
+                    condition=(
+                        DiagnosticCondition.HEALTHY
+                        if history.condition is ApplyHistoryCondition.HEALTHY
+                        else (
+                            DiagnosticCondition.ACTION_REQUIRED
+                            if history.condition is ApplyHistoryCondition.ACTION_REQUIRED
+                            else DiagnosticCondition.ATTENTION
+                        )
+                    ),
+                    title="配置应用历史",
+                    summary=history.summary,
+                    diagnostics=history.diagnostics,
+                    guidance=history.guidance,
                 )
             )
         try:

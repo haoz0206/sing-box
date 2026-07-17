@@ -14,6 +14,7 @@ from sb_manager.adapters.generated_configuration import (
 )
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
+from sb_manager.adapters.json_apply_history import JsonApplyHistoryStore
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.json_state_recovery import JsonStateRecoverySource
 from sb_manager.adapters.openrc_logs import OpenRCLogSource
@@ -38,6 +39,10 @@ from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
+from sb_manager.application.apply_history import (
+    ApplyHistoryConfigurationApplier,
+    ApplyHistoryService,
+)
 from sb_manager.application.certificate_diagnostics import CertificateDiagnosticsService
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
@@ -265,6 +270,9 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         str(arguments.privileged_helper_binary),
     )
     state_store = JsonFileStateStore(arguments.state_file)
+    apply_history_store = JsonApplyHistoryStore(
+        path=arguments.state_file.with_name(f"{arguments.state_file.name}.apply-history.json")
+    )
     mutation_lock = FileApplyLock(
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
@@ -303,6 +311,12 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
             validator=config_validator,
             runtime=runtime,
         )
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=applier,
+        history_store=apply_history_store,
+        state_store=state_store,
+    )
+    apply_history_reader = ApplyHistoryService(history_store=apply_history_store)
     protocol_catalog = create_protocol_catalog(
         sing_box_binary=sing_box_binary,
         reality_server_name=arguments.reality_server_name,
@@ -347,6 +361,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                         source=certificate_source
                     ),
                     listener_diagnostics=ListenerDiagnosticsService(source=ProcListenerSource()),
+                    apply_history=apply_history_reader,
                 ),
                 host_readiness=host_readiness,
                 host_diagnostics=host_diagnostics,
@@ -393,6 +408,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                 state_store=state_store,
                 log_source=runtime_log_source,
             ),
+            apply_history_reader=apply_history_reader,
         ),
     )
 

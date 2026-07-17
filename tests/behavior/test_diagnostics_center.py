@@ -1,4 +1,8 @@
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.apply_history import (
+    ApplyHistoryCondition,
+    ApplyHistoryReport,
+)
 from sb_manager.application.certificate_diagnostics import (
     CertificateDiagnosticCondition,
     CertificateDiagnosticsReport,
@@ -96,6 +100,14 @@ class FixedCertificateDiagnostics:
         self.report = report
 
     def inspect(self, installation: ManagedInstallation) -> CertificateDiagnosticsReport:
+        return self.report
+
+
+class FixedApplyHistoryReader:
+    def __init__(self, report: ApplyHistoryReport) -> None:
+        self.report = report
+
+    def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
         return self.report
 
 
@@ -216,6 +228,42 @@ def test_certificate_validity_is_preserved_as_a_typed_diagnostic_item() -> None:
     assert certificate.title == "托管证书有效期"
     assert certificate.summary == "1 个托管证书将在 30 天内过期"
     assert "proxy.example.com" in certificate.diagnostics
+
+
+def test_latest_apply_history_condition_is_preserved_as_a_typed_diagnostic_item() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            apply_history=FixedApplyHistoryReader(
+                ApplyHistoryReport(
+                    condition=ApplyHistoryCondition.ATTENTION,
+                    summary="最近一次配置应用未完成",
+                    entries=(),
+                    diagnostics="validation failed",
+                    guidance="修复后重新预览并确认应用。",
+                    limit=1,
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    history = next(item for item in report.items if item.code is DiagnosticCode.APPLY_HISTORY)
+    assert history.condition is DiagnosticCondition.ATTENTION
+    assert history.title == "配置应用历史"
+    assert history.summary == "最近一次配置应用未完成"
+    assert history.diagnostics == "validation failed"
 
 
 def test_unresolved_public_domain_is_actionable_attention_without_hiding_runtime() -> None:

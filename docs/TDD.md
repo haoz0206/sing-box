@@ -326,6 +326,11 @@ Release gate adds:
   contracts, trusted-root and symlink containment, exact privileged request and
   response schemas, private-key-field rejection, non-markup Textual
   presentation, and direct/privileged production composition;
+- configuration apply history for durable pre-mutation recording, typed final
+  outcomes, interrupted/final-write-unknown semantics, strict atomic JSON,
+  bounded retention, symlink refusal, credential redaction, diagnostics-center
+  classification, non-markup Textual drill-down, and shared direct/privileged
+  production composition;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

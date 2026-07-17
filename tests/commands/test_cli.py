@@ -3,6 +3,7 @@ from pathlib import Path
 
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
+from sb_manager.application.apply_history import ApplyHistoryCondition
 from sb_manager.application.core_update import PlanCoreUpdateRequest
 from sb_manager.application.diagnostics_center import (
     DiagnosticCode,
@@ -341,6 +342,12 @@ def test_cli_composes_a_complete_isolated_apply_path(tmp_path: Path) -> None:
     assert installation.profiles[0].status is ProfileStatus.APPLIED
     assert installation.profiles[0].protocol_material is not None
     assert json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]["tag"] == "profile-1"
+    assert app.apply_history_reader is not None
+    history = app.apply_history_reader.read_recent(limit=20)
+    assert history.condition is ApplyHistoryCondition.HEALTHY
+    assert history.entries[0].status.value == "applied"
+    assert history.entries[0].active_profile_count == 1
+    assert state_path.with_name("state.json.apply-history.json").is_file()
 
 
 def test_cli_composes_transactional_applied_profile_removal(tmp_path: Path) -> None:
@@ -491,15 +498,26 @@ def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -
         DiagnosticCode.DOMAIN_RESOLUTION,
         DiagnosticCode.CERTIFICATE_CONDITION,
         DiagnosticCode.LISTENER_OWNERSHIP,
+        DiagnosticCode.APPLY_HISTORY,
         DiagnosticCode.RUNTIME,
     )
-    assert report.items[0].condition is DiagnosticCondition.HEALTHY
-    assert report.items[-4].condition is DiagnosticCondition.HEALTHY
-    assert report.items[-5].diagnostics == "sing-box check completed successfully"
-    assert report.items[-4].summary == "当前没有需要 DNS 解析的公开域名"
-    assert report.items[-3].summary == "当前没有需要检查的托管 X.509 证书"
-    assert report.items[-2].summary == "当前没有启用且已应用的监听端口"
-    assert report.items[-1].condition is DiagnosticCondition.HEALTHY
+    items_by_code = {item.code: item for item in report.items}
+    assert items_by_code[DiagnosticCode.DESIRED_STATE].condition is DiagnosticCondition.HEALTHY
+    assert (
+        items_by_code[DiagnosticCode.GENERATED_CONFIGURATION].diagnostics
+        == "sing-box check completed successfully"
+    )
+    assert items_by_code[DiagnosticCode.DOMAIN_RESOLUTION].summary == (
+        "当前没有需要 DNS 解析的公开域名"
+    )
+    assert items_by_code[DiagnosticCode.CERTIFICATE_CONDITION].summary == (
+        "当前没有需要检查的托管 X.509 证书"
+    )
+    assert items_by_code[DiagnosticCode.LISTENER_OWNERSHIP].summary == (
+        "当前没有启用且已应用的监听端口"
+    )
+    assert items_by_code[DiagnosticCode.APPLY_HISTORY].summary == "尚无配置应用记录"
+    assert items_by_code[DiagnosticCode.RUNTIME].condition is DiagnosticCondition.HEALTHY
 
 
 def test_cli_diagnostics_resolve_persisted_public_domain(tmp_path: Path) -> None:

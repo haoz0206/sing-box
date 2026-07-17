@@ -1,5 +1,11 @@
+from datetime import datetime, timezone
+
 from textual.widgets import Button, Static
 
+from sb_manager.application.apply_history import (
+    ApplyHistoryCondition,
+    ApplyHistoryReport,
+)
 from sb_manager.application.config_adoption import (
     ConfigAdoptionPlan,
     ConfigAdoptionResult,
@@ -24,6 +30,7 @@ from sb_manager.application.service_logs import (
     ServiceLogCondition,
     ServiceLogReport,
 )
+from sb_manager.seams.apply_history import ApplyHistoryEntry, ApplyHistoryStatus
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
 
 REFRESHED_INSPECTION_COUNT = 2
@@ -57,6 +64,16 @@ class RecordingServiceLogReader:
         report = self.reports[min(self.calls, len(self.reports) - 1)]
         self.calls += 1
         return report
+
+
+class RecordingApplyHistoryReader:
+    def __init__(self, report: ApplyHistoryReport) -> None:
+        self.report = report
+        self.limits: list[int] = []
+
+    def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
+        self.limits.append(limit)
+        return self.report
 
 
 class HealthyHostDiagnostics:
@@ -532,6 +549,58 @@ async def test_operator_drills_into_bounded_redacted_service_logs_and_refreshes(
         assert app.screen.query_one("#service-logs-content", Static).content == (
             "近期没有可显示的 sing-box 服务日志。"
         )
+
+
+async def test_operator_drills_into_safe_configuration_apply_history() -> None:
+    candidate_sha256 = "a" * 64
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.ATTENTION,
+            summary="最近一次配置应用未完成",
+            entries=(
+                ApplyHistoryEntry(
+                    attempt_id="apply-1",
+                    started_at=datetime(2026, 7, 17, 2, 3, tzinfo=timezone.utc),
+                    completed_at=datetime(2026, 7, 17, 2, 4, tzinfo=timezone.utc),
+                    status=ApplyHistoryStatus.VALIDATION_FAILED,
+                    candidate_sha256=candidate_sha256,
+                    active_profile_count=2,
+                    diagnostics="validation [red]failed[/red]",
+                    redacted_occurrences=1,
+                ),
+            ),
+            diagnostics="保留最近 1 次应用证据",
+            guidance="修复后重新预览并确认应用。",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        history_action = app.screen.query_one("#open-apply-history", Button)
+        assert str(history_action.label) == "查看配置应用历史"
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-title", Static).content == "配置应用历史"
+        assert app.screen.query_one("#apply-history-safety", Static).content == (
+            "只读 · 最近 20 次 · 不保存配置正文或私钥"
+        )
+        content = app.screen.query_one("#apply-history-content", Static)
+        assert history.limits == [20]
+        assert "校验失败" in content.content
+        assert "生效配置数：2" in content.content
+        assert f"候选配置 SHA-256：{candidate_sha256}" in content.content
+        assert "validation [red]failed[/red]" in content.content
+        assert "validation [red]failed[/red]" in content.render().plain
 
 
 async def test_service_log_drill_down_explains_unavailable_source_and_keeps_retry() -> None:

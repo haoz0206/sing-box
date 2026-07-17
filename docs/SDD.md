@@ -256,8 +256,17 @@ boundary reapplies the line bound, removes control sequences, caps line length,
 redacts persisted protocol material plus common credential forms, and returns
 typed available, empty, or unavailable results. Textual loads and refreshes the
 default 200-line view in a worker with markup disabled; it never parses commands,
-follows logs, escalates privileges, or changes the service. Apply history
-remains a later complete check. The listener-ownership slice
+follows logs, escalates privileges, or changes the service. The apply-history
+slice decorates the single configuration-apply seam used by create, edit,
+pause/resume, and removal. Before delegating any host mutation it atomically
+persists an `in-progress` record containing only an attempt ID, timestamps,
+candidate SHA-256, active-profile count, and bounded diagnostics. A failed begin
+blocks the apply; a failed final update preserves the durable `in-progress`
+evidence without changing an already returned host result. The newest 100
+records are retained in a private, strict-schema JSON file. Diagnostics classify
+the latest typed outcome, while Textual presents the newest 20 with markup
+disabled and without configuration documents or private material. The
+listener-ownership slice
 derives transport-specific expectations only from enabled, applied profiles,
 then reads Linux TCP/UDP socket tables and visible process descriptors through
 a dedicated read-only seam. Missing listeners and fully observed foreign owners
@@ -347,6 +356,15 @@ privilege, validation steps, redacted previews, and rollback intent.
 
 Reports committed revision, validations, runtime refresh, rollback state, and
 actionable errors. UI code never parses subprocess text to infer this result.
+
+### 6.7 ApplyHistory
+
+A durable, newest-bounded ledger of complete configuration-apply attempts. Each
+entry records the candidate identity, active-profile count, start/completion
+times, typed transaction outcome, and bounded redacted diagnostics. It never
+stores the generated configuration, connection links, credentials, or private
+keys. `IN_PROGRESS` is evidence that the final result is unknown, not a success
+or failure inferred from desired state.
 
 ## 7. Architecture
 

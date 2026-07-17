@@ -9,6 +9,7 @@ from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
+from sb_manager.application.apply_history import ApplyHistoryReader
 from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
 from sb_manager.application.diagnostics_center import (
@@ -20,6 +21,7 @@ from sb_manager.application.diagnostics_center import (
     DiagnosticsCenterReport,
 )
 from sb_manager.application.service_logs import ServiceLogReader
+from sb_manager.ui.screens.apply_history import ApplyHistoryScreen
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.service_logs import ServiceLogsScreen
@@ -37,12 +39,14 @@ class DiagnosticsCenterScreen(Screen[None]):
         config_adopter: ConfigAdopter | None,
         core_updater: CoreUpdater | None,
         service_log_reader: ServiceLogReader | None,
+        apply_history_reader: ApplyHistoryReader | None,
     ) -> None:
         super().__init__()
         self.diagnostics_center = diagnostics_center
         self.config_adopter = config_adopter
         self.core_updater = core_updater
         self.service_log_reader = service_log_reader
+        self.apply_history_reader = apply_history_reader
         self.report: DiagnosticsCenterReport | None = None
         self.error: str | None = None
 
@@ -101,6 +105,8 @@ class DiagnosticsCenterScreen(Screen[None]):
             )
             if self.service_log_reader is not None:
                 yield Button("查看近期服务日志", id="open-service-logs")
+            if self.apply_history_reader is not None:
+                yield Button("查看配置应用历史", id="open-apply-history")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -187,6 +193,11 @@ class DiagnosticsCenterScreen(Screen[None]):
     def open_service_logs(self) -> None:
         if self.service_log_reader is not None:
             self.app.push_screen(ServiceLogsScreen(self.service_log_reader))
+
+    @on(Button.Pressed, "#open-apply-history")
+    def open_apply_history(self) -> None:
+        if self.apply_history_reader is not None:
+            self.app.push_screen(ApplyHistoryScreen(self.apply_history_reader))
 
     @staticmethod
     def _summary(report: DiagnosticsCenterReport) -> str:
