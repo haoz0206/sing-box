@@ -25,6 +25,13 @@ class UiText(str, Enum):
     APP_BINDING_DIAGNOSTICS = "app.binding.diagnostics"
     APP_BINDING_OPERATIONS = "app.binding.operations"
     APP_BINDING_QUIT = "app.binding.quit"
+    KEYBOARD_HELP_TITLE = "keyboard_help.title"
+    KEYBOARD_HELP_SAFETY = "keyboard_help.safety"
+    KEYBOARD_HELP_NAVIGATION_TITLE = "keyboard_help.navigation.title"
+    KEYBOARD_HELP_NAVIGATION = "keyboard_help.navigation"
+    KEYBOARD_HELP_DASHBOARD_TITLE = "keyboard_help.dashboard.title"
+    KEYBOARD_HELP_DASHBOARD = "keyboard_help.dashboard"
+    KEYBOARD_HELP_CONTEXT = "keyboard_help.context"
     DASHBOARD_TITLE = "dashboard.title"
     DASHBOARD_EMPTY_TITLE = "dashboard.empty.title"
     DASHBOARD_SAFETY = "dashboard.safety"
@@ -1065,6 +1072,24 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.APP_BINDING_DIAGNOSTICS: "诊断",
         UiText.APP_BINDING_OPERATIONS: "运维",
         UiText.APP_BINDING_QUIT: "退出",
+        UiText.KEYBOARD_HELP_TITLE: "键盘操作帮助",
+        UiText.KEYBOARD_HELP_SAFETY: ("快捷键只负责导航。应用配置、移除和升级仍需预览与明确确认。"),
+        UiText.KEYBOARD_HELP_NAVIGATION_TITLE: "通用导航",
+        UiText.KEYBOARD_HELP_NAVIGATION: (
+            "F1  随时打开本帮助\n"
+            "?  非输入焦点时打开本帮助\n"
+            "Tab / Shift+Tab  移动焦点\n"
+            "Enter  激活当前按钮\n"
+            "Esc  返回或取消当前页面"
+        ),
+        UiText.KEYBOARD_HELP_DASHBOARD_TITLE: "仪表盘快捷键",
+        UiText.KEYBOARD_HELP_DASHBOARD: (
+            "a  添加配置\np  管理配置\nn  查看网络概览\ns  打开设置\n"
+            "d  打开诊断中心\no  打开运维中心\nq  退出"
+        ),
+        UiText.KEYBOARD_HELP_CONTEXT: (
+            "可打印的仪表盘快捷键仅在对应功能可用且没有表单输入焦点时生效。F1 始终可以打开帮助。"
+        ),
         UiText.DASHBOARD_TITLE: "服务总览",
         UiText.DASHBOARD_EMPTY_TITLE: "尚未创建代理配置",
         UiText.DASHBOARD_SAFETY: (

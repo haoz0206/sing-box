@@ -4,7 +4,7 @@ from typing import ClassVar
 
 from textual import on, work
 from textual.app import App, ComposeResult
-from textual.binding import BindingType
+from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical
 from textual.widgets import Button, Footer, Header, Static
 
@@ -76,6 +76,7 @@ from sb_manager.domain.installation import (
     ManagedInstallation,
     ProfileStatus,
 )
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
@@ -162,7 +163,13 @@ class ManagerApp(App[None]):
 
     CSS_PATH = "theme.tcss"
     BINDINGS: ClassVar[list[BindingType]] = [
-        ("?", "show_keyboard_help", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_HELP)),
+        ("f1", "show_keyboard_help", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_HELP)),
+        Binding(
+            "?",
+            "show_keyboard_help",
+            SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_HELP),
+            show=False,
+        ),
         (
             "a",
             "add_profile",
@@ -431,7 +438,12 @@ class ManagerApp(App[None]):
         yield Footer()
 
     def action_show_keyboard_help(self) -> None:
-        self.push_screen(KeyboardHelpScreen())
+        screen = self.screen
+        if isinstance(screen, KeyboardHelpScreen):
+            return
+        if isinstance(screen, ConfirmedOperationScreen) and screen.navigation_locked:
+            return
+        self.push_screen(KeyboardHelpScreen(self.copy_catalog))
 
     def action_add_profile(self) -> None:
         if self._dashboard_action_available():

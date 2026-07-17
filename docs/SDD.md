@@ -109,24 +109,31 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help  a Add  p Profiles  n Network  s Settings  d Diagnostics  o Operations  q Quit │
+│ F1 Help  a Add  p Profiles  n Network  s Settings  d Diagnostics  o Operations  q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
 The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
 
-The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
-`p` for the profiles workspace, `n` for the read-only network workspace, `s`
-for Settings, `d` for the diagnostics center, `o` for the operations workspace,
-and `q` for exit.
+The application exposes non-printable `F1` for help from every ordinary screen;
+`?` remains a compatible help shortcut whenever no input control consumes it.
+An explicitly confirmed operation keeps its non-returning progress screen
+visible until a typed terminal result releases the shared navigation lock.
+The root dashboard exposes `a` for the purpose-first add journey, `p` for the
+profiles workspace, `n` for the read-only network workspace, `s` for Settings,
+`d` for the diagnostics center, `o` for the operations workspace, and `q` for
+exit.
 Core lifecycle is not a direct root shortcut: the operations workspace
 first explains available capabilities and safety, then opens the existing plan
 workflow only after an explicit selection. `check_action()` hides dashboard-only
-bindings whenever a child screen is active, so printable letters remain form
-input and no shortcut bypasses an existing plan or confirmation. `?` opens one
-read-only help screen; `Esc`, `Tab`, `Shift+Tab`, and `Enter` retain their normal
-screen and focus semantics.
+bindings whenever a child screen is active, so printable keys remain form input
+and no shortcut bypasses an existing plan or confirmation. The help action is
+idempotent, so `F1` or `?` cannot stack duplicate help screens. Returning with
+`Esc` restores the previous screen, focused control, and entered value; `Tab`,
+`Shift+Tab`, and `Enter` retain their normal focus and activation semantics. One
+validated interface copy catalog owns the help hierarchy, key guide, context
+explanation, and navigation-safety statement.
 
 Worked example — unavailable operational capabilities:
 
@@ -961,9 +968,12 @@ the release acceptance criteria. It is not translated function by function.
 Current implementation status (2026-07-17):
 
 - keyboard-first contextual navigation: the Footer exposes help and only the
-  dashboard actions currently safe to open; `a`, `p`, `n`, `s`, `d`, `o`, and `q` are gated by
-  screen context and injected capability, while `?` opens a non-mutating help
-  page that explains focus, activation, return, and confirmation safety;
+  dashboard actions currently safe to open; `a`, `p`, `n`, `s`, `d`, `o`, and
+  `q` are gated by screen context and injected capability, while non-printable
+  `F1` opens one non-mutating help page from focused forms and `?` remains a
+  compatible non-input shortcut; catalog-backed help explains focus, activation,
+  return, context, and confirmation safety without recursive screen stacking or
+  hiding an in-flight confirmed-operation progress screen;
 - secret-free profile templates: profile details can plan a uniquely named
   draft from an existing applied, paused, or draft profile; protocol, public
   address, TLS strategy, and transport intent are reviewably reused while
@@ -1225,9 +1235,11 @@ Current implementation status (2026-07-17):
 
 ## 13. Release acceptance criteria
 
-- An operator can discover keyboard navigation from `?`; dashboard shortcuts
-  open only existing safe workflows, disappear outside their valid context, and
-  never bypass preview or confirmation. Operations navigation groups core
+- An operator can discover keyboard navigation from `F1` without sacrificing
+  printable form input; `?` remains available outside input focus. Dashboard
+  shortcuts open only existing safe workflows, disappear outside their valid
+  context, never bypass preview or confirmation, and cannot hide confirmed
+  in-flight progress. Operations navigation groups core
   planning and read-only evidence without reading or mutating the host eagerly,
   and explains capabilities missing from the current startup mode.
 - The dashboard contains profile counts and one recommendation, while the

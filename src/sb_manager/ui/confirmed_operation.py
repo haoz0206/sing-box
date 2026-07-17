@@ -15,6 +15,12 @@ class ConfirmedOperationScreen(Screen[ScreenResult], Generic[ScreenResult]):
 
     _confirmed_operation_running = False
 
+    @property
+    def navigation_locked(self) -> bool:
+        """Whether auxiliary navigation must keep this progress screen visible."""
+
+        return self._confirmed_operation_running
+
     def begin_confirmed_operation(self) -> bool:
         """Acquire the one-shot navigation guard before starting background work."""
         if self._confirmed_operation_running:

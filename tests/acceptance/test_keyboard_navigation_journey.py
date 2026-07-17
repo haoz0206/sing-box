@@ -1,4 +1,7 @@
-from textual.widgets import Static
+from threading import Event
+from typing import cast
+
+from textual.widgets import Input, Static
 
 from sb_manager.application.core_update import (
     CoreUpdatePlan,
@@ -6,7 +9,27 @@ from sb_manager.application.core_update import (
     PlanCoreUpdateRequest,
 )
 from sb_manager.application.diagnostics_center import DiagnosticsCenterReport
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+
+
+class KeyboardHelpMarkerCatalog:
+    """Render markers for Keyboard Help while delegating established copy."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "keyboard_help.title": "目录键盘帮助",
+            "keyboard_help.navigation.title": "目录通用导航",
+            "keyboard_help.navigation": "目录全局帮助入口",
+            "keyboard_help.dashboard.title": "目录仪表盘快捷键",
+            "keyboard_help.dashboard": "目录上下文动作",
+            "keyboard_help.context": "目录输入焦点说明",
+            "keyboard_help.safety": "目录导航不执行变更",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 class RecordingDiagnosticsCenter:
@@ -24,6 +47,30 @@ class NeverCalledCoreUpdater:
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
         raise AssertionError("opening the core form must not activate a release")
+
+
+class BlockingCoreUpdater:
+    def __init__(self) -> None:
+        self.started = Event()
+        self.release = Event()
+
+    def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        return CoreUpdatePlan(
+            version=request.version,
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+            asset_name=f"sing-box-{request.version}-linux-amd64.tar.gz",
+            source="trusted test source",
+            mutates_host=False,
+            warnings=(),
+        )
+
+    def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
+        assert confirmed
+        self.started.set()
+        if not self.release.wait(timeout=5):
+            raise TimeoutError("test did not release the core update")
+        raise RuntimeError("synthetic terminal result")
 
 
 async def test_operator_opens_keyboard_help_and_returns_to_the_dashboard() -> None:
@@ -44,6 +91,98 @@ async def test_operator_opens_keyboard_help_and_returns_to_the_dashboard() -> No
         await pilot.press("escape")
 
         assert app.query_one("#empty-state-title", Static).content == "尚未创建代理配置"
+
+
+async def test_keyboard_help_copy_comes_from_the_interface_catalog() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, KeyboardHelpMarkerCatalog()),
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.press("?")
+
+        assert app.screen.query_one("#keyboard-help-title", Static).content == "目录键盘帮助"
+        assert app.screen.query_one("#keyboard-help-safety", Static).content == (
+            "目录导航不执行变更"
+        )
+        assert app.screen.query_one("#keyboard-help-navigation-title", Static).content == (
+            "目录通用导航"
+        )
+        assert app.screen.query_one("#keyboard-help-navigation", Static).content == (
+            "目录全局帮助入口"
+        )
+        assert app.screen.query_one("#keyboard-help-dashboard-title", Static).content == (
+            "目录仪表盘快捷键"
+        )
+        assert app.screen.query_one("#keyboard-help-dashboard", Static).content == (
+            "目录上下文动作"
+        )
+        assert app.screen.query_one("#keyboard-help-context", Static).content == (
+            "目录输入焦点说明"
+        )
+
+
+async def test_f1_opens_help_from_a_focused_form_and_returns_to_the_same_input() -> None:
+    app = ManagerApp(core_updater=NeverCalledCoreUpdater())
+
+    async with app.run_test() as pilot:
+        await pilot.press("o")
+        await pilot.click("#manage-core")
+        await pilot.click("#core-version")
+        await pilot.press("1", ".", "1", "4", ".", "0")
+
+        await pilot.press("?")
+
+        version = app.screen.query_one("#core-version", Input)
+        assert version.value == "1.14.0?"
+        await pilot.press("backspace")
+
+        await pilot.press("f1")
+
+        assert app.screen.query_one("#keyboard-help-title", Static).content == "键盘操作帮助"
+
+        await pilot.press("escape")
+
+        version = app.screen.query_one("#core-version", Input)
+        assert version.value == "1.14.0"
+        assert version.has_focus
+
+
+async def test_help_shortcuts_do_not_stack_duplicate_help_screens() -> None:
+    app = ManagerApp()
+
+    async with app.run_test() as pilot:
+        await pilot.press("f1")
+        await pilot.press("?")
+        await pilot.press("escape")
+
+        assert app.screen.query_one("#empty-state-title", Static).content == ("尚未创建代理配置")
+
+
+async def test_f1_does_not_hide_confirmed_operation_progress() -> None:
+    updater = BlockingCoreUpdater()
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await pilot.press("o")
+        await pilot.click("#manage-core")
+        await pilot.click("#core-version")
+        await pilot.press("1", ".", "1", "4", ".", "0")
+        await pilot.click("#preview-core-update")
+        await pilot.click("#confirm-core-update")
+        assert updater.started.wait(timeout=1)
+
+        try:
+            await pilot.press("f1")
+
+            assert app.screen.query_one("#core-update-plan-title", Static).content == (
+                "确认核心更新计划"
+            )
+        finally:
+            updater.release.set()
+            await pilot.pause()
 
 
 async def test_dashboard_shortcuts_navigate_only_when_their_context_is_available() -> None:

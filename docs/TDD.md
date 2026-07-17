@@ -416,9 +416,12 @@ Release gate adds:
   recovery copy through both navigation entries, literal non-markup evidence,
   non-disclosing unexpected failure retry, and shared direct/privileged
   production composition;
-- keyboard-first Textual navigation for discoverable `?` help, dashboard-only
-  add/profiles/network/settings/diagnostics/operations/quit actions, child-screen suppression,
-  non-mutating navigation, and preservation of normal form input; the
+- keyboard-first Textual navigation for input-safe global `F1` help, compatible
+  non-input `?` help, dashboard-only add/profiles/network/settings/diagnostics/
+  operations/quit actions, child-screen suppression, non-mutating navigation,
+  preservation of normal form input and focus across help return, idempotent
+  help opening, confirmed-operation navigation locking, and catalog-backed
+  hierarchy/key/context/safety copy; the
   operations workspace must prove capability-aware available/unavailable
   presentation, catalog-backed framing/safety/section/action/explanation copy,
   no locale-authored screen text, no eager dependency call, plus on-demand core,
