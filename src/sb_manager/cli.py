@@ -1,6 +1,7 @@
 """Installed command and production composition root."""
 
 import argparse
+import os
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.adapters.hysteria2_material import SecureHysteria2MaterialSource
 from sb_manager.adapters.json_apply_history import JsonApplyHistoryStore
 from sb_manager.adapters.json_file_state import JsonFileStateStore
+from sb_manager.adapters.json_interface_preferences import JsonInterfacePreferenceStore
 from sb_manager.adapters.json_state_recovery import JsonStateRecoverySource
 from sb_manager.adapters.openrc_logs import OpenRCLogSource
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
@@ -56,6 +58,7 @@ from sb_manager.application.host_readiness import (
     HostAccessMode,
     HostReadinessService,
 )
+from sb_manager.application.interface_preferences import InterfacePreferenceService
 from sb_manager.application.listener_diagnostics import ListenerDiagnosticsService
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import ProfileApplyService
@@ -87,10 +90,22 @@ from sb_manager.tls.catalog import AcmeTlsHandler, OperatorFileTlsHandler, TlsCa
 from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import TransportCatalog
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
 from sb_manager.ui.screens.settings import EffectiveSettings
 
 MANAGED_CORE_BINARY = Path("/opt/sing-box-manager/core/current/sing-box")
+
+
+def default_preferences_file() -> Path:
+    """Resolve the current user's XDG interface-preference document."""
+
+    configured_root = os.environ.get("XDG_CONFIG_HOME")
+    root = (
+        Path(configured_root)
+        if configured_root is not None and Path(configured_root).is_absolute()
+        else Path.home() / ".config"
+    )
+    return root / "sing-box-manager/preferences.json"
 
 
 def create_runtime(
@@ -190,6 +205,12 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         type=Path,
         default=Path.home() / ".local/state/sing-box-manager/state.json",
         help="desired state 文件路径",
+    )
+    parser.add_argument(
+        "--preferences-file",
+        type=Path,
+        default=default_preferences_file(),
+        help="当前用户的界面偏好文件路径",
     )
     parser.add_argument(
         "--config-file",
@@ -347,15 +368,23 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
-        effective_settings=EffectiveSettings(
-            host_access_mode=access_mode,
-            runtime_kind=runtime_kind,
-            state_file=arguments.state_file,
-            config_file=(arguments.config_file if access_mode is HostAccessMode.DIRECT else None),
-            transaction_directory=(
-                arguments.staging_dir
-                if access_mode is HostAccessMode.DIRECT
-                else arguments.privileged_incoming_dir
+        interface_tools=ManagerAppInterfaceTools(
+            preference_service=InterfacePreferenceService(
+                store=JsonInterfacePreferenceStore(arguments.preferences_file)
+            ),
+            effective_settings=EffectiveSettings(
+                host_access_mode=access_mode,
+                runtime_kind=runtime_kind,
+                state_file=arguments.state_file,
+                preferences_file=arguments.preferences_file,
+                config_file=(
+                    arguments.config_file if access_mode is HostAccessMode.DIRECT else None
+                ),
+                transaction_directory=(
+                    arguments.staging_dir
+                    if access_mode is HostAccessMode.DIRECT
+                    else arguments.privileged_incoming_dir
+                ),
             ),
         ),
         host_tools=ManagerAppHostTools(

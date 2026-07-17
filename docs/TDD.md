@@ -381,11 +381,14 @@ Release gate adds:
   navigation, and preservation of existing listener-diagnostics behavior
   through the shared endpoint projection;
 - Settings workspace acceptance for a visible/default-terminal entry,
-  application-wide dark/light switching, session-only scope disclosure,
-  reopening within the same process, effective direct/helper and init-system
-  labels, helper-fixed versus direct config targeting, transaction paths,
-  manual-exact-version update policy, contextual `s` suppression, and
-  production CLI composition;
+  application-wide dark/light switching, reopening within one process and
+  restoration in a new process, per-user/no-host-effect scope disclosure,
+  exact effective preference path, default/loaded/saved/unavailable visible
+  states, non-disclosing malformed-storage fallback, preservation of future
+  schemas, strict schema-v1 JSON, mode-`0600` atomic writes, symbolic-link
+  refusal, effective direct/helper and init-system labels, helper-fixed versus
+  direct config targeting, transaction paths, manual-exact-version update
+  policy, contextual `s` suppression, and production CLI composition;
 - confirmed-operation navigation for pre-confirmation cancellation, disabled
   return while a worker is in flight, duplicate-confirmation suppression,
   terminal-result delivery to the originating screen, and guard release before

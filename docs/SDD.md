@@ -398,26 +398,38 @@ retains its own plan and explicit confirmation.
 Owns language, color/accessibility preferences, update channel, paths, and
 advanced behavior.
 
-The first Settings slice exposes one safe session preference and one read-only
+Settings exposes one safe per-user interface preference and one read-only
 effective-settings snapshot. The dashboard and contextual `s` shortcut open the
-workspace. Dark/light appearance changes use Textual's built-in themes, apply
-to the complete running application, and remain explicit as session-only: they
-do not write a preference file, desired state, live configuration, or host
-setting. A typed screen message carries the selected scheme to the root
-application, which owns global theme state.
+workspace. Dark/light appearance changes use Textual's built-in themes and
+apply immediately to the complete running application. A typed screen message
+carries the selected scheme to the root application, which owns global theme
+state and asks one application module to persist the complete preference
+document. The preference file is separate from desired state, live
+configuration, helper policy, and every host-managed path.
+
+The JSON adapter writes schema v1 in the current user's XDG configuration
+directory (`$XDG_CONFIG_HOME` when absolute, otherwise `~/.config`) or an
+explicit `--preferences-file`. It uses same-directory atomic replacement,
+mode `0600`, and strict whole-document validation. Missing storage means the
+default dark appearance and remains writable. Invalid JSON, unsafe targets,
+unknown fields, and future schemas produce a non-disclosing default-dark
+session; a manual color change still applies immediately but must not overwrite
+the unreadable bytes. Settings shows whether persistence is ready, loaded,
+saved, session-only, or unavailable without rendering the underlying error.
 
 The same page displays the startup choices actually used by production
 composition: direct versus minimum-privilege helper access, systemd versus
-OpenRC, desired-state path, direct live-config path or helper-fixed policy, and
-the active transaction directory. It also states that core versions are chosen
-manually and automatic updates are disabled. These values are evidence, not
-editable copies of command arguments; unsupported mutation controls are absent.
+OpenRC, desired-state path, direct live-config path or helper-fixed policy, the
+active transaction directory, and the interface-preference path. It also states
+that core versions are chosen manually and automatic updates are disabled.
+These values are evidence, not editable copies of command arguments;
+unsupported mutation controls are absent.
 
 Chinese is the only offered UI language in this slice. Additional locale
 choices must not appear until all user-visible strings have moved into a
 complete catalog, so an operator never receives a partially translated safety
-workflow. Persisted appearance or accessibility preferences likewise require a
-separately accepted store interface and adapter contract.
+workflow. Additional accessibility preferences require their own accepted
+behavior before extending the complete preference document.
 
 ## 6. Domain model
 
@@ -614,6 +626,14 @@ unprivileged and relies on operator-managed sudo/doas authorization. Blocking
 configuration validation, helper execution, runtime refresh, and health checks
 run in a Textual thread worker; only progress and screen transitions run on the
 UI thread, and duplicate confirmation is disabled while work is active.
+
+### 7.9 Interface preference adapter
+
+The application preference module owns defaults, valid values, and
+non-disclosing load/save outcomes behind one small interface. The production
+JSON adapter and acceptance-test memory adapter make the storage seam real.
+Textual knows only the typed snapshot and never parses JSON or filesystem
+exceptions. Preference failure cannot disable host inspection or management.
 
 ## 8. Python project layout
 
@@ -843,11 +863,14 @@ Current implementation status (2026-07-17):
   TCP/UDP plus fixed/automatic ports and public addresses, performs no probe or
   firewall mutation, and shares one protocol-to-endpoint projection with
   listener diagnostics;
-- session Settings: the dashboard and `s` open a dedicated workspace where
-  dark/light appearance changes apply application-wide for the current process
-  only; effective direct/helper, init-system, update-policy, and path choices
-  are disclosed from production composition without becoming editable host or
-  desired-state controls;
+- persisted interface Settings: the dashboard and `s` open a dedicated
+  workspace where dark/light appearance changes apply application-wide and are
+  restored from one strict per-user schema-v1 JSON document; missing storage
+  uses a writable default, while malformed, symbolic-link, and future-schema
+  targets remain untouched and degrade to a non-disclosing session result;
+  effective direct/helper, init-system, update-policy, preference, and host
+  paths are disclosed from production composition without becoming editable
+  host or desired-state controls;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate
@@ -996,11 +1019,12 @@ Current implementation status (2026-07-17):
   meaning, and cannot probe or mutate DNS, sockets, reachability, or firewalls
   merely by opening it. Listener diagnostics consume the same endpoint
   projection rather than maintaining a second protocol map.
-- Settings makes session-only appearance scope explicit, applies the selected
-  built-in theme across the running application, and discloses effective
-  startup mode and paths without editing CLI, helper, desired-state, or host
-  policy. No additional language is offered until a complete string catalog
-  can preserve every safety workflow.
+- Settings applies the selected built-in theme across the running application,
+  restores it from one strict per-user preference document, and reports
+  session-only or unavailable persistence honestly. It discloses effective
+  startup mode and paths without editing helper, desired-state, or host policy.
+  No additional language is offered until a complete string catalog can
+  preserve every safety workflow.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.

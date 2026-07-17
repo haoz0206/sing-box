@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.application.apply_history import ApplyHistoryCondition
@@ -32,7 +34,7 @@ from sb_manager.application.profile_recommendation import (
 from sb_manager.application.profile_removal import ProfileRemovalScope
 from sb_manager.application.service_logs import ServiceLogCondition
 from sb_manager.application.state_recovery import RecoveryAvailability
-from sb_manager.cli import create_app
+from sb_manager.cli import create_app, default_preferences_file
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -194,6 +196,19 @@ def test_cli_composes_the_tui_with_a_persistent_state_store(tmp_path: Path) -> N
     app.manager.save_profile_draft(plan)
 
     assert JsonFileStateStore(state_path).load().profiles[0].profile_name == "手机"
+
+
+def test_cli_uses_only_an_absolute_xdg_interface_preference_root(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    assert default_preferences_file() == (tmp_path / "xdg/sing-box-manager/preferences.json")
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", "relative-config")
+
+    assert default_preferences_file() == (Path.home() / ".config/sing-box-manager/preferences.json")
 
 
 def test_cli_composes_desired_state_recovery_with_the_shared_mutation_boundary(

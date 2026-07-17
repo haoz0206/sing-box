@@ -33,6 +33,13 @@ from sb_manager.application.host_diagnostics import (
     HostDiagnosticsReport,
 )
 from sb_manager.application.host_readiness import HostReadiness, HostReadinessReport
+from sb_manager.application.interface_preferences import (
+    ColorScheme,
+    InterfacePreferences,
+    InterfacePreferenceService,
+    InterfacePreferenceSnapshot,
+    PreferencePersistence,
+)
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
@@ -128,7 +135,6 @@ from sb_manager.ui.screens.profiles import (
     ProfileWorkspaceActionRequested,
 )
 from sb_manager.ui.screens.settings import (
-    ColorScheme,
     ColorSchemeChangeRequested,
     EffectiveSettings,
     SettingsScreen,
@@ -1016,6 +1022,14 @@ class ManagerAppHostTools:
     apply_history_reader: ApplyHistoryReader | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class ManagerAppInterfaceTools:
+    """Effective interface settings and per-user preference capability."""
+
+    effective_settings: EffectiveSettings = field(default_factory=EffectiveSettings)
+    preference_service: InterfacePreferenceService | None = None
+
+
 class ManagerApp(App[None]):
     """Guided terminal manager for sing-box."""
 
@@ -1040,10 +1054,11 @@ class ManagerApp(App[None]):
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
         host_tools: ManagerAppHostTools | None = None,
-        effective_settings: EffectiveSettings | None = None,
+        interface_tools: ManagerAppInterfaceTools | None = None,
     ) -> None:
         super().__init__()
         tools = host_tools or ManagerAppHostTools()
+        interface = interface_tools or ManagerAppInterfaceTools()
         self.manager = manager or Manager(state_store=MemoryStateStore())
         self.profile_applier = profile_applier
         self.core_updater = core_updater
@@ -1064,7 +1079,18 @@ class ManagerApp(App[None]):
         self.state_recovery_manager = tools.state_recovery_manager
         self.service_log_reader = tools.service_log_reader
         self.apply_history_reader = tools.apply_history_reader
-        self.effective_settings = effective_settings or EffectiveSettings()
+        self.effective_settings = interface.effective_settings
+        self.preference_service = interface.preference_service
+        preference_snapshot = (
+            interface.preference_service.load()
+            if interface.preference_service is not None
+            else InterfacePreferenceSnapshot(
+                preferences=InterfacePreferences(),
+                persistence=PreferencePersistence.SESSION_ONLY,
+            )
+        )
+        self._preference_persistence = preference_snapshot.persistence
+        self.theme = self._textual_theme(preference_snapshot.preferences.color_scheme)
         self._current_dashboard_recommendation: DashboardRecommendation | None = None
         self._dashboard_ready = False
         self._host_diagnostics_failed = False
@@ -1540,11 +1566,26 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, "#open-settings")
     def open_settings_workspace(self) -> None:
         color_scheme = ColorScheme.DARK if self.current_theme.dark else ColorScheme.LIGHT
-        self.push_screen(SettingsScreen(color_scheme, self.effective_settings))
+        self.push_screen(
+            SettingsScreen(
+                color_scheme,
+                self.effective_settings,
+                self._preference_persistence,
+            )
+        )
 
     @on(ColorSchemeChangeRequested)
     def change_color_scheme(self, event: ColorSchemeChangeRequested) -> None:
-        self.theme = event.color_scheme.textual_theme
+        self.theme = self._textual_theme(event.color_scheme)
+        if self.preference_service is not None:
+            snapshot = self.preference_service.save_color_scheme(event.color_scheme)
+            self._preference_persistence = snapshot.persistence
+            if isinstance(self.screen, SettingsScreen):
+                self.screen.show_preference_persistence(snapshot.persistence)
+
+    @staticmethod
+    def _textual_theme(color_scheme: ColorScheme) -> str:
+        return "textual-light" if color_scheme is ColorScheme.LIGHT else "textual-dark"
 
     @on(ProfileWorkspaceActionRequested)
     def handle_profile_workspace_action(
