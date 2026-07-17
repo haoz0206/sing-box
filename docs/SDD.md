@@ -337,6 +337,24 @@ the exact form, including WebSocket/gRPC distinctions, but persisted profiles
 continue to store protocol, TLS intent, and transport intent as the source of
 truth.
 
+The selected variant enters one deep profile-creation module. Its small external
+interface consists of the variant-to-form catalog, the guided-form screen, and
+the saved-draft apply-confirmation screen; form composition, application
+validation rendering, plan preview, draft persistence boundaries, confirmed
+apply, and terminal result policy remain local implementation details.
+
+Application validation returns stable `ValidationIssueCode` identities plus
+optional structured context instead of locale-authored messages. The injected
+interface copy catalog renders every visible form, plan, persistence, progress,
+typed result, and unknown-result message. Profile names, paths, transaction
+diagnostics, and recovery instructions render literally with markup disabled.
+Draft revision conflict terminates the stale plan; an unclassified draft-write
+failure is an unknown desired-state result. After apply confirmation, duplicate
+submission and return are disabled until one typed or unknown terminal result is
+available. Success, rejection, rollback, operational failure, and unknown result
+all provide one explicit dashboard action; `Esc` performs the same refresh and
+never returns to a consumed plan or confirmation screen.
+
 ### 5.5 Network
 
 Owns DNS policy, listening addresses, public address discovery, port inventory,

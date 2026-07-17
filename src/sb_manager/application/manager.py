@@ -40,6 +40,23 @@ class GeneratedValue(str, Enum):
     TLS_CERTIFICATE = "tls-certificate"
 
 
+class ValidationIssueCode(str, Enum):
+    """Stable identity for one presentation-independent planning issue."""
+
+    PROFILE_NAME_REQUIRED = "profile-name-required"
+    LISTEN_PORT_OUT_OF_RANGE = "listen-port-out-of-range"
+    TLS_NOT_SUPPORTED = "tls-not-supported"
+    TLS_REQUIRED = "tls-required"
+    TLS_SERVER_NAME_REQUIRED = "tls-server-name-required"
+    TLS_EMAIL_REQUIRED = "tls-email-required"
+    TLS_CERTIFICATE_PATH_UNTRUSTED = "tls-certificate-path-untrusted"
+    TLS_KEY_PATH_UNTRUSTED = "tls-key-path-untrusted"
+    TRANSPORT_NOT_SUPPORTED = "transport-not-supported"
+    TRANSPORT_REQUIRED = "transport-required"
+    WEBSOCKET_PATH_INVALID = "websocket-path-invalid"
+    GRPC_SERVICE_NAME_REQUIRED = "grpc-service-name-required"
+
+
 GENERATED_VALUES_BY_PROTOCOL: dict[ProtocolKind, tuple[GeneratedValue, ...]] = {
     ProtocolKind.VLESS_REALITY: (
         GeneratedValue.UUID,
@@ -93,7 +110,8 @@ class ValidationIssue:
     """One user-correctable issue tied to a public request field."""
 
     field: str
-    message: str
+    code: ValidationIssueCode
+    context: str | None = None
 
 
 class PlanValidationError(ValueError):
@@ -197,12 +215,17 @@ class Manager:
     def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
         issues: list[ValidationIssue] = []
         if not request.profile_name.strip():
-            issues.append(ValidationIssue(field="profile_name", message="请输入配置名称"))
+            issues.append(
+                ValidationIssue(
+                    field="profile_name",
+                    code=ValidationIssueCode.PROFILE_NAME_REQUIRED,
+                )
+            )
         if request.listen_port is not None and not 1 <= request.listen_port <= MAX_LISTEN_PORT:
             issues.append(
                 ValidationIssue(
                     field="listen_port",
-                    message="端口必须在 1 到 65535 之间",
+                    code=ValidationIssueCode.LISTEN_PORT_OUT_OF_RANGE,
                 )
             )
         issues.extend(self._validate_tls_request(request))
@@ -277,30 +300,47 @@ class Manager:
     def _validate_tls_request(self, request: PlanProfileRequest) -> list[ValidationIssue]:
         if request.protocol not in TLS_REQUIRED_PROTOCOLS:
             return (
-                [ValidationIssue(field="tls", message="该协议不使用 TLS 证书选项")]
+                [
+                    ValidationIssue(
+                        field="tls",
+                        code=ValidationIssueCode.TLS_NOT_SUPPORTED,
+                    )
+                ]
                 if request.tls is not None
                 else []
             )
         if request.tls is None:
-            return [ValidationIssue(field="tls", message="请选择 TLS 证书方式")]
+            return [ValidationIssue(field="tls", code=ValidationIssueCode.TLS_REQUIRED)]
         issues: list[ValidationIssue] = []
         if not request.tls.server_name.strip():
-            issues.append(ValidationIssue(field="tls_server_name", message="请输入证书域名"))
+            issues.append(
+                ValidationIssue(
+                    field="tls_server_name",
+                    code=ValidationIssueCode.TLS_SERVER_NAME_REQUIRED,
+                )
+            )
         if isinstance(request.tls, AcmeTlsRequest) and not request.tls.email.strip():
-            issues.append(ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱"))
+            issues.append(
+                ValidationIssue(
+                    field="tls_email",
+                    code=ValidationIssueCode.TLS_EMAIL_REQUIRED,
+                )
+            )
         if isinstance(request.tls, OperatorFileTlsRequest):
             if not self._is_trusted_tls_path(request.tls.certificate_path):
                 issues.append(
                     ValidationIssue(
                         field="tls_certificate_path",
-                        message=f"证书文件必须位于 {self._trusted_tls_directory}",
+                        code=ValidationIssueCode.TLS_CERTIFICATE_PATH_UNTRUSTED,
+                        context=str(self._trusted_tls_directory),
                     )
                 )
             if not self._is_trusted_tls_path(request.tls.key_path):
                 issues.append(
                     ValidationIssue(
                         field="tls_key_path",
-                        message=f"私钥文件必须位于 {self._trusted_tls_directory}",
+                        code=ValidationIssueCode.TLS_KEY_PATH_UNTRUSTED,
+                        context=str(self._trusted_tls_directory),
                     )
                 )
         return issues
@@ -309,20 +349,40 @@ class Manager:
     def _validate_transport_request(request: PlanProfileRequest) -> list[ValidationIssue]:
         if request.protocol not in TRANSPORTED_PROTOCOLS:
             return (
-                [ValidationIssue(field="transport", message="该协议不使用传输选项")]
+                [
+                    ValidationIssue(
+                        field="transport",
+                        code=ValidationIssueCode.TRANSPORT_NOT_SUPPORTED,
+                    )
+                ]
                 if request.transport is not None
                 else []
             )
         if request.transport is None:
-            return [ValidationIssue(field="transport", message="请选择传输方式")]
+            return [
+                ValidationIssue(
+                    field="transport",
+                    code=ValidationIssueCode.TRANSPORT_REQUIRED,
+                )
+            ]
         if isinstance(request.transport, WebSocketTransportRequest) and not (
             request.transport.path.startswith("/")
         ):
-            return [ValidationIssue(field="websocket_path", message="WebSocket 路径必须以 / 开头")]
+            return [
+                ValidationIssue(
+                    field="websocket_path",
+                    code=ValidationIssueCode.WEBSOCKET_PATH_INVALID,
+                )
+            ]
         if isinstance(request.transport, GrpcTransportRequest) and not (
             request.transport.service_name.strip()
         ):
-            return [ValidationIssue(field="grpc_service_name", message="请输入 gRPC 服务名")]
+            return [
+                ValidationIssue(
+                    field="grpc_service_name",
+                    code=ValidationIssueCode.GRPC_SERVICE_NAME_REQUIRED,
+                )
+            ]
         return []
 
     def save_profile_draft(self, plan: ProfilePlan) -> None:

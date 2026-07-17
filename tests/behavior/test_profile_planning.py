@@ -11,6 +11,7 @@ from sb_manager.application.manager import (
     PlanValidationError,
     ProfilePlan,
     ValidationIssue,
+    ValidationIssueCode,
 )
 from sb_manager.domain.installation import PortSelection, ProtocolKind
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
@@ -54,7 +55,12 @@ def test_operator_is_told_when_a_profile_name_is_missing() -> None:
             )
         )
 
-    assert caught.value.issues == (ValidationIssue(field="profile_name", message="请输入配置名称"),)
+    assert caught.value.issues == (
+        ValidationIssue(
+            field="profile_name",
+            code=ValidationIssueCode.PROFILE_NAME_REQUIRED,
+        ),
+    )
 
 
 def test_operator_can_defer_port_selection_to_apply_time() -> None:
@@ -96,7 +102,10 @@ def test_operator_is_told_when_a_fixed_port_is_out_of_range() -> None:
         )
 
     assert caught.value.issues == (
-        ValidationIssue(field="listen_port", message="端口必须在 1 到 65535 之间"),
+        ValidationIssue(
+            field="listen_port",
+            code=ValidationIssueCode.LISTEN_PORT_OUT_OF_RANGE,
+        ),
     )
 
 
@@ -152,8 +161,14 @@ def test_operator_is_told_which_hysteria2_acme_fields_are_missing() -> None:
         )
 
     assert caught.value.issues == (
-        ValidationIssue(field="tls_server_name", message="请输入证书域名"),
-        ValidationIssue(field="tls_email", message="请输入 ACME 联系邮箱"),
+        ValidationIssue(
+            field="tls_server_name",
+            code=ValidationIssueCode.TLS_SERVER_NAME_REQUIRED,
+        ),
+        ValidationIssue(
+            field="tls_email",
+            code=ValidationIssueCode.TLS_EMAIL_REQUIRED,
+        ),
     )
 
 
@@ -205,10 +220,12 @@ def test_operator_tls_files_cannot_escape_the_trusted_directory(tmp_path: Path) 
     assert caught.value.issues == (
         ValidationIssue(
             field="tls_certificate_path",
-            message=f"证书文件必须位于 {tls_directory}",
+            code=ValidationIssueCode.TLS_CERTIFICATE_PATH_UNTRUSTED,
+            context=str(tls_directory),
         ),
         ValidationIssue(
             field="tls_key_path",
-            message=f"私钥文件必须位于 {tls_directory}",
+            code=ValidationIssueCode.TLS_KEY_PATH_UNTRUSTED,
+            context=str(tls_directory),
         ),
     )

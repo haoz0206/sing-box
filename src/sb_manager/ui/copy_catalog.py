@@ -546,6 +546,213 @@ class UiText(str, Enum):
     STATE_RECOVERY_PLANNING_ERROR_TITLE = "state_recovery.planning_error.title"
     STATE_RECOVERY_PLANNING_ERROR_DETAILS = "state_recovery.planning_error.details"
     STATE_RECOVERY_PLANNING_ERROR_SAFETY = "state_recovery.planning_error.safety"
+    PROFILE_CREATION_VALIDATION_PROFILE_NAME_REQUIRED = (
+        "profile_creation.validation.profile_name_required"
+    )
+    PROFILE_CREATION_VALIDATION_LISTEN_PORT_OUT_OF_RANGE = (
+        "profile_creation.validation.listen_port_out_of_range"
+    )
+    PROFILE_CREATION_VALIDATION_TLS_NOT_SUPPORTED = "profile_creation.validation.tls_not_supported"
+    PROFILE_CREATION_VALIDATION_TLS_REQUIRED = "profile_creation.validation.tls_required"
+    PROFILE_CREATION_VALIDATION_TLS_SERVER_NAME_REQUIRED = (
+        "profile_creation.validation.tls_server_name_required"
+    )
+    PROFILE_CREATION_VALIDATION_TLS_EMAIL_REQUIRED = (
+        "profile_creation.validation.tls_email_required"
+    )
+    PROFILE_CREATION_VALIDATION_TLS_CERTIFICATE_PATH_UNTRUSTED = (
+        "profile_creation.validation.tls_certificate_path_untrusted"
+    )
+    PROFILE_CREATION_VALIDATION_TLS_KEY_PATH_UNTRUSTED = (
+        "profile_creation.validation.tls_key_path_untrusted"
+    )
+    PROFILE_CREATION_VALIDATION_TRANSPORT_NOT_SUPPORTED = (
+        "profile_creation.validation.transport_not_supported"
+    )
+    PROFILE_CREATION_VALIDATION_TRANSPORT_REQUIRED = (
+        "profile_creation.validation.transport_required"
+    )
+    PROFILE_CREATION_VALIDATION_WEBSOCKET_PATH_INVALID = (
+        "profile_creation.validation.websocket_path_invalid"
+    )
+    PROFILE_CREATION_VALIDATION_GRPC_SERVICE_NAME_REQUIRED = (
+        "profile_creation.validation.grpc_service_name_required"
+    )
+    PROFILE_CREATION_FORM_TITLE_VLESS_REALITY = "profile_creation.form.title.vless_reality"
+    PROFILE_CREATION_FORM_GUIDANCE_VLESS_REALITY = "profile_creation.form.guidance.vless_reality"
+    PROFILE_CREATION_FORM_TITLE_SHADOWSOCKS = "profile_creation.form.title.shadowsocks"
+    PROFILE_CREATION_FORM_GUIDANCE_SHADOWSOCKS = "profile_creation.form.guidance.shadowsocks"
+    PROFILE_CREATION_FORM_TITLE_HYSTERIA2 = "profile_creation.form.title.hysteria2"
+    PROFILE_CREATION_FORM_GUIDANCE_HYSTERIA2 = "profile_creation.form.guidance.hysteria2"
+    PROFILE_CREATION_FORM_TITLE_TROJAN = "profile_creation.form.title.trojan"
+    PROFILE_CREATION_FORM_GUIDANCE_TROJAN = "profile_creation.form.guidance.trojan"
+    PROFILE_CREATION_FORM_TITLE_ANYTLS = "profile_creation.form.title.anytls"
+    PROFILE_CREATION_FORM_GUIDANCE_ANYTLS = "profile_creation.form.guidance.anytls"
+    PROFILE_CREATION_FORM_TITLE_TUIC = "profile_creation.form.title.tuic"
+    PROFILE_CREATION_FORM_GUIDANCE_TUIC = "profile_creation.form.guidance.tuic"
+    PROFILE_CREATION_FORM_TITLE_VLESS_WEBSOCKET = "profile_creation.form.title.vless_websocket"
+    PROFILE_CREATION_FORM_GUIDANCE_VLESS_WEBSOCKET = (
+        "profile_creation.form.guidance.vless_websocket"
+    )
+    PROFILE_CREATION_FORM_TITLE_VLESS_GRPC = "profile_creation.form.title.vless_grpc"
+    PROFILE_CREATION_FORM_GUIDANCE_VLESS_GRPC = "profile_creation.form.guidance.vless_grpc"
+    PROFILE_CREATION_FORM_TITLE_VMESS_WEBSOCKET = "profile_creation.form.title.vmess_websocket"
+    PROFILE_CREATION_FORM_GUIDANCE_VMESS_WEBSOCKET = (
+        "profile_creation.form.guidance.vmess_websocket"
+    )
+    PROFILE_CREATION_FORM_TITLE_VMESS_GRPC = "profile_creation.form.title.vmess_grpc"
+    PROFILE_CREATION_FORM_GUIDANCE_VMESS_GRPC = "profile_creation.form.guidance.vmess_grpc"
+    PROFILE_CREATION_FORM_PROFILE_NAME_LABEL = "profile_creation.form.profile_name_label"
+    PROFILE_CREATION_FORM_PROFILE_NAME_PLACEHOLDER = (
+        "profile_creation.form.profile_name_placeholder"
+    )
+    PROFILE_CREATION_FORM_SERVER_ADDRESS_LABEL = "profile_creation.form.server_address_label"
+    PROFILE_CREATION_FORM_SERVER_ADDRESS_PLACEHOLDER = (
+        "profile_creation.form.server_address_placeholder"
+    )
+    PROFILE_CREATION_FORM_TLS_SERVER_NAME_LABEL = "profile_creation.form.tls_server_name_label"
+    PROFILE_CREATION_FORM_TLS_SERVER_NAME_PLACEHOLDER = (
+        "profile_creation.form.tls_server_name_placeholder"
+    )
+    PROFILE_CREATION_FORM_TLS_STRATEGY_LABEL = "profile_creation.form.tls_strategy_label"
+    PROFILE_CREATION_FORM_TLS_STRATEGY_ACME = "profile_creation.form.tls_strategy.acme"
+    PROFILE_CREATION_FORM_TLS_STRATEGY_FILES = "profile_creation.form.tls_strategy.files"
+    PROFILE_CREATION_FORM_TLS_EMAIL_LABEL = "profile_creation.form.tls_email_label"
+    PROFILE_CREATION_FORM_TLS_EMAIL_PLACEHOLDER = "profile_creation.form.tls_email_placeholder"
+    PROFILE_CREATION_FORM_TLS_CERTIFICATE_PATH_LABEL = (
+        "profile_creation.form.tls_certificate_path_label"
+    )
+    PROFILE_CREATION_FORM_TLS_CERTIFICATE_PATH_PLACEHOLDER = (
+        "profile_creation.form.tls_certificate_path_placeholder"
+    )
+    PROFILE_CREATION_FORM_TLS_KEY_PATH_LABEL = "profile_creation.form.tls_key_path_label"
+    PROFILE_CREATION_FORM_TLS_KEY_PATH_PLACEHOLDER = (
+        "profile_creation.form.tls_key_path_placeholder"
+    )
+    PROFILE_CREATION_FORM_WEBSOCKET_PATH_LABEL = "profile_creation.form.websocket_path_label"
+    PROFILE_CREATION_FORM_WEBSOCKET_PATH_PLACEHOLDER = (
+        "profile_creation.form.websocket_path_placeholder"
+    )
+    PROFILE_CREATION_FORM_WEBSOCKET_HOST_LABEL = "profile_creation.form.websocket_host_label"
+    PROFILE_CREATION_FORM_WEBSOCKET_HOST_PLACEHOLDER = (
+        "profile_creation.form.websocket_host_placeholder"
+    )
+    PROFILE_CREATION_FORM_GRPC_SERVICE_NAME_LABEL = "profile_creation.form.grpc_service_name_label"
+    PROFILE_CREATION_FORM_GRPC_SERVICE_NAME_PLACEHOLDER = (
+        "profile_creation.form.grpc_service_name_placeholder"
+    )
+    PROFILE_CREATION_FORM_LISTEN_PORT_LABEL = "profile_creation.form.listen_port_label"
+    PROFILE_CREATION_FORM_LISTEN_PORT_PLACEHOLDER = "profile_creation.form.listen_port_placeholder"
+    PROFILE_CREATION_FORM_PREVIEW = "profile_creation.form.preview"
+    PROFILE_CREATION_PLANNING_ERROR_TITLE = "profile_creation.planning_error.title"
+    PROFILE_CREATION_PLANNING_ERROR_DETAILS = "profile_creation.planning_error.details"
+    PROFILE_CREATION_PLANNING_ERROR_SAFETY = "profile_creation.planning_error.safety"
+    PROFILE_CREATION_PLAN_TITLE = "profile_creation.plan.title"
+    PROFILE_CREATION_PLAN_PROFILE = "profile_creation.plan.profile"
+    PROFILE_CREATION_PLAN_PROTOCOL = "profile_creation.plan.protocol"
+    PROFILE_CREATION_PLAN_PORT = "profile_creation.plan.port"
+    PROFILE_CREATION_PLAN_PORT_AUTOMATIC = "profile_creation.plan.port.automatic"
+    PROFILE_CREATION_PLAN_SERVER_ADDRESS = "profile_creation.plan.server_address"
+    PROFILE_CREATION_PLAN_TLS_ACME = "profile_creation.plan.tls.acme"
+    PROFILE_CREATION_PLAN_TLS_FILES = "profile_creation.plan.tls.files"
+    PROFILE_CREATION_PLAN_TLS_KEY = "profile_creation.plan.tls.key"
+    PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET = "profile_creation.plan.transport.websocket"
+    PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET_HOST = (
+        "profile_creation.plan.transport.websocket_host"
+    )
+    PROFILE_CREATION_PLAN_TRANSPORT_GRPC = "profile_creation.plan.transport.grpc"
+    PROFILE_CREATION_PLAN_GENERATED = "profile_creation.plan.generated"
+    PROFILE_CREATION_PLAN_GENERATED_SEPARATOR = "profile_creation.plan.generated_separator"
+    PROFILE_CREATION_PLAN_GENERATED_UUID = "profile_creation.plan.generated.uuid"
+    PROFILE_CREATION_PLAN_GENERATED_REALITY_KEY_PAIR = (
+        "profile_creation.plan.generated.reality_key_pair"
+    )
+    PROFILE_CREATION_PLAN_GENERATED_SERVER_NAME = "profile_creation.plan.generated.server_name"
+    PROFILE_CREATION_PLAN_GENERATED_SHADOWSOCKS_KEY = (
+        "profile_creation.plan.generated.shadowsocks_key"
+    )
+    PROFILE_CREATION_PLAN_GENERATED_HYSTERIA2_PASSWORD = (
+        "profile_creation.plan.generated.hysteria2_password"
+    )
+    PROFILE_CREATION_PLAN_GENERATED_TROJAN_PASSWORD = (
+        "profile_creation.plan.generated.trojan_password"
+    )
+    PROFILE_CREATION_PLAN_GENERATED_ANYTLS_PASSWORD = (
+        "profile_creation.plan.generated.anytls_password"
+    )
+    PROFILE_CREATION_PLAN_GENERATED_TUIC_UUID = "profile_creation.plan.generated.tuic_uuid"
+    PROFILE_CREATION_PLAN_GENERATED_TUIC_PASSWORD = "profile_creation.plan.generated.tuic_password"
+    PROFILE_CREATION_PLAN_GENERATED_VLESS_UUID = "profile_creation.plan.generated.vless_uuid"
+    PROFILE_CREATION_PLAN_GENERATED_VMESS_UUID = "profile_creation.plan.generated.vmess_uuid"
+    PROFILE_CREATION_PLAN_GENERATED_TLS_CERTIFICATE = (
+        "profile_creation.plan.generated.tls_certificate"
+    )
+    PROFILE_CREATION_PLAN_SAFETY = "profile_creation.plan.safety"
+    PROFILE_CREATION_PLAN_SAVE_DRAFT = "profile_creation.plan.save_draft"
+    PROFILE_CREATION_DRAFT_TITLE = "profile_creation.draft.title"
+    PROFILE_CREATION_DRAFT_STATUS = "profile_creation.draft.status"
+    PROFILE_CREATION_DRAFT_SAFETY = "profile_creation.draft.safety"
+    PROFILE_CREATION_DRAFT_APPLY = "profile_creation.draft.apply"
+    PROFILE_CREATION_DRAFT_RETURN_DASHBOARD = "profile_creation.draft.return_dashboard"
+    PROFILE_CREATION_DRAFT_REJECTION_TITLE = "profile_creation.draft.rejection.title"
+    PROFILE_CREATION_DRAFT_REJECTION_SAFETY = "profile_creation.draft.rejection.safety"
+    PROFILE_CREATION_DRAFT_UNKNOWN_TITLE = "profile_creation.draft.unknown.title"
+    PROFILE_CREATION_DRAFT_UNKNOWN_DETAILS = "profile_creation.draft.unknown.details"
+    PROFILE_CREATION_DRAFT_UNKNOWN_SAFETY = "profile_creation.draft.unknown.safety"
+    PROFILE_CREATION_APPLY_CONFIRM_TITLE = "profile_creation.apply.confirm.title"
+    PROFILE_CREATION_APPLY_CONFIRM_PROFILE = "profile_creation.apply.confirm.profile"
+    PROFILE_CREATION_APPLY_CONFIRM_WARNING = "profile_creation.apply.confirm.warning"
+    PROFILE_CREATION_APPLY_CONFIRM_ACTION = "profile_creation.apply.confirm.action"
+    PROFILE_CREATION_APPLY_CONFIRM_PROGRESS = "profile_creation.apply.confirm.progress"
+    PROFILE_CREATION_APPLY_RESULT_SUCCESS_TITLE = "profile_creation.apply.result.success.title"
+    PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION = (
+        "profile_creation.apply.result.success.revision"
+    )
+    PROFILE_CREATION_APPLY_RESULT_SUCCESS_HEALTH = "profile_creation.apply.result.success.health"
+    PROFILE_CREATION_APPLY_RESULT_VALIDATION_TITLE = (
+        "profile_creation.apply.result.validation.title"
+    )
+    PROFILE_CREATION_APPLY_RESULT_VALIDATION_SAFETY = (
+        "profile_creation.apply.result.validation.safety"
+    )
+    PROFILE_CREATION_APPLY_RESULT_PRECONDITION_TITLE = (
+        "profile_creation.apply.result.precondition.title"
+    )
+    PROFILE_CREATION_APPLY_RESULT_PRECONDITION_SAFETY = (
+        "profile_creation.apply.result.precondition.safety"
+    )
+    PROFILE_CREATION_APPLY_RESULT_PRECONDITION_DETAILS_FALLBACK = (
+        "profile_creation.apply.result.precondition.details_fallback"
+    )
+    PROFILE_CREATION_APPLY_RESULT_COMMIT_TITLE = "profile_creation.apply.result.commit.title"
+    PROFILE_CREATION_APPLY_RESULT_COMMIT_SAFETY = "profile_creation.apply.result.commit.safety"
+    PROFILE_CREATION_APPLY_RESULT_COMMIT_DETAILS_FALLBACK = (
+        "profile_creation.apply.result.commit.details_fallback"
+    )
+    PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_TITLE = (
+        "profile_creation.apply.result.rolled_back.title"
+    )
+    PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_SAFETY = (
+        "profile_creation.apply.result.rolled_back.safety"
+    )
+    PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_DETAILS_FALLBACK = (
+        "profile_creation.apply.result.rolled_back.details_fallback"
+    )
+    PROFILE_CREATION_APPLY_RESULT_ROLLBACK_FAILED_TITLE = (
+        "profile_creation.apply.result.rollback_failed.title"
+    )
+    PROFILE_CREATION_APPLY_RESULT_ROLLBACK_FAILED_DETAILS_FALLBACK = (
+        "profile_creation.apply.result.rollback_failed.details_fallback"
+    )
+    PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP = "profile_creation.apply.result.recovery_step"
+    PROFILE_CREATION_APPLY_RESULT_RETURN_DASHBOARD = (
+        "profile_creation.apply.result.return_dashboard"
+    )
+    PROFILE_CREATION_APPLY_OPERATIONAL_TITLE = "profile_creation.apply.operational.title"
+    PROFILE_CREATION_APPLY_OPERATIONAL_SAFETY = "profile_creation.apply.operational.safety"
+    PROFILE_CREATION_APPLY_UNKNOWN_TITLE = "profile_creation.apply.unknown.title"
+    PROFILE_CREATION_APPLY_UNKNOWN_DETAILS = "profile_creation.apply.unknown.details"
+    PROFILE_CREATION_APPLY_UNKNOWN_SAFETY = "profile_creation.apply.unknown.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -662,6 +869,23 @@ _EXPECTED_FIELDS.update(
         UiText.STATE_RECOVERY_RESULT_PROFILES: frozenset({"profiles"}),
         UiText.STATE_RECOVERY_RESULT_ARCHIVE: frozenset({"path"}),
         UiText.STATE_RECOVERY_UNSUPPORTED_GUIDANCE: frozenset({"schema"}),
+        UiText.PROFILE_CREATION_VALIDATION_TLS_CERTIFICATE_PATH_UNTRUSTED: frozenset({"path"}),
+        UiText.PROFILE_CREATION_VALIDATION_TLS_KEY_PATH_UNTRUSTED: frozenset({"path"}),
+        UiText.PROFILE_CREATION_PLAN_PROFILE: frozenset({"name"}),
+        UiText.PROFILE_CREATION_PLAN_PROTOCOL: frozenset({"protocol"}),
+        UiText.PROFILE_CREATION_PLAN_PORT: frozenset({"port"}),
+        UiText.PROFILE_CREATION_PLAN_SERVER_ADDRESS: frozenset({"address"}),
+        UiText.PROFILE_CREATION_PLAN_TLS_ACME: frozenset({"server_name", "email"}),
+        UiText.PROFILE_CREATION_PLAN_TLS_FILES: frozenset({"server_name", "certificate_path"}),
+        UiText.PROFILE_CREATION_PLAN_TLS_KEY: frozenset({"path"}),
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET: frozenset({"path"}),
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET_HOST: frozenset({"path", "host"}),
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_GRPC: frozenset({"service_name"}),
+        UiText.PROFILE_CREATION_PLAN_GENERATED: frozenset({"values"}),
+        UiText.PROFILE_CREATION_DRAFT_STATUS: frozenset({"revision"}),
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_PROFILE: frozenset({"name"}),
+        UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION: frozenset({"revision"}),
+        UiText.PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1359,6 +1583,189 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.STATE_RECOVERY_PLANNING_ERROR_SAFETY: (
             "尚未归档或替换任何 desired state 文件。请修复文件访问问题并重新启动 manager 后再审阅。"
+        ),
+        UiText.PROFILE_CREATION_VALIDATION_PROFILE_NAME_REQUIRED: "请输入配置名称",
+        UiText.PROFILE_CREATION_VALIDATION_LISTEN_PORT_OUT_OF_RANGE: ("端口必须在 1 到 65535 之间"),
+        UiText.PROFILE_CREATION_VALIDATION_TLS_NOT_SUPPORTED: ("该协议不使用 TLS 证书选项"),
+        UiText.PROFILE_CREATION_VALIDATION_TLS_REQUIRED: "请选择 TLS 证书方式",
+        UiText.PROFILE_CREATION_VALIDATION_TLS_SERVER_NAME_REQUIRED: "请输入证书域名",
+        UiText.PROFILE_CREATION_VALIDATION_TLS_EMAIL_REQUIRED: "请输入 ACME 联系邮箱",
+        UiText.PROFILE_CREATION_VALIDATION_TLS_CERTIFICATE_PATH_UNTRUSTED: (
+            "证书文件必须位于 {path}"
+        ),
+        UiText.PROFILE_CREATION_VALIDATION_TLS_KEY_PATH_UNTRUSTED: ("私钥文件必须位于 {path}"),
+        UiText.PROFILE_CREATION_VALIDATION_TRANSPORT_NOT_SUPPORTED: ("该协议不使用传输选项"),
+        UiText.PROFILE_CREATION_VALIDATION_TRANSPORT_REQUIRED: "请选择传输方式",
+        UiText.PROFILE_CREATION_VALIDATION_WEBSOCKET_PATH_INVALID: ("WebSocket 路径必须以 / 开头"),
+        UiText.PROFILE_CREATION_VALIDATION_GRPC_SERVICE_NAME_REQUIRED: ("请输入 gRPC 服务名"),
+        UiText.PROFILE_CREATION_FORM_TITLE_VLESS_REALITY: "配置 VLESS Reality",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_VLESS_REALITY: (
+            "适合大多数网络环境。UUID、密钥和兼容站点将自动生成。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_SHADOWSOCKS: "配置 Shadowsocks 2022",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_SHADOWSOCKS: (
+            "无需 TLS，适合需要简洁配置的场景。安全密钥将自动生成。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_HYSTERIA2: "配置 Hysteria2",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_HYSTERIA2: (
+            "适合移动网络。认证密码自动生成，TLS 证书通过 ACME 申请。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_TROJAN: "配置 Trojan",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_TROJAN: (
+            "基于 TLS 的兼容协议。认证密码自动生成，证书通过 ACME 申请。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_ANYTLS: "配置 AnyTLS",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_ANYTLS: (
+            "用于缓解 TLS 嵌套指纹。认证密码自动生成，证书通过 ACME 申请。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_TUIC: "配置 TUIC",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_TUIC: (
+            "基于 QUIC 的低延迟协议。默认关闭可重放的 0-RTT。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_VLESS_WEBSOCKET: ("配置 VLESS TLS WebSocket"),
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_VLESS_WEBSOCKET: (
+            "适合需要 WebSocket 或 CDN 兼容入口的场景。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_VLESS_GRPC: "配置 VLESS TLS gRPC",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_VLESS_GRPC: ("适合需要标准 gRPC 传输兼容性的场景。"),
+        UiText.PROFILE_CREATION_FORM_TITLE_VMESS_WEBSOCKET: ("配置 VMess TLS WebSocket"),
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_VMESS_WEBSOCKET: (
+            "仅用于旧客户端兼容，使用 alterId 0 和现代 UUID 认证。"
+        ),
+        UiText.PROFILE_CREATION_FORM_TITLE_VMESS_GRPC: "配置 VMess TLS gRPC",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_VMESS_GRPC: (
+            "旧客户端兼容的 VMess，使用标准 gRPC 传输。"
+        ),
+        UiText.PROFILE_CREATION_FORM_PROFILE_NAME_LABEL: "配置名称",
+        UiText.PROFILE_CREATION_FORM_PROFILE_NAME_PLACEHOLDER: "例如：手机",
+        UiText.PROFILE_CREATION_FORM_SERVER_ADDRESS_LABEL: "服务器地址",
+        UiText.PROFILE_CREATION_FORM_SERVER_ADDRESS_PLACEHOLDER: (
+            "例如：vpn.example.com 或 203.0.113.10"
+        ),
+        UiText.PROFILE_CREATION_FORM_TLS_SERVER_NAME_LABEL: "TLS 证书域名",
+        UiText.PROFILE_CREATION_FORM_TLS_SERVER_NAME_PLACEHOLDER: ("例如：vpn.example.com"),
+        UiText.PROFILE_CREATION_FORM_TLS_STRATEGY_LABEL: "TLS 证书方式",
+        UiText.PROFILE_CREATION_FORM_TLS_STRATEGY_ACME: "自动申请 ACME · 推荐",
+        UiText.PROFILE_CREATION_FORM_TLS_STRATEGY_FILES: ("已有 root 管理的证书文件 · 高级"),
+        UiText.PROFILE_CREATION_FORM_TLS_EMAIL_LABEL: "ACME 联系邮箱",
+        UiText.PROFILE_CREATION_FORM_TLS_EMAIL_PLACEHOLDER: ("例如：operator@example.com"),
+        UiText.PROFILE_CREATION_FORM_TLS_CERTIFICATE_PATH_LABEL: "证书文件",
+        UiText.PROFILE_CREATION_FORM_TLS_CERTIFICATE_PATH_PLACEHOLDER: (
+            "/etc/sing-box-manager/tls/server.crt"
+        ),
+        UiText.PROFILE_CREATION_FORM_TLS_KEY_PATH_LABEL: "私钥文件",
+        UiText.PROFILE_CREATION_FORM_TLS_KEY_PATH_PLACEHOLDER: (
+            "/etc/sing-box-manager/tls/server.key"
+        ),
+        UiText.PROFILE_CREATION_FORM_WEBSOCKET_PATH_LABEL: "WebSocket 路径",
+        UiText.PROFILE_CREATION_FORM_WEBSOCKET_PATH_PLACEHOLDER: "例如：/proxy",
+        UiText.PROFILE_CREATION_FORM_WEBSOCKET_HOST_LABEL: "WebSocket Host (可选)",
+        UiText.PROFILE_CREATION_FORM_WEBSOCKET_HOST_PLACEHOLDER: ("例如：vpn.example.com"),
+        UiText.PROFILE_CREATION_FORM_GRPC_SERVICE_NAME_LABEL: "gRPC 服务名",
+        UiText.PROFILE_CREATION_FORM_GRPC_SERVICE_NAME_PLACEHOLDER: ("例如：ProxyService"),
+        UiText.PROFILE_CREATION_FORM_LISTEN_PORT_LABEL: "监听端口",
+        UiText.PROFILE_CREATION_FORM_LISTEN_PORT_PLACEHOLDER: "留空自动选择",
+        UiText.PROFILE_CREATION_FORM_PREVIEW: "预览变更计划",
+        UiText.PROFILE_CREATION_PLANNING_ERROR_TITLE: "无法准备配置计划",
+        UiText.PROFILE_CREATION_PLANNING_ERROR_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY: (
+            "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。"
+        ),
+        UiText.PROFILE_CREATION_PLAN_TITLE: "确认变更计划",
+        UiText.PROFILE_CREATION_PLAN_PROFILE: "配置：{name}",
+        UiText.PROFILE_CREATION_PLAN_PROTOCOL: "协议：{protocol}",
+        UiText.PROFILE_CREATION_PLAN_PORT: "监听端口：{port}",
+        UiText.PROFILE_CREATION_PLAN_PORT_AUTOMATIC: "自动选择可用端口",
+        UiText.PROFILE_CREATION_PLAN_SERVER_ADDRESS: "服务器地址：{address}",
+        UiText.PROFILE_CREATION_PLAN_TLS_ACME: ("TLS：ACME · {server_name} · {email}"),
+        UiText.PROFILE_CREATION_PLAN_TLS_FILES: (
+            "TLS：已有证书 · {server_name} · {certificate_path}"
+        ),
+        UiText.PROFILE_CREATION_PLAN_TLS_KEY: "私钥：{path}",
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET: ("传输：WebSocket · {path}"),
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_WEBSOCKET_HOST: (
+            "传输：WebSocket · {path} · Host {host}"
+        ),
+        UiText.PROFILE_CREATION_PLAN_TRANSPORT_GRPC: ("传输：gRPC · {service_name}"),
+        UiText.PROFILE_CREATION_PLAN_GENERATED: "自动生成：{values}",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_SEPARATOR: "、",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_UUID: "UUID",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_REALITY_KEY_PAIR: "Reality 密钥",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_SERVER_NAME: "兼容站点",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_SHADOWSOCKS_KEY: ("Shadowsocks 2022 安全密钥"),
+        UiText.PROFILE_CREATION_PLAN_GENERATED_HYSTERIA2_PASSWORD: ("Hysteria2 认证密码"),
+        UiText.PROFILE_CREATION_PLAN_GENERATED_TROJAN_PASSWORD: "Trojan 认证密码",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_ANYTLS_PASSWORD: "AnyTLS 认证密码",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_TUIC_UUID: "TUIC UUID",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_TUIC_PASSWORD: "TUIC 认证密码",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_VLESS_UUID: "VLESS UUID",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_VMESS_UUID: "VMess UUID",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_TLS_CERTIFICATE: "TLS 证书",
+        UiText.PROFILE_CREATION_PLAN_SAFETY: "当前仅预览，不会修改服务器。",
+        UiText.PROFILE_CREATION_PLAN_SAVE_DRAFT: "保存为草案",
+        UiText.PROFILE_CREATION_DRAFT_TITLE: "草案已保存",
+        UiText.PROFILE_CREATION_DRAFT_STATUS: "草案 · revision {revision}",
+        UiText.PROFILE_CREATION_DRAFT_SAFETY: "尚未修改服务器。",
+        UiText.PROFILE_CREATION_DRAFT_APPLY: "应用到服务器",
+        UiText.PROFILE_CREATION_DRAFT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.PROFILE_CREATION_DRAFT_REJECTION_TITLE: "无法保存已审阅草案",
+        UiText.PROFILE_CREATION_DRAFT_REJECTION_SAFETY: (
+            "desired state 未改变。计划 revision 已过期，请返回 Dashboard 后重新开始。"
+        ),
+        UiText.PROFILE_CREATION_DRAFT_UNKNOWN_TITLE: "无法确认草案保存结果",
+        UiText.PROFILE_CREATION_DRAFT_UNKNOWN_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_CREATION_DRAFT_UNKNOWN_SAFETY: (
+            "服务器未被修改，但 desired state 是否已写入草案未知。"
+            "请返回 Dashboard 并重新读取 Profiles，确认后再决定下一步。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_TITLE: "即将修改服务器",
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_PROFILE: "配置：{name}",
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_WARNING: (
+            "将写入 sing-box 配置并刷新服务，失败时自动回滚。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_ACTION: "确认并应用",
+        UiText.PROFILE_CREATION_APPLY_CONFIRM_PROGRESS: (
+            "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_TITLE: "应用成功",
+        UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION: ("已提交 revision {revision}"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_HEALTH: (
+            "sing-box 配置已生效，服务运行正常。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_RESULT_VALIDATION_TITLE: "配置校验失败",
+        UiText.PROFILE_CREATION_APPLY_RESULT_VALIDATION_SAFETY: ("原有配置和服务均未改变。"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_PRECONDITION_TITLE: "服务器配置已变化",
+        UiText.PROFILE_CREATION_APPLY_RESULT_PRECONDITION_SAFETY: (
+            "本次尚未写入配置，请重新检查并确认接管状态。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_RESULT_PRECONDITION_DETAILS_FALLBACK: (
+            "服务器配置不再符合已确认的接管前置条件"
+        ),
+        UiText.PROFILE_CREATION_APPLY_RESULT_COMMIT_TITLE: "无法写入配置",
+        UiText.PROFILE_CREATION_APPLY_RESULT_COMMIT_SAFETY: ("尚未刷新服务，原有配置保持不变。"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_COMMIT_DETAILS_FALLBACK: "配置提交失败",
+        UiText.PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_TITLE: ("应用失败，已自动回滚"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_SAFETY: ("原有配置和服务已恢复。"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_ROLLED_BACK_DETAILS_FALLBACK: ("旧配置已恢复。"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_ROLLBACK_FAILED_TITLE: ("回滚未完成，需要人工恢复"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_ROLLBACK_FAILED_DETAILS_FALLBACK: ("回滚状态未知"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP: ("{number}. {instruction}"),
+        UiText.PROFILE_CREATION_APPLY_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.PROFILE_CREATION_APPLY_OPERATIONAL_TITLE: "无法确认服务器变更结果",
+        UiText.PROFILE_CREATION_APPLY_OPERATIONAL_SAFETY: (
+            "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_UNKNOWN_TITLE: "无法确认配置应用结果",
+        UiText.PROFILE_CREATION_APPLY_UNKNOWN_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_CREATION_APPLY_UNKNOWN_SAFETY: (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (

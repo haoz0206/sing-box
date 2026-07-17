@@ -1,6 +1,5 @@
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import ClassVar
 
 from textual import on, work
@@ -8,7 +7,7 @@ from textual.app import App, ComposeResult
 from textual.binding import BindingType
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
-from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
+from textual.widgets import Button, Footer, Header, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.apply_history import ApplyHistoryReader
@@ -43,22 +42,10 @@ from sb_manager.application.interface_preferences import (
     PreferenceResetResult,
 )
 from sb_manager.application.manager import (
-    AcmeTlsRequest,
-    GeneratedValue,
-    GrpcTransportRequest,
     Manager,
-    OperatorFileTlsRequest,
-    PlanProfileRequest,
-    PlanValidationError,
-    ProfilePlan,
-    TlsRequest,
-    TransportRequest,
-    WebSocketTransportRequest,
 )
 from sb_manager.application.network_inventory import build_network_inventory
 from sb_manager.application.profile_apply import (
-    ApplyProfileRequest,
-    ApplyProfileResult,
     ProfileApplier,
 )
 from sb_manager.application.profile_availability import (
@@ -98,15 +85,8 @@ from sb_manager.application.state_recovery import (
 )
 from sb_manager.domain.installation import (
     ManagedInstallation,
-    PortSelection,
     ProfileStatus,
-    ProtocolKind,
 )
-from sb_manager.seams.configuration_applier import ConfigurationApplyError
-from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
-from sb_manager.transactions.apply import ApplyOutcome
-from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
-from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.connection_share import ConnectionSharePanel
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.labels import PROTOCOL_LABELS
@@ -133,6 +113,11 @@ from sb_manager.ui.screens.profile_cloning import (
     ProfileClonePlanningErrorScreen,
     ProfileCloneScreen,
 )
+from sb_manager.ui.screens.profile_creation import (
+    GUIDED_PROFILES_BY_VARIANT,
+    ApplyConfirmationScreen,
+    GuidedProfileScreen,
+)
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
 from sb_manager.ui.screens.profile_removal import (
@@ -156,127 +141,6 @@ from sb_manager.ui.screens.state_recovery import (
     StateRecoveryPanel,
     StateRecoveryPlanningErrorScreen,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class GuidedProfileDefinition:
-    """Protocol-specific copy and identity for the shared profile form."""
-
-    protocol: ProtocolKind
-    form_id: str
-    title_id: str
-    guidance_id: str
-    title: str
-    guidance: str
-    uses_tls: bool = False
-    uses_websocket: bool = False
-    uses_grpc: bool = False
-
-
-REALITY_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.VLESS_REALITY,
-    form_id="reality-form",
-    title_id="reality-form-title",
-    guidance_id="reality-guidance",
-    title="配置 VLESS Reality",
-    guidance="适合大多数网络环境。UUID、密钥和兼容站点将自动生成。",
-)
-SHADOWSOCKS_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.SHADOWSOCKS,
-    form_id="shadowsocks-form",
-    title_id="shadowsocks-form-title",
-    guidance_id="protocol-guidance",
-    title="配置 Shadowsocks 2022",
-    guidance="无需 TLS，适合需要简洁配置的场景。安全密钥将自动生成。",
-)
-HYSTERIA2_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.HYSTERIA2,
-    form_id="hysteria2-form",
-    title_id="hysteria2-form-title",
-    guidance_id="hysteria2-guidance",
-    title="配置 Hysteria2",
-    guidance="适合移动网络。认证密码自动生成，TLS 证书通过 ACME 申请。",
-    uses_tls=True,
-)
-TROJAN_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.TROJAN,
-    form_id="trojan-form",
-    title_id="trojan-form-title",
-    guidance_id="trojan-guidance",
-    title="配置 Trojan",
-    guidance="基于 TLS 的兼容协议。认证密码自动生成，证书通过 ACME 申请。",
-    uses_tls=True,
-)
-ANYTLS_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.ANYTLS,
-    form_id="anytls-form",
-    title_id="anytls-form-title",
-    guidance_id="anytls-guidance",
-    title="配置 AnyTLS",
-    guidance="用于缓解 TLS 嵌套指纹。认证密码自动生成，证书通过 ACME 申请。",
-    uses_tls=True,
-)
-TUIC_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.TUIC,
-    form_id="tuic-form",
-    title_id="tuic-form-title",
-    guidance_id="tuic-guidance",
-    title="配置 TUIC",
-    guidance="基于 QUIC 的低延迟协议。默认关闭可重放的 0-RTT。",
-    uses_tls=True,
-)
-VLESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.VLESS_TLS,
-    form_id="vless-websocket-form",
-    title_id="vless-websocket-form-title",
-    guidance_id="vless-websocket-guidance",
-    title="配置 VLESS TLS WebSocket",
-    guidance="适合需要 WebSocket 或 CDN 兼容入口的场景。",
-    uses_tls=True,
-    uses_websocket=True,
-)
-VLESS_GRPC_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.VLESS_TLS,
-    form_id="vless-grpc-form",
-    title_id="vless-grpc-form-title",
-    guidance_id="vless-grpc-guidance",
-    title="配置 VLESS TLS gRPC",
-    guidance="适合需要标准 gRPC 传输兼容性的场景。",
-    uses_tls=True,
-    uses_grpc=True,
-)
-VMESS_WEBSOCKET_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.VMESS_TLS,
-    form_id="vmess-websocket-form",
-    title_id="vmess-websocket-form-title",
-    guidance_id="vmess-websocket-guidance",
-    title="配置 VMess TLS WebSocket",
-    guidance="仅用于旧客户端兼容，使用 alterId 0 和现代 UUID 认证。",
-    uses_tls=True,
-    uses_websocket=True,
-)
-VMESS_GRPC_PROFILE = GuidedProfileDefinition(
-    protocol=ProtocolKind.VMESS_TLS,
-    form_id="vmess-grpc-form",
-    title_id="vmess-grpc-form-title",
-    guidance_id="vmess-grpc-guidance",
-    title="配置 VMess TLS gRPC",
-    guidance="旧客户端兼容的 VMess，使用标准 gRPC 传输。",
-    uses_tls=True,
-    uses_grpc=True,
-)
-GUIDED_PROFILES_BY_VARIANT: dict[ProtocolVariant, GuidedProfileDefinition] = {
-    ProtocolVariant.VLESS_REALITY: REALITY_PROFILE,
-    ProtocolVariant.SHADOWSOCKS: SHADOWSOCKS_PROFILE,
-    ProtocolVariant.HYSTERIA2: HYSTERIA2_PROFILE,
-    ProtocolVariant.TROJAN: TROJAN_PROFILE,
-    ProtocolVariant.ANYTLS: ANYTLS_PROFILE,
-    ProtocolVariant.TUIC: TUIC_PROFILE,
-    ProtocolVariant.VLESS_WEBSOCKET: VLESS_WEBSOCKET_PROFILE,
-    ProtocolVariant.VLESS_GRPC: VLESS_GRPC_PROFILE,
-    ProtocolVariant.VMESS_WEBSOCKET: VMESS_WEBSOCKET_PROFILE,
-    ProtocolVariant.VMESS_GRPC: VMESS_GRPC_PROFILE,
-}
 
 
 class HostDiagnosticsScreen(Screen[None]):
@@ -576,535 +440,6 @@ class ProfileDetailsUnexpectedErrorScreen(Screen[None]):
                 markup=False,
             )
         yield Footer()
-
-
-class ApplyResultScreen(Screen[None]):
-    """Present the typed terminal state of an apply attempt."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def __init__(self, result: ApplyProfileResult) -> None:
-        super().__init__()
-        self.result = result
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="apply-result"):
-            if self.result.transaction.outcome is ApplyOutcome.APPLIED:
-                yield Static("应用成功", id="apply-result-title")
-                yield Static(
-                    f"已提交 revision {self.result.committed_revision}",
-                    id="apply-result-revision",
-                )
-                yield Static(
-                    "sing-box 配置已生效，服务运行正常。",
-                    id="apply-result-health",
-                )
-                if connection_info := self.result.connection_info:
-                    yield ConnectionSharePanel(connection_info)
-            elif self.result.transaction.outcome is ApplyOutcome.VALIDATION_FAILED:
-                yield Static("配置校验失败", id="apply-result-title")
-                yield Static(
-                    self.result.transaction.validation.diagnostics,
-                    id="apply-result-details",
-                )
-                yield Static("原有配置和服务均未改变。", id="apply-result-safety")
-            elif self.result.transaction.outcome is ApplyOutcome.PRECONDITION_FAILED:
-                yield Static("服务器配置已变化", id="apply-result-title")
-                commit = self.result.transaction.commit
-                yield Static(
-                    (
-                        commit.diagnostics
-                        if commit is not None
-                        else "服务器配置不再符合已确认的接管前置条件"
-                    ),
-                    id="apply-result-details",
-                )
-                yield Static(
-                    "本次尚未写入配置，请重新检查并确认接管状态。",
-                    id="apply-result-safety",
-                )
-            elif self.result.transaction.outcome is ApplyOutcome.COMMIT_FAILED:
-                yield Static("无法写入配置", id="apply-result-title")
-                commit = self.result.transaction.commit
-                yield Static(
-                    commit.diagnostics if commit is not None else "配置提交失败",
-                    id="apply-result-details",
-                )
-                yield Static(
-                    "尚未刷新服务，原有配置保持不变。",
-                    id="apply-result-safety",
-                )
-            elif self.result.transaction.outcome is ApplyOutcome.ROLLED_BACK:
-                yield Static("应用失败，已自动回滚", id="apply-result-title")
-                rollback = self.result.transaction.rollback
-                yield Static(
-                    rollback.diagnostics if rollback is not None else "旧配置已恢复。",
-                    id="apply-result-details",
-                )
-                yield Static("原有配置和服务已恢复。", id="apply-result-safety")
-            else:
-                yield Static("回滚未完成，需要人工恢复", id="apply-result-title")
-                rollback = self.result.transaction.rollback
-                yield Static(
-                    rollback.diagnostics if rollback is not None else "回滚状态未知",
-                    id="apply-result-details",
-                )
-                if rollback is not None:
-                    for index, instruction in enumerate(rollback.recovery_instructions):
-                        yield Static(
-                            f"{index + 1}. {instruction}",
-                            id=f"recovery-step-{index}",
-                        )
-        yield Footer()
-
-
-class ApplyOperationalErrorScreen(Screen[None]):
-    """Explain an unknown host result without claiming that no mutation occurred."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def __init__(self, diagnostics: str) -> None:
-        super().__init__()
-        self.diagnostics = diagnostics
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="apply-operational-error"):
-            yield Static("无法确认服务器变更结果", id="apply-error-title")
-            yield Static(self.diagnostics, id="apply-error-details")
-            yield Static(
-                "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。",
-                id="apply-error-safety",
-            )
-        yield Footer()
-
-
-class ApplyUnexpectedErrorScreen(Screen[None]):
-    """Treat an unexpected confirmed apply failure as an entirely unknown result."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="apply-operational-error"):
-            yield Static("无法确认配置应用结果", id="apply-unexpected-error-title")
-            yield Static(
-                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
-                id="apply-unexpected-error-details",
-            )
-            yield Static(
-                "服务器配置、服务和 desired state 的结果均未知。"
-                "请先检查配置身份、服务状态和应用历史，再决定是否重试。",
-                id="apply-unexpected-error-safety",
-            )
-        yield Footer()
-
-
-class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
-    """Require a second explicit action before host mutation."""
-
-    def __init__(
-        self,
-        installation: ManagedInstallation,
-        profile_applier: ProfileApplier,
-        *,
-        profile_id: str,
-    ) -> None:
-        super().__init__()
-        self.installation = installation
-        self.profile_applier = profile_applier
-        try:
-            self.profile = next(
-                profile for profile in installation.profiles if profile.profile_id == profile_id
-            )
-        except StopIteration as error:
-            raise ValueError(f"Unknown profile in apply confirmation: {profile_id}") from error
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="apply-confirmation"):
-            yield Static("即将修改服务器", id="apply-confirm-title")
-            yield Static(f"配置：{self.profile.profile_name}", id="apply-confirm-profile")
-            yield Static(
-                "将写入 sing-box 配置并刷新服务，失败时自动回滚。",
-                id="apply-confirm-warning",
-            )
-            yield Static("", id="apply-progress")
-            yield Button("确认并应用", id="confirm-apply", variant="error")
-        yield Footer()
-
-    @on(Button.Pressed, "#confirm-apply")
-    def confirm_apply(self) -> None:
-        if not self.begin_confirmed_operation():
-            return
-        self.query_one("#confirm-apply", Button).disabled = True
-        self.query_one("#apply-progress", Static).update(
-            "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
-        )
-        self.execute_apply(
-            ApplyProfileRequest(
-                profile_id=self.profile.profile_id,
-                expected_revision=self.installation.revision,
-                confirmed=True,
-            )
-        )
-
-    @work(thread=True, exclusive=True)
-    def execute_apply(self, request: ApplyProfileRequest) -> None:
-        try:
-            result = self.profile_applier.apply_profile(request)
-        except ConfigurationApplyError as error:
-            self.app.call_from_thread(
-                self.push_terminal_screen,
-                ApplyOperationalErrorScreen(str(error)),
-            )
-            return
-        except Exception:
-            self.app.call_from_thread(
-                self.push_terminal_screen,
-                ApplyUnexpectedErrorScreen(),
-            )
-            return
-        self.app.call_from_thread(self.push_terminal_screen, ApplyResultScreen(result))
-
-
-class DraftSavedScreen(Screen[None]):
-    """Confirm that desired state was saved without applying host changes."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def __init__(
-        self,
-        installation: ManagedInstallation,
-        *,
-        profile_id: str,
-        profile_applier: ProfileApplier | None = None,
-    ) -> None:
-        super().__init__()
-        self.installation = installation
-        self.profile_applier = profile_applier
-        try:
-            self.profile = next(
-                profile for profile in installation.profiles if profile.profile_id == profile_id
-            )
-        except StopIteration as error:
-            raise ValueError(f"Unknown saved draft profile: {profile_id}") from error
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="draft-saved"):
-            yield Static("草案已保存", id="draft-saved-title")
-            yield Static(self.profile.profile_name, id="saved-profile")
-            yield Static(
-                f"草案 · revision {self.installation.revision}",
-                id="saved-status",
-            )
-            yield Static("尚未修改服务器。", id="saved-safety")
-            if self.profile_applier is not None:
-                yield Button("应用到服务器", id="apply-draft", variant="warning")
-        yield Footer()
-
-    @on(Button.Pressed, "#apply-draft")
-    def open_apply_confirmation(self) -> None:
-        if self.profile_applier is not None:
-            self.app.push_screen(
-                ApplyConfirmationScreen(
-                    self.installation,
-                    self.profile_applier,
-                    profile_id=self.profile.profile_id,
-                )
-            )
-
-
-class PlanPreviewScreen(Screen[None]):
-    """Present a side-effect-free plan in operator language."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回修改")]
-
-    GENERATED_LABELS: ClassVar[dict[GeneratedValue, str]] = {
-        GeneratedValue.UUID: "UUID",
-        GeneratedValue.REALITY_KEY_PAIR: "Reality 密钥",
-        GeneratedValue.SERVER_NAME: "兼容站点",
-        GeneratedValue.SHADOWSOCKS_KEY: "Shadowsocks 2022 安全密钥",
-        GeneratedValue.HYSTERIA2_PASSWORD: "Hysteria2 认证密码",
-        GeneratedValue.TROJAN_PASSWORD: "Trojan 认证密码",
-        GeneratedValue.ANYTLS_PASSWORD: "AnyTLS 认证密码",
-        GeneratedValue.TUIC_UUID: "TUIC UUID",
-        GeneratedValue.TUIC_PASSWORD: "TUIC 认证密码",
-        GeneratedValue.VLESS_UUID: "VLESS UUID",
-        GeneratedValue.VMESS_UUID: "VMess UUID",
-        GeneratedValue.TLS_CERTIFICATE: "TLS 证书",
-    }
-
-    def __init__(
-        self,
-        manager: Manager,
-        plan: ProfilePlan,
-        profile_applier: ProfileApplier | None = None,
-    ) -> None:
-        super().__init__()
-        self.manager = manager
-        self.plan = plan
-        self.profile_applier = profile_applier
-
-    def compose(self) -> ComposeResult:
-        generated = "、".join(self.GENERATED_LABELS[value] for value in self.plan.generated_values)
-        port_summary = (
-            "自动选择可用端口"
-            if self.plan.port_selection is PortSelection.AUTOMATIC
-            else str(self.plan.listen_port)
-        )
-        yield Header()
-        with Vertical(id="plan-preview"):
-            yield Static("确认变更计划", id="plan-title")
-            yield Static(f"配置：{self.plan.profile_name}", id="plan-profile")
-            yield Static(
-                f"协议：{PROTOCOL_LABELS[self.plan.protocol]}",
-                id="plan-protocol",
-            )
-            yield Static(f"监听端口：{port_summary}", id="plan-port")
-            if self.plan.server_address is not None:
-                yield Static(
-                    f"服务器地址：{self.plan.server_address}",
-                    id="plan-server-address",
-                )
-            if isinstance(self.plan.tls_intent, AcmeTlsIntent):
-                yield Static(
-                    "TLS：ACME · "
-                    f"{self.plan.tls_intent.server_name} · {self.plan.tls_intent.email}",
-                    id="plan-tls",
-                )
-            if isinstance(self.plan.tls_intent, OperatorFileTlsIntent):
-                yield Static(
-                    "TLS：已有证书 · "
-                    f"{self.plan.tls_intent.server_name} · "
-                    f"{self.plan.tls_intent.certificate_path}",
-                    id="plan-tls",
-                )
-                yield Static(
-                    f"私钥：{self.plan.tls_intent.key_path}",
-                    id="plan-tls-key",
-                )
-            if isinstance(self.plan.transport_intent, WebSocketTransportIntent):
-                transport_summary = f"传输：WebSocket · {self.plan.transport_intent.path}"
-                if self.plan.transport_intent.host is not None:
-                    transport_summary += f" · Host {self.plan.transport_intent.host}"
-                yield Static(transport_summary, id="plan-transport")
-            if isinstance(self.plan.transport_intent, GrpcTransportIntent):
-                yield Static(
-                    f"传输：gRPC · {self.plan.transport_intent.service_name}",
-                    id="plan-transport",
-                )
-            yield Static(f"自动生成：{generated}", id="plan-generated")
-            yield Static("当前仅预览，不会修改服务器。", id="plan-safety")
-            yield Button("保存为草案", id="save-draft", variant="primary")
-        yield Footer()
-
-    @on(Button.Pressed, "#save-draft")
-    def save_draft(self) -> None:
-        self.manager.save_profile_draft(self.plan)
-        installation = self.manager.get_installation()
-        saved_profile = installation.profiles[-1]
-        self.app.push_screen(
-            DraftSavedScreen(
-                installation,
-                profile_id=saved_profile.profile_id,
-                profile_applier=self.profile_applier,
-            )
-        )
-
-
-class ProfilePlanningUnexpectedErrorScreen(Screen[None]):
-    """Report an unexpected read-only profile-planning failure safely."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="profile-planning-error"):
-            yield Static("无法准备配置计划", id="profile-planning-error-title")
-            yield Static(
-                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
-                id="profile-planning-error-details",
-            )
-            yield Static(
-                "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。",
-                id="profile-planning-error-safety",
-            )
-        yield Footer()
-
-
-class GuidedProfileScreen(Screen[None]):
-    """Collect common intent using protocol-specific operator guidance."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-    ERROR_SELECTORS: ClassVar[dict[str, str]] = {
-        "profile_name": "#profile-name-error",
-        "listen_port": "#listen-port-error",
-        "tls_server_name": "#tls-server-name-error",
-        "tls_email": "#tls-email-error",
-        "tls_certificate_path": "#tls-certificate-path-error",
-        "tls_key_path": "#tls-key-path-error",
-        "websocket_path": "#websocket-path-error",
-        "grpc_service_name": "#grpc-service-name-error",
-    }
-
-    def __init__(
-        self,
-        manager: Manager,
-        definition: GuidedProfileDefinition,
-        profile_applier: ProfileApplier | None = None,
-    ) -> None:
-        super().__init__()
-        self.manager = manager
-        self.definition = definition
-        self.profile_applier = profile_applier
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        form = (
-            VerticalScroll(id=self.definition.form_id)
-            if self.definition.uses_tls
-            else Vertical(id=self.definition.form_id)
-        )
-        with form:
-            yield Static(self.definition.title, id=self.definition.title_id)
-            yield Static(self.definition.guidance, id=self.definition.guidance_id)
-            yield Label("配置名称", classes="field-label")
-            yield Input(placeholder="例如：手机", id="profile-name")
-            yield Static("", id="profile-name-error", classes="field-error")
-            yield Label("服务器地址", classes="field-label")
-            yield Input(
-                placeholder="例如：vpn.example.com 或 203.0.113.10",
-                id="server-address",
-            )
-            if self.definition.uses_tls:
-                yield Label("TLS 证书域名", classes="field-label")
-                yield Input(placeholder="例如：vpn.example.com", id="tls-server-name")
-                yield Static("", id="tls-server-name-error", classes="field-error")
-                yield Label("TLS 证书方式", classes="field-label")
-                yield Select(
-                    (
-                        ("自动申请 ACME · 推荐", "acme"),
-                        ("已有 root 管理的证书文件 · 高级", "operator-files"),
-                    ),
-                    value="acme",
-                    allow_blank=False,
-                    id="tls-strategy",
-                )
-                with Vertical(id="tls-acme-fields"):
-                    yield Label("ACME 联系邮箱", classes="field-label")
-                    yield Input(placeholder="例如：operator@example.com", id="tls-email")
-                    yield Static("", id="tls-email-error", classes="field-error")
-                with Vertical(id="tls-file-fields", classes="hidden"):
-                    yield Label("证书文件", classes="field-label")
-                    yield Input(
-                        placeholder="/etc/sing-box-manager/tls/server.crt",
-                        id="tls-certificate-path",
-                    )
-                    yield Static(
-                        "",
-                        id="tls-certificate-path-error",
-                        classes="field-error",
-                    )
-                    yield Label("私钥文件", classes="field-label")
-                    yield Input(
-                        placeholder="/etc/sing-box-manager/tls/server.key",
-                        id="tls-key-path",
-                    )
-                    yield Static("", id="tls-key-path-error", classes="field-error")
-            if self.definition.uses_websocket:
-                yield Label("WebSocket 路径", classes="field-label")
-                yield Input(placeholder="例如：/proxy", id="websocket-path")
-                yield Static("", id="websocket-path-error", classes="field-error")
-                yield Label("WebSocket Host (可选)", classes="field-label")
-                yield Input(placeholder="例如：vpn.example.com", id="websocket-host")
-            if self.definition.uses_grpc:
-                yield Label("gRPC 服务名", classes="field-label")
-                yield Input(placeholder="例如：ProxyService", id="grpc-service-name")
-                yield Static("", id="grpc-service-name-error", classes="field-error")
-            yield Label("监听端口", classes="field-label")
-            yield Input(placeholder="留空自动选择", id="listen-port", type="integer")
-            yield Static("", id="listen-port-error", classes="field-error")
-            yield Button("预览变更计划", id="preview-plan", variant="primary")
-        yield Footer()
-
-    @on(Button.Pressed, "#preview-plan")
-    def preview_plan(self) -> None:
-        profile_name = self.query_one("#profile-name", Input).value
-        server_address = self.query_one("#server-address", Input).value
-        tls: TlsRequest | None = None
-        tls_strategy: object = None
-        if self.definition.uses_tls:
-            tls_strategy = self.query_one("#tls-strategy", Select).value
-            if tls_strategy == "operator-files":
-                tls = OperatorFileTlsRequest(
-                    server_name=self.query_one("#tls-server-name", Input).value,
-                    certificate_path=Path(self.query_one("#tls-certificate-path", Input).value),
-                    key_path=Path(self.query_one("#tls-key-path", Input).value),
-                )
-            else:
-                tls = AcmeTlsRequest(
-                    server_name=self.query_one("#tls-server-name", Input).value,
-                    email=self.query_one("#tls-email", Input).value,
-                )
-        transport: TransportRequest | None = None
-        if self.definition.uses_websocket:
-            transport = WebSocketTransportRequest(
-                path=self.query_one("#websocket-path", Input).value,
-                host=self.query_one("#websocket-host", Input).value,
-            )
-        if self.definition.uses_grpc:
-            transport = GrpcTransportRequest(
-                service_name=self.query_one("#grpc-service-name", Input).value,
-            )
-        port_text = self.query_one("#listen-port", Input).value
-        listen_port = int(port_text) if port_text else None
-        visible_error_fields = ["profile_name", "listen_port"]
-        if self.definition.uses_tls:
-            visible_error_fields.append("tls_server_name")
-            visible_error_fields.extend(
-                ("tls_certificate_path", "tls_key_path")
-                if tls_strategy == "operator-files"
-                else ("tls_email",)
-            )
-        if self.definition.uses_websocket:
-            visible_error_fields.append("websocket_path")
-        if self.definition.uses_grpc:
-            visible_error_fields.append("grpc_service_name")
-        for error_field in visible_error_fields:
-            self.query_one(self.ERROR_SELECTORS[error_field], Static).update("")
-        request = PlanProfileRequest(
-            profile_name=profile_name,
-            protocol=self.definition.protocol,
-            listen_port=listen_port,
-            server_address=server_address,
-            tls=tls,
-            transport=transport,
-        )
-        plan = self._plan_profile(request)
-        if plan is None:
-            return
-        self.app.push_screen(PlanPreviewScreen(self.manager, plan, self.profile_applier))
-
-    def _plan_profile(self, request: PlanProfileRequest) -> ProfilePlan | None:
-        try:
-            return self.manager.plan_profile(request)
-        except PlanValidationError as error:
-            for issue in error.issues:
-                if error_selector := self.ERROR_SELECTORS.get(issue.field):
-                    self.query_one(error_selector, Static).update(issue.message)
-            return None
-        except Exception:
-            self.app.push_screen(ProfilePlanningUnexpectedErrorScreen())
-            return None
-
-    @on(Select.Changed, "#tls-strategy")
-    def switch_tls_strategy(self, event: Select.Changed) -> None:
-        use_operator_files = event.value == "operator-files"
-        self.query_one("#tls-acme-fields").display = not use_operator_files
-        self.query_one("#tls-file-fields").display = use_operator_files
 
 
 @dataclass(frozen=True, slots=True)
@@ -1930,6 +1265,7 @@ class ManagerApp(App[None]):
                     self.manager,
                     GUIDED_PROFILES_BY_VARIANT[variant],
                     self.profile_applier,
+                    self.copy_catalog,
                 )
             )
 
@@ -1950,6 +1286,7 @@ class ManagerApp(App[None]):
                 installation,
                 self.profile_applier,
                 profile_id=profile.profile_id,
+                copy_catalog=self.copy_catalog,
             )
         )
 

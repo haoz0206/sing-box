@@ -269,6 +269,12 @@ mypy src
 
 Release gate adds:
 
+- complete profile-creation traversal through the Textual Pilot seam: catalog
+  propagation across form, validation, plan, draft, confirmation, progress, all
+  typed apply outcomes, expected operational failure, and non-disclosing unknown
+  results; stable application validation identities; literal non-markup dynamic
+  evidence; duplicate-confirmation suppression; and terminal button/`Esc`
+  navigation to a freshly recomposed dashboard;
 - purpose-first recommendation examples for general, low-latency,
   restricted-network, and compatibility outcomes; exact protocol/transport
   variant and rationale identity, catalog-rendered reasons and tradeoffs,

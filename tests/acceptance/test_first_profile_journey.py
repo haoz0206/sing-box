@@ -26,7 +26,12 @@ from sb_manager.application.host_readiness import (
     HostReadinessReport,
     ReadinessState,
 )
-from sb_manager.application.manager import Manager, PlanProfileRequest, ProfilePlan
+from sb_manager.application.manager import (
+    Manager,
+    PlanProfileRequest,
+    ProfilePlan,
+    StateRevisionConflictError,
+)
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
@@ -118,6 +123,65 @@ class ConfigAdoptionMarkerCatalog:
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
+class ProfileCreationMarkerCatalog:
+    """Render markers across the complete first-profile creation journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_creation.validation.profile_name_required": "目录请输入配置名称",
+            "profile_creation.form.title.vless_reality": "目录 Reality 表单",
+            "profile_creation.form.guidance.vless_reality": "目录 Reality 说明",
+            "profile_creation.form.preview": "目录预览创建计划",
+            "profile_creation.plan.title": "目录创建计划",
+            "profile_creation.plan.safety": "目录计划安全说明",
+            "profile_creation.plan.save_draft": "目录保存草案",
+            "profile_creation.draft.title": "目录草案已保存",
+            "profile_creation.draft.safety": "目录草案安全说明",
+            "profile_creation.draft.apply": "目录应用草案",
+            "profile_creation.draft.return_dashboard": "目录返回仪表盘",
+            "profile_creation.apply.confirm.title": "目录确认首次应用",
+            "profile_creation.apply.confirm.warning": "目录应用风险说明",
+            "profile_creation.apply.confirm.action": "目录确认应用",
+            "profile_creation.apply.result.success.title": "目录应用成功",
+            "profile_creation.apply.result.success.health": "目录应用健康",
+            "profile_creation.apply.result.return_dashboard": "目录返回仪表盘",
+            "profile_creation.apply.operational.title": "目录无法确认服务器变更",
+            "profile_creation.apply.operational.safety": "目录主机结果未知安全说明",
+            "profile_creation.apply.unknown.title": "目录应用结果未知",
+            "profile_creation.apply.unknown.details": "目录应用未知详情",
+            "profile_creation.apply.unknown.safety": "目录应用未知安全说明",
+            "profile_creation.apply.result.precondition.title": "目录服务器配置已变化",
+            "profile_creation.apply.result.precondition.safety": "目录前置条件安全说明",
+            "profile_creation.apply.result.commit.title": "目录无法写入配置",
+            "profile_creation.apply.result.commit.safety": "目录提交失败安全说明",
+            "profile_creation.apply.result.rollback_failed.title": "目录回滚未完成",
+            "profile_creation.apply.result.validation.title": "目录配置校验失败",
+            "profile_creation.apply.result.validation.safety": "目录校验失败安全说明",
+            "profile_creation.apply.result.rolled_back.title": "目录已自动回滚",
+            "profile_creation.apply.result.rolled_back.safety": "目录回滚成功安全说明",
+            "profile_creation.draft.rejection.title": "目录草案保存拒绝",
+            "profile_creation.draft.rejection.safety": "目录草案拒绝安全说明",
+            "profile_creation.draft.unknown.title": "目录草案结果未知",
+            "profile_creation.draft.unknown.details": "目录草案未知详情",
+            "profile_creation.draft.unknown.safety": "目录草案未知安全说明",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        templates = {
+            "profile_creation.plan.profile": "目录计划配置 {name}",
+            "profile_creation.plan.protocol": "目录计划协议 {protocol}",
+            "profile_creation.plan.port": "目录计划端口 {port}",
+            "profile_creation.plan.generated": "目录自动生成 {values}",
+            "profile_creation.draft.status": "目录草案 revision {revision}",
+            "profile_creation.apply.confirm.profile": "目录确认配置 {name}",
+            "profile_creation.apply.result.success.revision": "目录结果 revision {revision}",
+            "profile_creation.apply.result.recovery_step": ("目录步骤 {number}：{instruction}"),
+        }
+        if template := templates.get(key.value):
+            return template.format_map(values)
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
 async def open_direct_protocol_selection(
     app: ManagerApp,
     pilot: Pilot[None],
@@ -179,6 +243,28 @@ class RollbackFailingProfileApplier:
         )
 
 
+class RolledBackProfileApplier:
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        return ApplyProfileResult(
+            transaction=ApplyTransactionResult(
+                outcome=ApplyOutcome.ROLLED_BACK,
+                validation=ConfigValidationResult(valid=True, diagnostics="valid"),
+                runtime_refresh=RuntimeRefreshResult(
+                    success=False,
+                    diagnostics="candidate service failed",
+                ),
+                postcondition=None,
+                rollback=RollbackResult(
+                    success=True,
+                    diagnostics="old configuration [restored]",
+                    recovery_instructions=(),
+                ),
+            ),
+            committed_revision=None,
+        )
+
+
 class CommitFailingProfileApplier:
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
@@ -193,6 +279,24 @@ class CommitFailingProfileApplier:
                     success=False,
                     diagnostics="Permission denied: /etc/sing-box/config.json",
                 ),
+            ),
+            committed_revision=None,
+        )
+
+
+class ValidationFailingProfileApplier:
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        return ApplyProfileResult(
+            transaction=ApplyTransactionResult(
+                outcome=ApplyOutcome.VALIDATION_FAILED,
+                validation=ConfigValidationResult(
+                    valid=False,
+                    diagnostics="unknown field [private-option]",
+                ),
+                runtime_refresh=None,
+                postcondition=None,
+                rollback=None,
             ),
             committed_revision=None,
         )
@@ -438,6 +542,16 @@ class UnexpectedProfileDetailsReader:
 class UnexpectedProfilePlanningManager(Manager):
     def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
         raise RuntimeError("token=private-profile-planning-error")
+
+
+class RejectedDraftSaveManager(Manager):
+    def save_profile_draft(self, plan: ProfilePlan) -> None:
+        raise StateRevisionConflictError(expected=plan.base_revision, actual=plan.base_revision + 1)
+
+
+class UnexpectedDraftSaveManager(Manager):
+    def save_profile_draft(self, plan: ProfilePlan) -> None:
+        raise RuntimeError("token=private-draft-save-result")
 
 
 class RecordingConfigAdopter:
@@ -1059,7 +1173,11 @@ async def test_unexpected_profile_planning_failure_is_safe_and_not_disclosed() -
 
 
 async def test_operator_sees_which_field_needs_attention() -> None:
-    app = ManagerApp()
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        )
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -1071,7 +1189,7 @@ async def test_operator_sees_which_field_needs_attention() -> None:
 
         error = app.screen.query_one("#profile-name-error", Static)
 
-        assert error.content == "请输入配置名称"
+        assert error.content == "目录请输入配置名称"
 
 
 async def test_operator_can_leave_port_selection_to_apply_time() -> None:
@@ -1108,6 +1226,86 @@ async def test_operator_can_save_the_previewed_profile_as_a_draft() -> None:
         assert app.screen.query_one("#saved-profile", Static).content == "手机"
         assert app.screen.query_one("#saved-status", Static).content == "草案 · revision 1"
         assert app.screen.query_one("#saved-safety", Static).content == "尚未修改服务器。"
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
+        assert len(app.screen.query("#save-draft")) == 0
+
+
+async def test_stale_profile_plan_is_a_catalogued_draft_save_rejection() -> None:
+    app = ManagerApp(
+        manager=RejectedDraftSaveManager(state_store=MemoryStateStore()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "过期计划"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+
+        assert app.screen.query_one("#draft-save-rejection-title", Static).content == (
+            "目录草案保存拒绝"
+        )
+        assert app.screen.query_one("#draft-save-rejection-safety", Static).content == (
+            "目录草案拒绝安全说明"
+        )
+        assert not app.screen.query("#save-draft")
+        assert (
+            str(app.screen.query_one("#draft-rejection-return-dashboard", Button).label)
+            == "目录返回仪表盘"
+        )
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert len(app.screen.query("#empty-state-title")) == 1
+        assert len(app.screen.query("#save-draft")) == 0
+
+
+async def test_unexpected_draft_save_failure_is_unknown_and_not_disclosed() -> None:
+    app = ManagerApp(
+        manager=UnexpectedDraftSaveManager(state_store=MemoryStateStore()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "未知草案"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+
+        assert app.screen.query_one("#draft-save-unknown-title", Static).content == (
+            "目录草案结果未知"
+        )
+        assert app.screen.query_one("#draft-save-unknown-details", Static).content == (
+            "目录草案未知详情"
+        )
+        assert app.screen.query_one("#draft-save-unknown-safety", Static).content == (
+            "目录草案未知安全说明"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-draft-save-result" not in rendered
+        assert not app.screen.query("#save-draft")
+        assert str(app.screen.query_one("#draft-unknown-return-dashboard", Button).label) == (
+            "目录返回仪表盘"
+        )
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert len(app.screen.query("#empty-state-title")) == 1
+        assert len(app.screen.query("#save-draft")) == 0
 
 
 async def test_operator_sees_saved_profiles_after_reopening_the_tui() -> None:
@@ -1204,6 +1402,9 @@ async def test_changed_live_configuration_is_reported_without_claiming_a_rollbac
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation)),
         profile_applier=PreconditionFailingProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
     )
 
     async with app.run_test() as pilot:
@@ -1211,12 +1412,14 @@ async def test_changed_live_configuration_is_reported_without_claiming_a_rollbac
         await pilot.click("#apply-profile-0")
         await pilot.click("#confirm-apply")
 
-        assert app.screen.query_one("#apply-result-title", Static).content == ("服务器配置已变化")
+        assert app.screen.query_one("#apply-result-title", Static).content == (
+            "目录服务器配置已变化"
+        )
         assert app.screen.query_one("#apply-result-details", Static).content == (
             "Live configuration fingerprint changed after review"
         )
         assert app.screen.query_one("#apply-result-safety", Static).content == (
-            "本次尚未写入配置，请重新检查并确认接管状态。"
+            "目录前置条件安全说明"
         )
 
 
@@ -1491,12 +1694,19 @@ async def test_operator_sees_an_inline_error_for_an_invalid_port() -> None:
 
 async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -> None:
     profile_applier = RecordingProfileApplier()
-    app = ManagerApp(profile_applier=profile_applier)
+    app = ManagerApp(
+        profile_applier=profile_applier,
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
         await open_direct_protocol_selection(app, pilot)
         await pilot.click("#protocol-vless-reality")
+        assert app.screen.query_one("#reality-form-title", Static).content == ("目录 Reality 表单")
+        assert str(app.screen.query_one("#preview-plan", Button).label) == ("目录预览创建计划")
         await pilot.click("#profile-name")
         await pilot.press("手", "机")
         await pilot.click("#server-address")
@@ -1504,17 +1714,26 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
         await pilot.click("#listen-port")
         await pilot.press("4", "4", "3", "3")
         await pilot.click("#preview-plan")
+        assert app.screen.query_one("#plan-title", Static).content == "目录创建计划"
+        assert app.screen.query_one("#plan-profile", Static).content == "目录计划配置 手机"
+        assert app.screen.query_one("#plan-port", Static).content == "目录计划端口 4433"
+        assert app.screen.query_one("#plan-safety", Static).content == "目录计划安全说明"
+        assert str(app.screen.query_one("#save-draft", Button).label) == "目录保存草案"
         await pilot.click("#save-draft")
 
-        assert str(app.screen.query_one("#apply-draft", Button).label) == "应用到服务器"
+        assert app.screen.query_one("#draft-saved-title", Static).content == "目录草案已保存"
+        assert app.screen.query_one("#saved-status", Static).content == "目录草案 revision 1"
+        assert str(app.screen.query_one("#apply-draft", Button).label) == "目录应用草案"
         await pilot.click("#apply-draft")
 
-        assert app.screen.query_one("#apply-confirm-title", Static).content == "即将修改服务器"
-        assert app.screen.query_one("#apply-confirm-profile", Static).content == "配置：手机"
-        assert app.screen.query_one("#apply-confirm-warning", Static).content == (
-            "将写入 sing-box 配置并刷新服务，失败时自动回滚。"
+        assert app.screen.query_one("#apply-confirm-title", Static).content == ("目录确认首次应用")
+        assert app.screen.query_one("#apply-confirm-profile", Static).content == (
+            "目录确认配置 手机"
         )
-        assert str(app.screen.query_one("#confirm-apply", Button).label) == "确认并应用"
+        assert app.screen.query_one("#apply-confirm-warning", Static).content == (
+            "目录应用风险说明"
+        )
+        assert str(app.screen.query_one("#confirm-apply", Button).label) == "目录确认应用"
         assert profile_applier.requests == []
 
         await pilot.click("#confirm-apply")
@@ -1526,13 +1745,11 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
                 confirmed=True,
             )
         ]
-        assert app.screen.query_one("#apply-result-title", Static).content == "应用成功"
+        assert app.screen.query_one("#apply-result-title", Static).content == "目录应用成功"
         assert app.screen.query_one("#apply-result-revision", Static).content == (
-            "已提交 revision 2"
+            "目录结果 revision 2"
         )
-        assert app.screen.query_one("#apply-result-health", Static).content == (
-            "sing-box 配置已生效，服务运行正常。"
-        )
+        assert app.screen.query_one("#apply-result-health", Static).content == ("目录应用健康")
         assert len(app.screen.query("#apply-result-share-uri")) == 0
         assert app.screen.query_one("#connection-share-endpoint", Static).content == (
             "服务器：vpn.example.com:4433"
@@ -1549,6 +1766,14 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
             "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
             "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
         )
+        assert str(app.screen.query_one("#apply-return-dashboard", Button).label) == (
+            "目录返回仪表盘"
+        )
+
+        await pilot.click("#apply-return-dashboard")
+        await pilot.pause()
+
+        assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
 
 
 async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation() -> None:
@@ -1577,15 +1802,18 @@ async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation
 
         assert app.screen.query_one("#apply-result-title", Static).content == "应用成功"
         await pilot.press("escape")
-        assert app.screen.query_one("#apply-confirm-title", Static).content == ("即将修改服务器")
-        assert app.screen.check_action("return_from_confirmation", ()) is True
-
-        await pilot.press("escape")
-        assert app.screen.query_one("#draft-saved-title", Static).content == "草案已保存"
+        await pilot.pause()
+        assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
+        assert len(app.screen.query("#apply-confirm-title")) == 0
 
 
 async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None:
-    app = ManagerApp(profile_applier=RollbackFailingProfileApplier())
+    app = ManagerApp(
+        profile_applier=RollbackFailingProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -1600,22 +1828,53 @@ async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None
         await pilot.click("#apply-draft")
         await pilot.click("#confirm-apply")
 
-        assert app.screen.query_one("#apply-result-title", Static).content == (
-            "回滚未完成，需要人工恢复"
-        )
+        assert app.screen.query_one("#apply-result-title", Static).content == ("目录回滚未完成")
         assert app.screen.query_one("#apply-result-details", Static).content == (
             "旧服务无法重新启动"
         )
         assert app.screen.query_one("#recovery-step-0", Static).content == (
-            "1. 确认 /etc/sing-box/config.json 已恢复。"
+            "目录步骤 1：确认 /etc/sing-box/config.json 已恢复。"
         )
         assert app.screen.query_one("#recovery-step-1", Static).content == (
-            "2. 运行 systemctl restart sing-box.service。"
+            "目录步骤 2：运行 systemctl restart sing-box.service。"
+        )
+
+
+async def test_operator_is_told_when_the_previous_configuration_was_restored() -> None:
+    app = ManagerApp(
+        profile_applier=RolledBackProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "自动回滚"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+
+        assert app.screen.query_one("#apply-result-title", Static).content == ("目录已自动回滚")
+        assert app.screen.query_one("#apply-result-details", Static).content == (
+            "old configuration [restored]"
+        )
+        assert app.screen.query_one("#apply-result-safety", Static).content == (
+            "目录回滚成功安全说明"
         )
 
 
 async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown() -> None:
-    app = ManagerApp(profile_applier=UnavailableProfileApplier())
+    app = ManagerApp(
+        profile_applier=UnavailableProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -1631,18 +1890,32 @@ async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown()
         await pilot.click("#confirm-apply")
 
         assert app.screen.query_one("#apply-error-title", Static).content == (
-            "无法确认服务器变更结果"
+            "目录无法确认服务器变更"
         )
         assert app.screen.query_one("#apply-error-details", Static).content == (
             "sudo authorization denied"
         )
         assert app.screen.query_one("#apply-error-safety", Static).content == (
-            "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。"
+            "目录主机结果未知安全说明"
         )
+        assert str(app.screen.query_one("#apply-error-return-dashboard", Button).label) == (
+            "目录返回仪表盘"
+        )
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
+        assert len(app.screen.query("#confirm-apply")) == 0
 
 
 async def test_unexpected_apply_failure_reports_unknown_state_without_disclosure() -> None:
-    app = ManagerApp(profile_applier=UnexpectedProfileApplier())
+    app = ManagerApp(
+        profile_applier=UnexpectedProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -1657,17 +1930,25 @@ async def test_unexpected_apply_failure_reports_unknown_state_without_disclosure
         await pilot.pause()
 
         assert app.screen.query_one("#apply-unexpected-error-title", Static).content == (
-            "无法确认配置应用结果"
+            "目录应用结果未知"
         )
         assert app.screen.query_one("#apply-unexpected-error-details", Static).content == (
-            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+            "目录应用未知详情"
         )
         assert app.screen.query_one("#apply-unexpected-error-safety", Static).content == (
-            "服务器配置、服务和 desired state 的结果均未知。"
-            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+            "目录应用未知安全说明"
+        )
+        assert str(app.screen.query_one("#apply-unknown-return-dashboard", Button).label) == (
+            "目录返回仪表盘"
         )
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private-apply-worker-error" not in rendered_text
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
+        assert len(app.screen.query("#confirm-apply")) == 0
 
 
 async def test_operator_can_create_a_shadowsocks_2022_draft() -> None:
@@ -2059,7 +2340,12 @@ async def test_operator_can_create_a_vmess_tls_grpc_draft(tmp_path) -> None:
 
 
 async def test_operator_sees_actionable_configuration_commit_failure() -> None:
-    app = ManagerApp(profile_applier=CommitFailingProfileApplier())
+    app = ManagerApp(
+        profile_applier=CommitFailingProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -2074,10 +2360,38 @@ async def test_operator_sees_actionable_configuration_commit_failure() -> None:
         await pilot.click("#apply-draft")
         await pilot.click("#confirm-apply")
 
-        assert app.screen.query_one("#apply-result-title", Static).content == "无法写入配置"
+        assert app.screen.query_one("#apply-result-title", Static).content == ("目录无法写入配置")
         assert app.screen.query_one("#apply-result-details", Static).content == (
             "Permission denied: /etc/sing-box/config.json"
         )
         assert app.screen.query_one("#apply-result-safety", Static).content == (
-            "尚未刷新服务，原有配置保持不变。"
+            "目录提交失败安全说明"
+        )
+
+
+async def test_operator_sees_safe_configuration_validation_failure() -> None:
+    app = ManagerApp(
+        profile_applier=ValidationFailingProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "校验失败"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+
+        assert app.screen.query_one("#apply-result-title", Static).content == ("目录配置校验失败")
+        assert app.screen.query_one("#apply-result-details", Static).content == (
+            "unknown field [private-option]"
+        )
+        assert app.screen.query_one("#apply-result-safety", Static).content == (
+            "目录校验失败安全说明"
         )

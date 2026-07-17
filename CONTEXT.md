@@ -159,6 +159,17 @@ one validated interface copy catalog. An unexpected advisor failure discloses
 no exception and offers direct protocol selection on the same recovery page.
 _Avoid_: Network probe result, automatic protocol selection, compatibility proof
 
+**Profile creation**:
+The complete first-profile journey from one exact guided protocol form through
+a side-effect-free plan, revision-bound draft persistence, optional confirmed
+host apply, and one terminal result. Stable validation identities originate in
+the application module; all operator policy copy comes from one validated
+interface copy catalog. Dynamic profile values, typed diagnostics, and recovery
+instructions remain literal non-markup evidence. Saving or applying with an
+unknown result never offers direct retry, and every terminal page clears stale
+workflow screens before recomposing the dashboard.
+_Avoid_: Protocol recommendation, generated inbound editing, implicit apply
+
 **Diagnostics center**:
 One read-only, prioritized report that combines manager desired-state
 consistency, host readiness, and runtime health into stable checks and one
