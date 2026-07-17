@@ -162,6 +162,15 @@ planned and confirmed: a draft removal changes desired state only, while an
 applied removal transactionally projects and applies all remaining profiles
 before desired state is committed.
 
+A connection share URI is a credential, not ordinary profile metadata. Profile
+details and successful first apply show the public endpoint and a disclosure
+warning, but do not mount the URI in a terminal control by default. The operator
+must explicitly reveal it for the current page; it appears in a read-only,
+selectable text area with an immediate conceal action. Concealing removes the
+URI and prevents another reveal on that page. No automatic clipboard write
+occurs, and leaving the page discards the revealed presentation state.
+Reopening either workflow starts hidden again.
+
 Profile metadata editing starts with display name and public server address.
 The stable identifier, protocol, credentials, TLS, and transport remain
 unchanged. Every edit is normalized, revision-bound, previewed, and confirmed.
@@ -795,6 +804,12 @@ Current implementation status (2026-07-17):
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed
   error screen instead of terminating the TUI;
+- explicit connection-link disclosure: persisted profile details and successful
+  first apply show only the public endpoint plus credential-risk guidance by
+  default; one shared Textual module mounts the complete URI as read-only text
+  only after an explicit one-page reveal, permits immediate conceal without a
+  second reveal on that page, performs no clipboard write, and naturally returns
+  to hidden state when the page closes;
 - UI module depth: the complete core-update form, plan, confirmation, worker,
   result, and failure workflow now lives behind the single
   `CoreUpdateFormScreen(core_updater)` interface in `ui/screens/core_update.py`;

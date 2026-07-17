@@ -103,6 +103,14 @@ Button {
     width: 100%;
 }
 
+ConnectionSharePanel {
+    height: auto;
+}
+
+#connection-share-uri {
+    height: 4;
+}
+
 #protocol-selection, #hysteria2-form, #trojan-form, #anytls-form, #tuic-form,
 #vless-websocket-form, #vless-grpc-form, #vmess-websocket-form, #vmess-grpc-form {
     max-height: 90%;

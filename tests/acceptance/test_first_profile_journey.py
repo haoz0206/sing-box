@@ -3,7 +3,7 @@ from pathlib import Path
 
 from textual.containers import VerticalScroll
 from textual.pilot import Pilot
-from textual.widgets import Button, Input, Select, Static
+from textual.widgets import Button, Input, Select, Static, TextArea
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.config_adoption import (
@@ -915,7 +915,7 @@ async def test_operator_sees_applied_status_after_reopening_the_tui() -> None:
         )
 
 
-async def test_operator_can_reopen_an_applied_profile_and_retrieve_its_share_uri() -> None:
+async def test_operator_explicitly_reveals_a_persisted_profile_share_uri_once() -> None:
     installation = ManagedInstallation(
         schema_version=1,
         revision=2,
@@ -942,11 +942,35 @@ async def test_operator_can_reopen_an_applied_profile_and_retrieve_its_share_uri
 
         assert app.screen.query_one("#profile-details-title", Static).content == "配置详情"
         assert app.screen.query_one("#profile-details-name", Static).content == "名称：手机"
-        assert app.screen.query_one("#profile-details-endpoint", Static).content == (
+        assert app.screen.query_one("#connection-share-endpoint", Static).content == (
             "服务器：vpn.example.com:4433"
         )
-        assert app.screen.query_one("#profile-details-share-uri", Input).value == (
+        assert len(app.screen.query("#connection-share-uri")) == 0
+        assert app.screen.query_one("#connection-share-warning", Static).content == (
+            "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"
+        )
+        assert str(app.screen.query_one("#reveal-connection-share", Button).label) == (
+            "显示一次连接链接"
+        )
+
+        await pilot.click("#reveal-connection-share")
+
+        assert app.screen.query_one("#connection-share-uri", TextArea).text == (
             "vless://saved-connection-link"
+        )
+        assert app.screen.query_one("#connection-share-uri", TextArea).read_only is True
+        assert len(app.screen.query("#reveal-connection-share")) == 0
+        assert str(app.screen.query_one("#hide-connection-share", Button).label) == (
+            "立即隐藏连接链接"
+        )
+
+        await pilot.click("#hide-connection-share")
+
+        assert len(app.screen.query("#connection-share-uri")) == 0
+        assert len(app.screen.query("#reveal-connection-share")) == 0
+        assert len(app.screen.query("#hide-connection-share")) == 0
+        assert app.screen.query_one("#connection-share-warning", Static).content == (
+            "连接链接已重新隐藏，本页面不会再次显示。返回详情后可重新选择显示。"
         )
 
 
@@ -1036,7 +1060,7 @@ async def test_operator_sees_an_inline_error_for_an_invalid_port() -> None:
         )
 
 
-async def test_operator_explicitly_confirms_apply_and_sees_success() -> None:
+async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -> None:
     profile_applier = RecordingProfileApplier()
     app = ManagerApp(profile_applier=profile_applier)
 
@@ -1080,10 +1104,17 @@ async def test_operator_explicitly_confirms_apply_and_sees_success() -> None:
         assert app.screen.query_one("#apply-result-health", Static).content == (
             "sing-box 配置已生效，服务运行正常。"
         )
-        assert app.screen.query_one("#apply-result-endpoint", Static).content == (
+        assert len(app.screen.query("#apply-result-share-uri")) == 0
+        assert app.screen.query_one("#connection-share-endpoint", Static).content == (
             "服务器：vpn.example.com:4433"
         )
-        assert app.screen.query_one("#apply-result-share-uri", Input).value == (
+        assert app.screen.query_one("#connection-share-warning", Static).content == (
+            "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"
+        )
+
+        await pilot.click("#reveal-connection-share")
+
+        assert app.screen.query_one("#connection-share-uri", TextArea).text == (
             "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
             "?encryption=none&flow=xtls-rprx-vision&security=reality"
             "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"

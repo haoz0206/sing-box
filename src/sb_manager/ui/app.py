@@ -84,6 +84,7 @@ from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
+from sb_manager.ui.connection_share import ConnectionSharePanel
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
@@ -308,15 +309,7 @@ class ProfileDetailsScreen(Screen[None]):
             )
             yield Static(f"状态：{status}", id="profile-details-status")
             if connection_info := self.details.connection_info:
-                yield Static(
-                    f"服务器：{connection_info.server_address}:{connection_info.server_port}",
-                    id="profile-details-endpoint",
-                )
-                yield Label("连接链接")
-                yield Input(
-                    value=connection_info.share_uri,
-                    id="profile-details-share-uri",
-                )
+                yield ConnectionSharePanel(connection_info)
             else:
                 yield Static(
                     "该配置尚无可用连接信息。应用草案并设置服务器地址后生成。",
@@ -477,15 +470,7 @@ class ApplyResultScreen(Screen[None]):
                     id="apply-result-health",
                 )
                 if connection_info := self.result.connection_info:
-                    yield Static(
-                        f"服务器：{connection_info.server_address}:{connection_info.server_port}",
-                        id="apply-result-endpoint",
-                    )
-                    yield Label("连接链接")
-                    yield Input(
-                        value=connection_info.share_uri,
-                        id="apply-result-share-uri",
-                    )
+                    yield ConnectionSharePanel(connection_info)
             elif self.result.transaction.outcome is ApplyOutcome.VALIDATION_FAILED:
                 yield Static("配置校验失败", id="apply-result-title")
                 yield Static(

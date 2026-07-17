@@ -299,6 +299,12 @@ Release gate adds:
   validation, desired-state-only versus live-configuration scope, revision and
   reviewed-content conflicts, transactional failure preservation, every typed
   TUI result, production composition, and real sing-box reprojection;
+- credential-bearing connection links through both persisted profile details
+  and successful first apply: the complete URI is absent from mounted terminal
+  controls before explicit reveal, the risk guidance and action are visible,
+  revealed text is read-only and page-local, immediate conceal cannot be
+  followed by a second reveal on the same page, and no clipboard side effect is
+  introduced;
 - listen-port edit plans for fixed/automatic selection, range, duplicate intent,
   host availability, policy-only scope, confirmation-time recheck, automatic
   selection under lock, transactional projection, typed stale-port TUI
