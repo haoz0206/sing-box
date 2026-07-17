@@ -12,6 +12,11 @@ from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.apply_history import ApplyHistoryReader
+from sb_manager.application.certificate_diagnostics import (
+    CertificateDiagnosticCondition,
+    CertificateDiagnostics,
+    CertificateDiagnosticsReport,
+)
 from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
 from sb_manager.application.diagnostics_center import DiagnosticsCenter
@@ -85,6 +90,7 @@ from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.connection_share import ConnectionSharePanel
+from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
@@ -371,11 +377,11 @@ class ProfileDetailsScreen(Screen[None]):
             return
         self.app.push_screen(screen, self.finish_profile_clone)
 
-    async def finish_profile_clone(self, result: ProfileCloneResult | None) -> None:
+    def finish_profile_clone(self, result: ProfileCloneResult | None) -> None:
         if result is None:
             return
         self.dismiss()
-        await self.app.recompose()
+        self.app.post_message(DashboardRefreshRequested())
 
     @on(Button.Pressed, "#change-profile-availability")
     def open_profile_availability(self) -> None:
@@ -980,6 +986,7 @@ class ManagerAppHostTools:
     host_diagnostics: HostDiagnostics | None = None
     diagnostics_center: DiagnosticsCenter | None = None
     host_readiness: HostReadiness | None = None
+    certificate_diagnostics: CertificateDiagnostics | None = None
     profile_details_reader: ProfileDetailsReader | None = None
     profile_editor: ProfileEditor | None = None
     profile_remover: ProfileRemover | None = None
@@ -1026,6 +1033,8 @@ class ManagerApp(App[None]):
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
         self.host_readiness = tools.host_readiness
         self.host_readiness_report: HostReadinessReport | None = None
+        self.certificate_diagnostics = tools.certificate_diagnostics
+        self.certificate_diagnostics_report: CertificateDiagnosticsReport | None = None
         self.profile_details_reader = tools.profile_details_reader
         self.profile_editor = tools.profile_editor
         self.profile_remover = tools.profile_remover
@@ -1039,6 +1048,7 @@ class ManagerApp(App[None]):
         self._dashboard_ready = False
         self._host_diagnostics_failed = False
         self._host_readiness_failed = False
+        self._certificate_diagnostics_failed = False
 
     def _inspect_state_recovery(
         self,
@@ -1049,6 +1059,22 @@ class ManagerApp(App[None]):
             except Exception:
                 return StateRecoveryInspectionErrorPanel()
         return None
+
+    def _initial_dashboard_statuses(self) -> tuple[str, str, str]:
+        runtime = (
+            "服务状态：正在检查…"
+            if self.host_diagnostics is not None
+            else "服务状态：未启用主机检查"
+        )
+        readiness = (
+            "主机准备度：正在检查…" if self.host_readiness is not None else "主机准备度：未启用检查"
+        )
+        certificate = (
+            "证书维护：正在检查…"
+            if self.certificate_diagnostics is not None
+            else "证书维护：未启用检查"
+        )
+        return runtime, readiness, certificate
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1084,20 +1110,14 @@ class ManagerApp(App[None]):
         draft_profiles = sum(
             profile.status is ProfileStatus.DRAFT for profile in installation.profiles
         )
-        runtime_status = (
-            "服务状态：正在检查…"
-            if self.host_diagnostics is not None
-            else "服务状态：未启用主机检查"
-        )
-        readiness_status = (
-            "主机准备度：正在检查…" if self.host_readiness is not None else "主机准备度：未启用检查"
-        )
+        runtime_status, readiness_status, certificate_status = self._initial_dashboard_statuses()
         next_action = self._dashboard_next_action(installation)
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
                 yield Static("代理配置", id="profile-list-title")
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
+                yield Static(certificate_status, id="certificate-maintenance-status")
                 yield Static(
                     f"配置：{active_profiles} 在线 · {paused_profiles} 已暂停 · "
                     f"{draft_profiles} 草案",
@@ -1154,6 +1174,7 @@ class ManagerApp(App[None]):
                 yield Static("尚未创建代理配置", id="empty-state-title")
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
+                yield Static(certificate_status, id="certificate-maintenance-status")
                 yield Static("配置：0 在线 · 0 已暂停 · 0 草案", id="profile-summary")
                 yield Static(next_action, id="dashboard-next-action")
                 yield from self._host_action_buttons(installation)
@@ -1207,37 +1228,86 @@ class ManagerApp(App[None]):
         if self.host_readiness is not None:
             yield Button("查看准备度", id="view-readiness", disabled=True)
             yield Button("重新检查", id="refresh-readiness", disabled=True)
+        if self.certificate_diagnostics is not None:
+            yield Button(
+                "重新检查证书",
+                id="refresh-certificate-maintenance",
+                disabled=True,
+            )
         if self.config_adopter is not None and installation.expected_config_sha256 is None:
             yield Button("检查并接管现有配置", id="adopt-existing-config")
 
     def on_mount(self) -> None:
         if self._dashboard_ready:
-            self._start_host_inspections()
+            self._start_dashboard_inspections()
 
-    def _start_host_inspections(self) -> None:
+    def _start_dashboard_inspections(self) -> None:
         if self.host_diagnostics is not None:
             self.load_host_diagnostics()
         if self.host_readiness is not None:
             self.load_host_readiness()
+        if self.certificate_diagnostics is not None:
+            self.load_certificate_diagnostics()
+
+    @on(DashboardRefreshRequested)
+    async def refresh_dashboard(self) -> None:
+        self.host_diagnostics_report = None
+        self.host_readiness_report = None
+        self.certificate_diagnostics_report = None
+        self._host_diagnostics_failed = False
+        self._host_readiness_failed = False
+        self._certificate_diagnostics_failed = False
+        await self.recompose()
+        self.call_after_refresh(self._start_dashboard_inspections)
+
+    @work(thread=True, exclusive=True)
+    def load_certificate_diagnostics(self) -> None:
+        if self.certificate_diagnostics is None:
+            return
+        try:
+            report = self.certificate_diagnostics.inspect(self.manager.get_installation())
+        except Exception:
+            self.call_from_thread(self.show_certificate_diagnostics_failure)
+            return
+        self.call_from_thread(self.show_certificate_diagnostics, report)
+
+    def show_certificate_diagnostics(self, report: CertificateDiagnosticsReport) -> None:
+        self._certificate_diagnostics_failed = False
+        self.certificate_diagnostics_report = report
+        if report.condition is CertificateDiagnosticCondition.ACTION_REQUIRED:
+            status = "证书维护：需要处理"
+        elif report.condition is CertificateDiagnosticCondition.ATTENTION:
+            status = "证书维护：建议关注"
+        else:
+            status = "证书维护：状态正常"
+        self.query_one("#certificate-maintenance-status", Static).update(status)
+        self.query_one("#refresh-certificate-maintenance", Button).disabled = False
+        self._update_dashboard_next_action()
+
+    def show_certificate_diagnostics_failure(self) -> None:
+        self._certificate_diagnostics_failed = True
+        self.certificate_diagnostics_report = None
+        self.query_one("#certificate-maintenance-status", Static).update("证书维护：无法检查")
+        self.query_one("#refresh-certificate-maintenance", Button).disabled = False
+        self._update_dashboard_next_action()
 
     @on(Button.Pressed, "#review-state-recovery")
-    async def open_state_recovery(self) -> None:
+    def open_state_recovery(self) -> None:
         if self.state_recovery_manager is None:
             return
         report = self.state_recovery_manager.inspect()
         if report.plan is None:
-            await self.recompose()
+            self.post_message(DashboardRefreshRequested())
             return
         self.push_screen(
             StateRecoveryConfirmationScreen(self.state_recovery_manager, report.plan),
             self.finish_state_recovery,
         )
 
-    async def finish_state_recovery(self, result: object | None) -> None:
+    def finish_state_recovery(self, result: object | None) -> None:
         if result is None:
             return
-        await self.recompose()
-        self.call_after_refresh(self._start_host_inspections)
+        self.post_message(DashboardRefreshRequested())
 
     @work(thread=True, exclusive=True)
     def load_host_diagnostics(self) -> None:
@@ -1307,29 +1377,42 @@ class ManagerApp(App[None]):
 
     def _dashboard_next_action(self, installation: ManagedInstallation) -> str:
         if self._host_readiness_failed or self._host_diagnostics_failed:
-            return (
-                "建议：先重新检查主机准备度"
-                if self._host_readiness_failed
-                else "建议：先重新检查服务状态"
+            recommendation = (
+                "先重新检查主机准备度" if self._host_readiness_failed else "先重新检查服务状态"
             )
-        if (
+        elif self._certificate_diagnostics_failed:
+            recommendation = "先重新检查证书维护状态"
+        elif (
             self.host_readiness_report is not None
             and not self.host_readiness_report.ready_for_apply
         ):
-            return f"建议：{self.host_readiness_report.recommended_action}"
-        if (
+            recommendation = self.host_readiness_report.recommended_action
+        elif (
             self.host_diagnostics_report is not None
             and self.host_diagnostics_report.condition is HostCondition.UNHEALTHY
         ):
-            return "建议：先检查 sing-box 服务，再进行配置变更"
-        draft_profiles = sum(
+            recommendation = "先检查 sing-box 服务，再进行配置变更"
+        elif (
+            self.certificate_diagnostics_report is not None
+            and self.certificate_diagnostics_report.condition
+            is CertificateDiagnosticCondition.ACTION_REQUIRED
+        ):
+            recommendation = self.certificate_diagnostics_report.guidance
+        elif draft_profiles := sum(
             profile.status is ProfileStatus.DRAFT for profile in installation.profiles
-        )
-        if draft_profiles:
-            return f"建议：先审阅并应用 {draft_profiles} 个草案"
-        if not installation.profiles:
-            return "建议：创建第一个配置"
-        return "建议：配置已应用，确认服务状态"
+        ):
+            recommendation = f"先审阅并应用 {draft_profiles} 个草案"
+        elif (
+            self.certificate_diagnostics_report is not None
+            and self.certificate_diagnostics_report.condition
+            is CertificateDiagnosticCondition.ATTENTION
+        ):
+            recommendation = self.certificate_diagnostics_report.guidance
+        elif not installation.profiles:
+            recommendation = "创建第一个配置"
+        else:
+            recommendation = "配置已应用，确认服务状态"
+        return f"建议：{recommendation}"
 
     def _update_dashboard_next_action(self) -> None:
         self.query_one("#dashboard-next-action", Static).update(
@@ -1383,6 +1466,17 @@ class ManagerApp(App[None]):
         self.query_one("#view-readiness", Button).disabled = True
         self.query_one("#refresh-readiness", Button).disabled = True
         self.load_host_readiness()
+
+    @on(Button.Pressed, "#refresh-certificate-maintenance")
+    def refresh_certificate_diagnostics(self) -> None:
+        if self.certificate_diagnostics is None:
+            return
+        self._certificate_diagnostics_failed = False
+        self.certificate_diagnostics_report = None
+        self.query_one("#certificate-maintenance-status", Static).update("证书维护：正在检查…")
+        self.query_one("#refresh-certificate-maintenance", Button).disabled = True
+        self._update_dashboard_next_action()
+        self.load_certificate_diagnostics()
 
     @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:

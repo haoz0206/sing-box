@@ -143,6 +143,20 @@ exception, keeps the affected detail action disabled, enables one read-only
 reinspection action, and continues to recommend reinspection until a fresh
 report succeeds. A failed retry remains in the same conservative state.
 
+Managed-certificate maintenance is a third independent, read-only dashboard
+observation. It reuses the same certificate-diagnostics module as the detailed
+diagnostics center and presents only `正常`, `建议关注`, `需要处理`, or `无法检查`
+plus an explicit recheck. Urgent certificate guidance outranks unapplied drafts;
+attention guidance follows drafts. No certificate diagnostics, paths, DNS names,
+or exception text are rendered on the dashboard.
+
+Successful edit, removal, pause/resume, template creation, and desired-state
+recovery return through one dashboard-refresh message. The root application
+owns clearing stale reports, recomposing current desired state, and restarting
+every configured observation. Lifecycle screens therefore do not know which
+runtime, readiness, or maintenance inspectors exist, and a recomposed dashboard
+cannot remain indefinitely at `正在检查` or reuse a pre-mutation conclusion.
+
 ### 5.3 Profiles
 
 Profiles represent operator intent, not raw inbound JSON.
@@ -739,6 +753,12 @@ Current implementation status (2026-07-17):
   subprocess output in the UI, and converts unexpected runtime/readiness probe
   exceptions into non-disclosing, conservative states with explicit read-only
   retry actions;
+- dashboard observation continuity: lifecycle success and desired-state
+  recovery use one UI refresh request that clears prior evidence, recomposes the
+  latest desired state, and restarts runtime, readiness, and managed-certificate
+  workers; certificate status reuses the diagnostics-center application module,
+  prioritizes urgent and attention guidance correctly, hides detailed evidence,
+  and converts an unexpected probe failure into non-disclosing in-place retry;
 - diagnostics center: an on-demand Textual workflow aggregates desired-state
   identity/material/fingerprint consistency, configuration target, minimum
   privilege helper, configured core, and runtime health through one deep

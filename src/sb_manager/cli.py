@@ -341,12 +341,14 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         privileged_inspector=privileged_config_inspector,
         core_inspector=SingBoxCoreStatusInspector(binary=sing_box_binary),
     )
+    certificate_diagnostics = CertificateDiagnosticsService(source=certificate_source)
     return ManagerApp(
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
         host_tools=ManagerAppHostTools(
             host_diagnostics=host_diagnostics,
+            certificate_diagnostics=certificate_diagnostics,
             diagnostics_center=DiagnosticsCenterService(
                 state_store=state_store,
                 config_inspector=config_inspector,
@@ -357,9 +359,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                         validator=config_validator,
                     ),
                     domain_resolution=BoundedSocketDomainResolutionInspector(timeout_seconds=5),
-                    certificate_diagnostics=CertificateDiagnosticsService(
-                        source=certificate_source
-                    ),
+                    certificate_diagnostics=certificate_diagnostics,
                     listener_diagnostics=ListenerDiagnosticsService(source=ProcListenerSource()),
                     apply_history=apply_history_reader,
                 ),

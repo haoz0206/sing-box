@@ -26,6 +26,7 @@ from sb_manager.application.profile_editing import (
 from sb_manager.domain.installation import PortSelection
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.ui.messages import DashboardRefreshRequested
 
 
 class ProfileEditFormScreen(Screen[None]):
@@ -364,10 +365,10 @@ class ProfileEditResultScreen(Screen[None]):
         yield Footer()
 
     @on(Button.Pressed, "#profile-edit-return-dashboard")
-    async def return_to_dashboard(self) -> None:
+    def return_to_dashboard(self) -> None:
         while len(self.app.screen_stack) > 1:
             self.app.pop_screen()
-        await self.app.recompose()
+        self.app.post_message(DashboardRefreshRequested())
 
 
 class ProfileEditOperationalErrorScreen(Screen[None]):

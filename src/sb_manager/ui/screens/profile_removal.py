@@ -19,6 +19,7 @@ from sb_manager.application.profile_removal import (
 )
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.ui.messages import DashboardRefreshRequested
 
 
 class ProfileRemovalScreen(Screen[None]):
@@ -127,10 +128,10 @@ class ProfileRemovalResultScreen(Screen[None]):
         yield Footer()
 
     @on(Button.Pressed, "#profile-removal-return-dashboard")
-    async def return_to_dashboard(self) -> None:
+    def return_to_dashboard(self) -> None:
         while len(self.app.screen_stack) > 1:
             self.app.pop_screen()
-        await self.app.recompose()
+        self.app.post_message(DashboardRefreshRequested())
 
     def _compose_live_result(self) -> ComposeResult:
         transaction = self.result.transaction

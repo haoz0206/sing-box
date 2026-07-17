@@ -222,6 +222,14 @@ def test_cli_composes_the_purpose_first_profile_advisor() -> None:
     assert report.recommendations[0].variant is ProtocolVariant.HYSTERIA2
 
 
+def test_cli_composes_read_only_certificate_maintenance_for_the_dashboard(
+    tmp_path: Path,
+) -> None:
+    app = create_app(["--state-file", str(tmp_path / "state.json")])
+
+    assert app.certificate_diagnostics is not None
+
+
 def test_cli_composes_safe_profile_template_cloning(tmp_path: Path) -> None:
     state_path = tmp_path / "manager" / "state.json"
     source = ManagedProfile(

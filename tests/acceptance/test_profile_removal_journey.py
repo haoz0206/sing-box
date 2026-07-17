@@ -1,6 +1,11 @@
 from textual.widgets import Button, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.host_diagnostics import (
+    HostCondition,
+    HostDiagnostics,
+    HostDiagnosticsReport,
+)
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_details import ProfileDetails
 from sb_manager.application.profile_removal import (
@@ -20,6 +25,8 @@ from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+EXPECTED_DASHBOARD_INSPECTIONS = 2
 
 
 def profile(status: ProfileStatus) -> ManagedProfile:
@@ -186,15 +193,32 @@ class StateMutatingProfileRemover(RecordingProfileRemover):
         return result
 
 
+class HostDiagnosticsChangedAfterRemoval:
+    def __init__(self) -> None:
+        self.inspections = 0
+
+    def inspect(self) -> HostDiagnosticsReport:
+        self.inspections += 1
+        healthy = self.inspections == 1
+        return HostDiagnosticsReport(
+            condition=HostCondition.HEALTHY if healthy else HostCondition.UNHEALTHY,
+            summary="sing-box 服务运行正常" if healthy else "sing-box 服务需要检查",
+            diagnostics="active" if healthy else "inactive after desired-state change",
+            recovery_instructions=() if healthy else ("检查 sing-box 服务",),
+        )
+
+
 def app_for(
     remover: RecordingProfileRemover,
     *,
     state_store: MemoryStateStore | None = None,
+    host_diagnostics: HostDiagnostics | None = None,
 ) -> ManagerApp:
     store = state_store or MemoryStateStore(installation(remover.status))
     return ManagerApp(
         manager=Manager(state_store=store),
         host_tools=ManagerAppHostTools(
+            host_diagnostics=host_diagnostics,
             profile_details_reader=FixedProfileDetailsReader(remover.status),
             profile_remover=remover,
         ),
@@ -251,9 +275,18 @@ async def test_operator_confirms_draft_removal_and_sees_desired_state_result() -
 async def test_successful_profile_removal_returns_to_recomposed_dashboard() -> None:
     state_store = MemoryStateStore(installation(ProfileStatus.DRAFT))
     remover = StateMutatingProfileRemover(state_store)
-    app = app_for(remover, state_store=state_store)
+    host_diagnostics = HostDiagnosticsChangedAfterRemoval()
+    app = app_for(
+        remover,
+        state_store=state_store,
+        host_diagnostics=host_diagnostics,
+    )
 
     async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.screen.query_one("#runtime-status", Static).content == "服务状态：运行正常"
+        assert host_diagnostics.inspections == 1
+
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")
@@ -268,6 +301,9 @@ async def test_successful_profile_removal_returns_to_recomposed_dashboard() -> N
         assert app.screen.query_one("#profile-summary", Static).content == (
             "配置：0 在线 · 0 已暂停 · 0 草案"
         )
+        await pilot.pause()
+        assert app.screen.query_one("#runtime-status", Static).content == "服务状态：需要检查"
+        assert host_diagnostics.inspections == EXPECTED_DASHBOARD_INSPECTIONS
 
 
 async def test_operator_confirms_applied_profile_shutdown_and_sees_healthy_result() -> None:

@@ -6,6 +6,10 @@ from textual.pilot import Pilot
 from textual.widgets import Button, Input, Select, Static, TextArea
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.certificate_diagnostics import (
+    CertificateDiagnosticCondition,
+    CertificateDiagnosticsReport,
+)
 from sb_manager.application.config_adoption import (
     ConfigAdoptionPlan,
     ConfigAdoptionResult,
@@ -49,6 +53,9 @@ from sb_manager.transactions.apply import (
 )
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+EXPECTED_DASHBOARD_REVISION = 2
+EXPECTED_REFRESH_INSPECTIONS = 2
 
 
 async def open_direct_protocol_selection(
@@ -204,6 +211,60 @@ class FlakyHostDiagnostics:
             summary="sing-box 服务运行正常",
             diagnostics="active",
             recovery_instructions=(),
+        )
+
+
+class FixedCertificateDiagnostics:
+    def __init__(self, report: CertificateDiagnosticsReport) -> None:
+        self.report = report
+        self.inspections = 0
+
+    def inspect(self, installation: ManagedInstallation) -> CertificateDiagnosticsReport:
+        assert installation.revision == EXPECTED_DASHBOARD_REVISION
+        self.inspections += 1
+        return self.report
+
+
+def app_with_certificate_report(
+    report: CertificateDiagnosticsReport,
+) -> tuple[ManagerApp, FixedCertificateDiagnostics]:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=EXPECTED_DASHBOARD_REVISION,
+        profiles=(
+            ManagedProfile(
+                profile_id="applied-profile",
+                profile_name="现有配置",
+                protocol=ProtocolKind.TROJAN,
+                listen_port=443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    diagnostics = FixedCertificateDiagnostics(report)
+    return (
+        ManagerApp(
+            manager=Manager(state_store=MemoryStateStore(installation)),
+            host_tools=ManagerAppHostTools(certificate_diagnostics=diagnostics),
+        ),
+        diagnostics,
+    )
+
+
+class FlakyCertificateDiagnostics:
+    def __init__(self) -> None:
+        self.inspections = 0
+
+    def inspect(self, installation: ManagedInstallation) -> CertificateDiagnosticsReport:
+        self.inspections += 1
+        if self.inspections == 1:
+            raise RuntimeError("token=private-certificate-dashboard-probe")
+        return CertificateDiagnosticsReport(
+            condition=CertificateDiagnosticCondition.HEALTHY,
+            summary="当前托管证书状态正常",
+            diagnostics="没有需要维护的证书",
+            guidance="当前无需处理",
         )
 
 
@@ -476,6 +537,77 @@ async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> 
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
             "建议：先审阅并应用 1 个草案"
         )
+
+
+async def test_dashboard_prioritizes_a_managed_certificate_requiring_action() -> None:
+    app, certificate_diagnostics = app_with_certificate_report(
+        CertificateDiagnosticsReport(
+            condition=CertificateDiagnosticCondition.ACTION_REQUIRED,
+            summary="1 个托管证书需要处理",
+            diagnostics="vpn.example.com 已过期",
+            guidance="打开诊断中心处理托管证书",
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#certificate-maintenance-status", Static).content == (
+            "证书维护：需要处理"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：打开诊断中心处理托管证书"
+        )
+        assert certificate_diagnostics.inspections == 1
+
+
+async def test_dashboard_surfaces_certificate_maintenance_attention() -> None:
+    app, _ = app_with_certificate_report(
+        CertificateDiagnosticsReport(
+            condition=CertificateDiagnosticCondition.ATTENTION,
+            summary="1 个托管证书将在 30 天内到期",
+            diagnostics="vpn.example.com 剩余 20 天",
+            guidance="安排托管证书续期检查",
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#certificate-maintenance-status", Static).content == (
+            "证书维护：建议关注"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：安排托管证书续期检查"
+        )
+
+
+async def test_failed_certificate_maintenance_probe_is_conservative_and_retryable() -> None:
+    certificate_diagnostics = FlakyCertificateDiagnostics()
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(certificate_diagnostics=certificate_diagnostics)
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#certificate-maintenance-status", Static).content == (
+            "证书维护：无法检查"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：先重新检查证书维护状态"
+        )
+        assert not app.screen.query_one("#refresh-certificate-maintenance", Button).disabled
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-certificate-dashboard-probe" not in rendered_text
+
+        await pilot.click("#refresh-certificate-maintenance")
+        await pilot.pause()
+
+        assert app.screen.query_one("#certificate-maintenance-status", Static).content == (
+            "证书维护：状态正常"
+        )
+        assert certificate_diagnostics.inspections == EXPECTED_REFRESH_INSPECTIONS
 
 
 async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics() -> None:

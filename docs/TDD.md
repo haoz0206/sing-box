@@ -322,6 +322,13 @@ Release gate adds:
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
   explicit read-only retry, and successful recovery;
+- dashboard continuity after successful profile edit, removal, pause/resume,
+  template creation, or desired-state recovery: stale observations are cleared,
+  current desired state is recomposed, and all configured read-only workers run
+  again; managed-certificate maintenance covers healthy, attention,
+  action-required, non-disclosing failure, explicit retry, recommendation
+  priority, and direct/privileged production composition through the same
+  application module used by the diagnostics center;
 - live-configuration identity diagnostics for empty, untracked, matching,
   missing, externally changed, and failed-probe observations, including
   single-snapshot desired-state failure isolation and direct/privileged
