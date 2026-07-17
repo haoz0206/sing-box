@@ -3,7 +3,16 @@ from textual.widgets import Button, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import Manager
-from sb_manager.ui.app import ManagerApp
+from sb_manager.application.profile_recommendation import (
+    ProfilePurpose,
+    ProfileRecommendationReport,
+)
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+
+
+class UnexpectedProfileRecommendationAdvisor:
+    def recommend(self, purpose: ProfilePurpose) -> ProfileRecommendationReport:
+        raise RuntimeError("token=private-profile-recommendation-error")
 
 
 async def test_add_profile_starts_with_operator_purpose_instead_of_protocol_terms() -> None:
@@ -55,6 +64,32 @@ async def test_general_purpose_shows_ranked_reasons_and_tradeoffs() -> None:
         assert app.screen.query_one("#profile-recommendation-caveat", Static).content == (
             "推荐只帮助缩小选择，不承诺连通性或适用于所有网络。"
         )
+
+
+async def test_unexpected_recommendation_failure_keeps_advanced_path_and_not_disclosed() -> None:
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore()),
+        host_tools=ManagerAppHostTools(
+            profile_recommendation_advisor=UnexpectedProfileRecommendationAdvisor()
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        await pilot.click("#purpose-general")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-recommendation-error-title", Static).content == (
+            "暂时无法生成协议建议"
+        )
+        assert app.screen.query_one("#profile-recommendation-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-recommendation-error-safety", Static).content == (
+            "尚未创建或修改任何配置。请返回后重试，或使用“直接选择协议”的高级入口。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-recommendation-error" not in rendered_text
 
 
 @pytest.mark.parametrize(

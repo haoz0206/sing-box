@@ -464,12 +464,13 @@ runtime, artifacts, rollback, or desired state are unchanged, and directs the
 operator to read-only identity, health, and history evidence before deciding
 whether to retry. No automatic retry is offered.
 
-Profile action planning remains read-only. If edit, removal, pause/resume, or
-template planning raises an unclassified exception before a typed plan exists,
-Textual discards the exception text, states that no operation was executed, and
-directs the operator back through a fresh list/detail read before retrying.
-Typed validation, stale-selection, and port-unavailable evidence retains its
-existing actionable presentation.
+Read-only startup inspection, recommendation, details, and action planning must
+leave a usable TUI when no typed result exists. This includes new-profile,
+edit, removal, pause/resume, template, adoption, and core-update planning.
+Textual discards unclassified exception text, states which operation was not
+executed, and directs the operator through an appropriate fresh read or
+advanced fallback before retrying. Typed validation, stale-selection, and
+port-unavailable evidence retains its existing actionable presentation.
 
 ### 7.5 Runtime adapters
 
@@ -675,11 +676,15 @@ Current implementation status (2026-07-17):
   preserves the corrupt bytes under their full hash, atomically restores the
   backup without rewriting `.bak`, and recomposes the normal dashboard;
   unsupported future schemas and inaccessible or invalid backups remain
-  non-mutating guidance states;
+  non-mutating guidance states; an unclassified startup inspection still
+  renders a read-only TUI with every mutation entry disabled, while an
+  unclassified confirmed restore reports primary, backup, and corrupt-archive
+  results as unknown and forbids direct retry;
 - purpose-first profile recommendation: adding a profile starts from four
   operator outcomes, returns three reasoned and caveated protocol variants from
   one pure application module, opens the existing guided form after selection,
-  and retains an unranked advanced list of all ten supported variants;
+  and retains an unranked advanced list of all ten supported variants; an
+  unavailable advisor is non-disclosing and keeps the advanced path reachable;
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
 - shared TLS strategies: the guided TUI supports sing-box 1.14 ACME certificate
@@ -801,6 +806,9 @@ Current implementation status (2026-07-17):
   parsed or silently replaced; the TUI reviews and confirms its exact
   fingerprint, desired state records that replacement precondition without host
   mutation, and direct/privileged apply rechecks it immediately before commit;
+  unclassified planning failures state that no adoption occurred, while an
+  unclassified confirmed result preserves the no-host-mutation guarantee but
+  treats the desired-state replacement precondition as unknown;
 - first-run readiness: one read-only application module classifies the
   configuration target, minimum-privilege helper, and configured core as ready,
   attention, or action-required; the dashboard prioritizes blocking setup work,

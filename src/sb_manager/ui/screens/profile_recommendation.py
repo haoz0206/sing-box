@@ -84,8 +84,13 @@ class ProfilePurposeScreen(Screen[ProtocolVariant | None]):
             "purpose-compatibility": ProfilePurpose.COMPATIBILITY,
         }
         purpose = purposes[event.button.id or ""]
+        try:
+            report = self.advisor.recommend(purpose)
+        except Exception:
+            self.app.push_screen(ProfileRecommendationErrorScreen())
+            return
         self.app.push_screen(
-            ProfileRecommendationScreen(self.advisor.recommend(purpose)),
+            ProfileRecommendationScreen(report),
             self.finish_selection,
         )
 
@@ -99,6 +104,29 @@ class ProfilePurposeScreen(Screen[ProtocolVariant | None]):
             DirectProtocolSelectionScreen(),
             self.finish_selection,
         )
+
+
+class ProfileRecommendationErrorScreen(Screen[None]):
+    """Keep an unavailable recommendation policy from blocking advanced setup."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with VerticalScroll(id="profile-recommendation-error"):
+            yield Static(
+                "暂时无法生成协议建议",
+                id="profile-recommendation-error-title",
+            )
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-recommendation-error-details",
+            )
+            yield Static(
+                "尚未创建或修改任何配置。请返回后重试，或使用“直接选择协议”的高级入口。",
+                id="profile-recommendation-error-safety",
+            )
+        yield Footer()
 
 
 class ProfileRecommendationScreen(Screen[ProtocolVariant | None]):

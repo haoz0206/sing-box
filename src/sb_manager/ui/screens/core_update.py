@@ -77,6 +77,29 @@ class _CoreUpdateErrorScreen(Screen[None]):
         yield Footer()
 
 
+class _CoreUpdatePlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only core-update planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="core-update-planning-error"):
+            yield Static(
+                "无法准备核心更新计划",
+                id="core-update-planning-error-title",
+            )
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="core-update-planning-error-details",
+            )
+            yield Static(
+                "尚未下载发行资产，也未请求核心激活。请重新打开核心更新页后再试。",
+                id="core-update-planning-error-safety",
+            )
+        yield Footer()
+
+
 class _CoreUpdatePlanScreen(Screen[None]):
     """Show an immutable artifact plan and require explicit host-mutation consent."""
 
@@ -200,5 +223,8 @@ class CoreUpdateFormScreen(Screen[None]):
             )
         except (ValueError, CorePrereleaseConsentRequiredError) as plan_error:
             error.update(str(plan_error))
+            return
+        except Exception:
+            self.app.push_screen(_CoreUpdatePlanningErrorScreen())
             return
         self.app.push_screen(_CoreUpdatePlanScreen(self.core_updater, plan))

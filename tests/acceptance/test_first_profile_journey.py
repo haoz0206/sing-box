@@ -20,7 +20,7 @@ from sb_manager.application.host_readiness import (
     HostReadinessReport,
     ReadinessState,
 )
-from sb_manager.application.manager import Manager
+from sb_manager.application.manager import Manager, PlanProfileRequest, ProfilePlan
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
@@ -295,6 +295,16 @@ class MissingProfileDetailsReader:
         raise ProfileDetailsNotFoundError(profile_id)
 
 
+class UnexpectedProfileDetailsReader:
+    def get_profile_details(self, profile_id: str) -> ProfileDetails:
+        raise RuntimeError("token=private-profile-details-error")
+
+
+class UnexpectedProfilePlanningManager(Manager):
+    def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
+        raise RuntimeError("token=private-profile-planning-error")
+
+
 class RecordingConfigAdopter:
     def __init__(self) -> None:
         self.confirmations: list[tuple[ConfigAdoptionPlan, bool]] = []
@@ -310,6 +320,22 @@ class RecordingConfigAdopter:
     ) -> ConfigAdoptionResult:
         self.confirmations.append((plan, confirmed))
         return ConfigAdoptionResult(committed_revision=1, config_sha256=plan.config_sha256)
+
+
+class UnexpectedPlanningConfigAdopter(RecordingConfigAdopter):
+    def plan(self) -> ConfigAdoptionPlan:
+        raise RuntimeError("token=private-config-adoption-planning-error")
+
+
+class UnexpectedConfigAdopter(RecordingConfigAdopter):
+    def adopt(
+        self,
+        plan: ConfigAdoptionPlan,
+        *,
+        confirmed: bool,
+    ) -> ConfigAdoptionResult:
+        assert confirmed
+        raise RuntimeError("token=private-config-adoption-worker-error")
 
 
 async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
@@ -365,6 +391,51 @@ async def test_operator_can_review_and_confirm_existing_config_adoption() -> Non
         assert app.screen.query_one("#config-adoption-result-revision", Static).content == (
             "desired state revision 1"
         )
+
+
+async def test_unexpected_config_adoption_planning_failure_is_safe_and_not_disclosed() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(config_adopter=UnexpectedPlanningConfigAdopter())
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#adopt-existing-config")
+        await pilot.pause()
+
+        assert app.screen.query_one("#config-adoption-planning-error-title", Static).content == (
+            "无法检查现有配置"
+        )
+        assert app.screen.query_one("#config-adoption-planning-error-details", Static).content == (
+            "读取配置接管计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#config-adoption-planning-error-safety", Static).content == (
+            "尚未记录 replacement precondition，也未修改服务器配置。请重新打开诊断或仪表盘后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-config-adoption-planning-error" not in rendered_text
+
+
+async def test_unexpected_config_adoption_failure_is_unknown_and_not_disclosed() -> None:
+    app = ManagerApp(host_tools=ManagerAppHostTools(config_adopter=UnexpectedConfigAdopter()))
+
+    async with app.run_test() as pilot:
+        await pilot.click("#adopt-existing-config")
+        await pilot.pause()
+        await pilot.click("#confirm-config-adoption")
+        await pilot.pause()
+
+        assert app.screen.query_one("#config-adoption-unknown-title", Static).content == (
+            "无法确认配置接管结果"
+        )
+        assert app.screen.query_one("#config-adoption-unknown-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#config-adoption-unknown-safety", Static).content == (
+            "此流程没有修改服务器配置。desired state 是否已记录 replacement precondition 未知。"
+            "请先通过诊断中心重新检查 live configuration identity，再决定是否重试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-config-adoption-worker-error" not in rendered_text
 
 
 async def test_dashboard_answers_runtime_profile_and_next_action_questions() -> None:
@@ -641,6 +712,30 @@ async def test_operator_can_preview_a_reality_plan_without_changing_the_host() -
         )
 
 
+async def test_unexpected_profile_planning_failure_is_safe_and_not_disclosed() -> None:
+    app = ManagerApp(manager=UnexpectedProfilePlanningManager(state_store=MemoryStateStore()))
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "手机"
+        await pilot.click("#preview-plan")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-planning-error-title", Static).content == (
+            "无法准备配置计划"
+        )
+        assert app.screen.query_one("#profile-planning-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-planning-error-safety", Static).content == (
+            "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-planning-error" not in rendered_text
+
+
 async def test_operator_sees_which_field_needs_attention() -> None:
     app = ManagerApp()
 
@@ -884,6 +979,43 @@ async def test_profile_detail_lookup_failure_is_presented_without_crashing_the_t
         assert app.screen.query_one("#profile-details-error-message", Static).content == (
             "配置可能已被另一个会话修改，请返回后重新打开列表。"
         )
+
+
+async def test_unexpected_profile_detail_failure_is_safe_and_not_disclosed() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-1",
+                profile_name="手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        host_tools=ManagerAppHostTools(profile_details_reader=UnexpectedProfileDetailsReader()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-details-unexpected-title", Static).content == (
+            "无法读取配置详情"
+        )
+        assert app.screen.query_one("#profile-details-unexpected-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-details-unexpected-safety", Static).content == (
+            "尚未修改任何配置。请返回列表后重新读取。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-details-error" not in rendered_text
 
 
 async def test_operator_sees_an_inline_error_for_an_invalid_port() -> None:

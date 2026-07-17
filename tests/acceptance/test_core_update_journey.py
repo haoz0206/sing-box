@@ -60,6 +60,11 @@ class UnexpectedCoreUpdater(RecordingCoreUpdater):
         raise RuntimeError("token=private-core-update-worker-error")
 
 
+class UnexpectedPlanningCoreUpdater(RecordingCoreUpdater):
+    def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        raise RuntimeError("token=private-core-update-planning-error")
+
+
 async def open_core_plan(
     app: ManagerApp,
     updater: RecordingCoreUpdater,
@@ -106,6 +111,30 @@ async def test_operator_can_preview_an_exact_core_update_without_mutation() -> N
         assert app.screen.query_one("#core-update-plan-safety", Static).content == (
             "当前仅预览; 尚未下载文件，也不会修改服务器。"
         )
+
+
+async def test_unexpected_core_update_planning_failure_is_safe_and_not_disclosed() -> None:
+    app = ManagerApp(core_updater=UnexpectedPlanningCoreUpdater())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#manage-core")
+        await pilot.click("#core-version")
+        await pilot.press(*VERSION)
+        await pilot.click("#allow-prerelease")
+        await pilot.click("#preview-core-update")
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-planning-error-title", Static).content == (
+            "无法准备核心更新计划"
+        )
+        assert app.screen.query_one("#core-update-planning-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#core-update-planning-error-safety", Static).content == (
+            "尚未下载发行资产，也未请求核心激活。请重新打开核心更新页后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-core-update-planning-error" not in rendered_text
 
 
 async def test_confirmed_core_update_runs_and_shows_activation_evidence() -> None:

@@ -63,6 +63,54 @@ class _ConfigAdoptionErrorScreen(Screen[None]):
         yield Footer()
 
 
+class _ConfigAdoptionPlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only adoption-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="config-adoption-planning-error"):
+            yield Static(
+                "无法检查现有配置",
+                id="config-adoption-planning-error-title",
+            )
+            yield Static(
+                "读取配置接管计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="config-adoption-planning-error-details",
+            )
+            yield Static(
+                "尚未记录 replacement precondition，也未修改服务器配置。"
+                "请重新打开诊断或仪表盘后再试。",
+                id="config-adoption-planning-error-safety",
+            )
+        yield Footer()
+
+
+class _ConfigAdoptionOperationalErrorScreen(Screen[None]):
+    """Report an unknown desired-state adoption result without disclosure."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="config-adoption-operational-error"):
+            yield Static(
+                "无法确认配置接管结果",
+                id="config-adoption-unknown-title",
+            )
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="config-adoption-unknown-details",
+            )
+            yield Static(
+                "此流程没有修改服务器配置。desired state 是否已记录 replacement precondition 未知。"
+                "请先通过诊断中心重新检查 live configuration identity，再决定是否重试。",
+                id="config-adoption-unknown-safety",
+            )
+        yield Footer()
+
+
 class ConfigAdoptionScreen(Screen[None]):
     """Inspect, review, recheck, and record one exact live config identity."""
 
@@ -100,6 +148,12 @@ class ConfigAdoptionScreen(Screen[None]):
                 _ConfigAdoptionErrorScreen(str(error)),
             )
             return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                _ConfigAdoptionPlanningErrorScreen(),
+            )
+            return
         self.app.call_from_thread(self.show_plan, plan)
 
     def show_plan(self, plan: ConfigAdoptionPlan) -> None:
@@ -132,6 +186,12 @@ class ConfigAdoptionScreen(Screen[None]):
             self.app.call_from_thread(
                 self.app.push_screen,
                 _ConfigAdoptionErrorScreen(str(error)),
+            )
+            return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                _ConfigAdoptionOperationalErrorScreen(),
             )
             return
         self.app.call_from_thread(self.app.push_screen, _ConfigAdoptionResultScreen(result))

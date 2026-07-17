@@ -72,6 +72,7 @@ from sb_manager.application.service_logs import ServiceLogReader
 from sb_manager.application.state_recovery import (
     RecoveryAvailability,
     StateRecoveryManager,
+    StateRecoveryReport,
 )
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -105,6 +106,7 @@ from sb_manager.ui.screens.profile_removal import (
 )
 from sb_manager.ui.screens.state_recovery import (
     StateRecoveryConfirmationScreen,
+    StateRecoveryInspectionErrorPanel,
     StateRecoveryPanel,
 )
 
@@ -425,6 +427,29 @@ class ProfileDetailsErrorScreen(Screen[None]):
             yield Static(
                 "配置可能已被另一个会话修改，请返回后重新打开列表。",
                 id="profile-details-error-message",
+            )
+        yield Footer()
+
+
+class ProfileDetailsUnexpectedErrorScreen(Screen[None]):
+    """Report an unexpected profile-detail read without disclosing its cause."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-details-unexpected-error"):
+            yield Static(
+                "无法读取配置详情",
+                id="profile-details-unexpected-title",
+            )
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-details-unexpected-details",
+            )
+            yield Static(
+                "尚未修改任何配置。请返回列表后重新读取。",
+                id="profile-details-unexpected-safety",
             )
         yield Footer()
 
@@ -771,6 +796,26 @@ class PlanPreviewScreen(Screen[None]):
         )
 
 
+class ProfilePlanningUnexpectedErrorScreen(Screen[None]):
+    """Report an unexpected read-only profile-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-planning-error"):
+            yield Static("无法准备配置计划", id="profile-planning-error-title")
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-planning-error-details",
+            )
+            yield Static(
+                "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。",
+                id="profile-planning-error-safety",
+            )
+        yield Footer()
+
+
 class GuidedProfileScreen(Screen[None]):
     """Collect common intent using protocol-specific operator guidance."""
 
@@ -911,23 +956,30 @@ class GuidedProfileScreen(Screen[None]):
             visible_error_fields.append("grpc_service_name")
         for error_field in visible_error_fields:
             self.query_one(self.ERROR_SELECTORS[error_field], Static).update("")
+        request = PlanProfileRequest(
+            profile_name=profile_name,
+            protocol=self.definition.protocol,
+            listen_port=listen_port,
+            server_address=server_address,
+            tls=tls,
+            transport=transport,
+        )
+        plan = self._plan_profile(request)
+        if plan is None:
+            return
+        self.app.push_screen(PlanPreviewScreen(self.manager, plan, self.profile_applier))
+
+    def _plan_profile(self, request: PlanProfileRequest) -> ProfilePlan | None:
         try:
-            plan = self.manager.plan_profile(
-                PlanProfileRequest(
-                    profile_name=profile_name,
-                    protocol=self.definition.protocol,
-                    listen_port=listen_port,
-                    server_address=server_address,
-                    tls=tls,
-                    transport=transport,
-                )
-            )
+            return self.manager.plan_profile(request)
         except PlanValidationError as error:
             for issue in error.issues:
                 if error_selector := self.ERROR_SELECTORS.get(issue.field):
                     self.query_one(error_selector, Static).update(issue.message)
-            return
-        self.app.push_screen(PlanPreviewScreen(self.manager, plan, self.profile_applier))
+            return None
+        except Exception:
+            self.app.push_screen(ProfilePlanningUnexpectedErrorScreen())
+            return None
 
     @on(Select.Changed, "#tls-strategy")
     def switch_tls_strategy(self, event: Select.Changed) -> None:
@@ -1003,13 +1055,25 @@ class ManagerApp(App[None]):
         self._host_diagnostics_failed = False
         self._host_readiness_failed = False
 
+    def _inspect_state_recovery(
+        self,
+    ) -> StateRecoveryReport | StateRecoveryInspectionErrorPanel | None:
+        if self.state_recovery_manager is not None:
+            try:
+                return self.state_recovery_manager.inspect()
+            except Exception:
+                return StateRecoveryInspectionErrorPanel()
+        return None
+
     def compose(self) -> ComposeResult:
         yield Header()
-        recovery_report = (
-            self.state_recovery_manager.inspect()
-            if self.state_recovery_manager is not None
-            else None
-        )
+        recovery_state = self._inspect_state_recovery()
+        if isinstance(recovery_state, StateRecoveryInspectionErrorPanel):
+            self._dashboard_ready = False
+            yield recovery_state
+            yield Footer()
+            return
+        recovery_report = recovery_state
         if (
             recovery_report is not None
             and recovery_report.availability is not RecoveryAvailability.HEALTHY
@@ -1383,6 +1447,9 @@ class ManagerApp(App[None]):
             details = self.profile_details_reader.get_profile_details(event.button.name)
         except ProfileDetailsError:
             self.push_screen(ProfileDetailsErrorScreen())
+            return
+        except Exception:
+            self.push_screen(ProfileDetailsUnexpectedErrorScreen())
             return
         self.push_screen(
             ProfileDetailsScreen(

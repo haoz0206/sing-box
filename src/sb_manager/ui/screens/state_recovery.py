@@ -64,6 +64,27 @@ class StateRecoveryPanel(Widget):
         )
 
 
+class StateRecoveryInspectionErrorPanel(Widget):
+    """Keep an unexpected startup inspection failure non-disclosing and read-only."""
+
+    def __init__(self) -> None:
+        super().__init__(id="state-recovery-inspection-error")
+
+    def compose(self) -> ComposeResult:
+        yield Static(
+            "无法检查 desired state",
+            id="state-recovery-inspection-error-title",
+        )
+        yield Static(
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+            id="state-recovery-inspection-error-details",
+        )
+        yield Static(
+            "当前会话不会写入 desired state。请修复文件访问问题后重新启动 manager。",
+            id="state-recovery-inspection-error-safety",
+        )
+
+
 class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
     """Keep destructive file replacement behind a second explicit action."""
 
@@ -111,6 +132,12 @@ class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
         except (StateRecoveryError, StateRecoverySourceError) as error:
             self.app.call_from_thread(self.show_error, str(error))
             return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                StateRecoveryOperationalErrorScreen(),
+            )
+            return
         self.app.call_from_thread(self.dismiss, result)
 
     def show_error(self, diagnostics: str) -> None:
@@ -118,3 +145,27 @@ class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
         error.update(f"恢复未执行：{diagnostics}")
         error.remove_class("hidden")
         self.query_one("#confirm-state-recovery", Button).disabled = False
+
+
+class StateRecoveryOperationalErrorScreen(Screen[None]):
+    """Report an unknown desired-state recovery result without disclosure."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="state-recovery-operational-error"):
+            yield Static(
+                "无法确认 desired state 恢复结果",
+                id="state-recovery-error-title",
+            )
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="state-recovery-error-details",
+            )
+            yield Static(
+                "主文件、备份和损坏文件归档的结果均未知。"
+                "请先只读检查这些文件的 SHA-256 和 revision，不要直接重试。",
+                id="state-recovery-error-safety",
+            )
+        yield Footer()

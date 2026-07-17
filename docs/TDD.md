@@ -281,8 +281,13 @@ Release gate adds:
   controls for non-disclosing unclassified exceptions, explicit no-mutation
   wording, fresh-read retry guidance, and preservation of typed validation,
   stale-selection, and port evidence;
+- startup state inspection, profile details, purpose recommendation,
+  new-profile planning, adoption planning, and core-update planning for a usable
+  non-disclosing TUI, accurate no-mutation wording, and a fresh-read or advanced
+  fallback path;
 - confirmed profile-apply, profile-edit, profile-removal,
-  profile-availability, profile-clone, and core-update workers for
+  profile-availability, profile-clone, config-adoption, state-recovery, and
+  core-update workers for
   non-disclosing unclassified exceptions, complete scope-specific unknown-result
   wording, absence of unsafe state inference or automatic retry, and
   preservation of existing typed failure evidence;
