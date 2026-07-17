@@ -298,7 +298,7 @@ Release gate adds:
 - diagnostics-center aggregation for healthy evidence, corrupt or inconsistent
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after
-  recovery, unexpected failure retry, and production composition;
+  recovery, non-disclosing unexpected failure retry, and production composition;
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
   explicit read-only retry, and successful recovery;
@@ -317,7 +317,8 @@ Release gate adds:
 - service-log drill-down for 1–500 line bounds, native systemd and OpenRC
   command contracts, command/permission/empty states, persisted and generic
   credential redaction, control-sequence cleaning, non-markup Textual
-  presentation, refresh, retry, and both production compositions;
+  presentation, typed-unavailable evidence, non-disclosing unexpected failure,
+  refresh, retry, and both production compositions;
 - listener ownership diagnostics for protocol-specific TCP/UDP expectations,
   draft/paused exclusion, missing and foreign listeners, incomplete ownership,
   unavailable `/proc`, IPv4/IPv6 inode merging, UDP socket state, owner process
@@ -332,8 +333,8 @@ Release gate adds:
 - configuration apply history for durable pre-mutation recording, typed final
   outcomes, interrupted/final-write-unknown semantics, strict atomic JSON,
   bounded retention, symlink refusal, credential redaction, diagnostics-center
-  classification, non-markup Textual drill-down, and shared direct/privileged
-  production composition;
+  classification, non-markup Textual drill-down, non-disclosing unexpected
+  failure retry, and shared direct/privileged production composition;
 - keyboard-first Textual navigation for discoverable `?` help, dashboard-only
   add/diagnostics/core/quit actions, destination-capability gating, child-screen
   suppression, non-mutating navigation, and preservation of normal form input;

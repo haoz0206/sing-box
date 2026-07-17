@@ -53,8 +53,8 @@ class ServiceLogsScreen(Screen[None]):
     def load_logs(self) -> None:
         try:
             report = self.service_log_reader.read_recent(limit=self.limit)
-        except (OSError, RuntimeError, ValueError) as error:
-            self.app.call_from_thread(self.show_error, str(error))
+        except Exception:
+            self.app.call_from_thread(self.show_error)
             return
         self.app.call_from_thread(self.show_report, report)
 
@@ -76,8 +76,10 @@ class ServiceLogsScreen(Screen[None]):
         content.remove_class("hidden")
         self.query_one("#refresh-service-logs", Button).disabled = False
 
-    def show_error(self, diagnostics: str) -> None:
-        self.query_one("#service-logs-loading", Static).update(f"无法完成日志检查：{diagnostics}")
+    def show_error(self) -> None:
+        self.query_one("#service-logs-loading", Static).update(
+            "无法完成日志检查。底层错误未显示，以避免泄露敏感信息。请重新读取。"
+        )
         self.query_one("#refresh-service-logs", Button).disabled = False
 
     @on(Button.Pressed, "#refresh-service-logs")

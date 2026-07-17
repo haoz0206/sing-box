@@ -67,8 +67,8 @@ class ApplyHistoryScreen(Screen[None]):
     def load_history(self) -> None:
         try:
             report = self.apply_history_reader.read_recent(limit=self.limit)
-        except (OSError, RuntimeError, ValueError) as error:
-            self.app.call_from_thread(self.show_error, str(error))
+        except Exception:
+            self.app.call_from_thread(self.show_error)
             return
         self.app.call_from_thread(self.show_report, report)
 
@@ -87,9 +87,9 @@ class ApplyHistoryScreen(Screen[None]):
         content.remove_class("hidden")
         self.query_one("#refresh-apply-history", Button).disabled = False
 
-    def show_error(self, diagnostics: str) -> None:
+    def show_error(self) -> None:
         loading = self.query_one("#apply-history-loading", Static)
-        loading.update(f"无法完成应用历史检查：{diagnostics}")
+        loading.update("无法完成应用历史检查。底层错误未显示，以避免泄露敏感信息。请重新读取。")
         loading.remove_class("hidden")
         self.query_one("#refresh-apply-history", Button).disabled = False
 

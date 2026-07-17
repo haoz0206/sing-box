@@ -280,7 +280,12 @@ blocks the apply; a failed final update preserves the durable `in-progress`
 evidence without changing an already returned host result. The newest 100
 records are retained in a private, strict-schema JSON file. Diagnostics classify
 the latest typed outcome, while Textual presents the newest 20 with markup
-disabled and without configuration documents or private material. The
+disabled and without configuration documents or private material. If the
+diagnostics center, service-log reader, or apply-history reader fails before it
+can return a typed disclosure-safe report, Textual catches the top-level worker
+exception, discards its text, shows generic retry guidance, and keeps the
+read-only retry enabled. Typed unavailable reports still present their bounded,
+already-sanitized evidence. The
 listener-ownership slice
 derives transport-specific expectations only from enabled, applied profiles,
 then reads Linux TCP/UDP socket tables and visible process descriptors through
@@ -703,7 +708,8 @@ Current implementation status (2026-07-17):
   privilege helper, configured core, and runtime health through one deep
   read-only application interface; it isolates failed probes, prioritizes
   action-required over attention checks, presents one recommended action, and
-  supports background rechecks without duplicating dashboard actions;
+  supports background rechecks without duplicating dashboard actions; a failure
+  before any typed report exists is non-disclosing and retryable;
 - live configuration identity: the diagnostics center reuses the access-mode
   selected configuration inspector to compare the target's read-only SHA-256
   with the single desired-state replacement precondition; empty, untracked,
@@ -730,7 +736,8 @@ Current implementation status (2026-07-17):
   read-only seam; adapter timeouts, command failure, missing access, and empty
   logs remain typed, while one application policy removes terminal controls,
   caps lines, and redacts both persisted and pattern-recognized credentials
-  before Textual renders non-markup content;
+  before Textual renders non-markup content; unexpected reader exceptions are
+  discarded in favor of generic retry guidance;
 - managed certificate diagnostics: enabled, applied TLS profiles produce
   deduplicated operator-file or CertMagic ACME public-certificate targets;
   direct and fixed-helper adapters expose only DNS names and timezone-aware

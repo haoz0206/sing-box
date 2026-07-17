@@ -50,7 +50,7 @@ class FixedDiagnosticsCenter:
 
 class FailingDiagnosticsCenter:
     def inspect(self) -> DiagnosticsCenterReport:
-        raise RuntimeError("unexpected diagnostics failure")
+        raise RuntimeError("token=private-diagnostics-value")
 
 
 class RecordingServiceLogReader:
@@ -66,6 +66,11 @@ class RecordingServiceLogReader:
         return report
 
 
+class FailingServiceLogReader:
+    def read_recent(self, *, limit: int = 200) -> ServiceLogReport:
+        raise RuntimeError("password=private-log-reader-error")
+
+
 class RecordingApplyHistoryReader:
     def __init__(self, report: ApplyHistoryReport) -> None:
         self.report = report
@@ -74,6 +79,11 @@ class RecordingApplyHistoryReader:
     def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
         self.limits.append(limit)
         return self.report
+
+
+class FailingApplyHistoryReader:
+    def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
+        raise RuntimeError("token=private-history-reader-error")
 
 
 class HealthyHostDiagnostics:
@@ -463,7 +473,7 @@ async def test_operator_rechecks_diagnostics_after_host_recovery() -> None:
         )
 
 
-async def test_diagnostics_center_keeps_retry_available_after_unexpected_failure() -> None:
+async def test_diagnostics_center_hides_unexpected_failure_and_keeps_retry() -> None:
     app = ManagerApp(host_tools=ManagerAppHostTools(diagnostics_center=FailingDiagnosticsCenter()))
 
     async with app.run_test() as pilot:
@@ -471,8 +481,10 @@ async def test_diagnostics_center_keeps_retry_available_after_unexpected_failure
         await pilot.pause()
 
         assert app.screen.query_one("#diagnostics-center-loading", Static).content == (
-            "无法完成诊断检查：unexpected diagnostics failure"
+            "无法完成诊断检查。底层错误未显示，以避免泄露敏感信息。请重新检查。"
         )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-diagnostics-value" not in rendered_text
         assert app.screen.query_one("#refresh-diagnostics-center", Button).disabled is False
 
 
@@ -603,6 +615,28 @@ async def test_operator_drills_into_safe_configuration_apply_history() -> None:
         assert "validation [red]failed[/red]" in content.render().plain
 
 
+async def test_apply_history_hides_unexpected_failure_and_keeps_retry() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=FailingApplyHistoryReader(),
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-loading", Static).content == (
+            "无法完成应用历史检查。底层错误未显示，以避免泄露敏感信息。请重新读取。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-history-reader-error" not in rendered_text
+        assert app.screen.query_one("#refresh-apply-history", Button).disabled is False
+
+
 async def test_service_log_drill_down_explains_unavailable_source_and_keeps_retry() -> None:
     logs = RecordingServiceLogReader(
         ServiceLogReport(
@@ -631,4 +665,26 @@ async def test_service_log_drill_down_explains_unavailable_source_and_keeps_retr
         assert app.screen.query_one("#service-logs-content", Static).content == (
             "无法读取服务日志：logread: permission denied"
         )
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is False
+
+
+async def test_service_log_drill_down_hides_unexpected_failure_and_keeps_retry() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=FailingServiceLogReader(),
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-loading", Static).content == (
+            "无法完成日志检查。底层错误未显示，以避免泄露敏感信息。请重新读取。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-log-reader-error" not in rendered_text
         assert app.screen.query_one("#refresh-service-logs", Button).disabled is False

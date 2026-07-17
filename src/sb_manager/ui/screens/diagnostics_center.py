@@ -48,7 +48,6 @@ class DiagnosticsCenterScreen(Screen[None]):
         self.service_log_reader = service_log_reader
         self.apply_history_reader = apply_history_reader
         self.report: DiagnosticsCenterReport | None = None
-        self.error: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -116,14 +115,13 @@ class DiagnosticsCenterScreen(Screen[None]):
     def load_report(self) -> None:
         try:
             report = self.diagnostics_center.inspect()
-        except (OSError, RuntimeError, ValueError) as error:
-            self.app.call_from_thread(self.show_error, str(error))
+        except Exception:
+            self.app.call_from_thread(self.show_error)
             return
         self.app.call_from_thread(self.show_report, report)
 
     def show_report(self, report: DiagnosticsCenterReport) -> None:
         self.report = report
-        self.error = None
         self.query_one("#diagnostics-center-loading", Static).add_class("hidden")
         summary = self.query_one("#diagnostics-center-summary", Static)
         summary.update(self._summary(report))
@@ -151,11 +149,10 @@ class DiagnosticsCenterScreen(Screen[None]):
             self._show_item(item)
         self.query_one("#refresh-diagnostics-center", Button).disabled = False
 
-    def show_error(self, diagnostics: str) -> None:
+    def show_error(self) -> None:
         self.report = None
-        self.error = diagnostics
         loading = self.query_one("#diagnostics-center-loading", Static)
-        loading.update(f"无法完成诊断检查：{diagnostics}")
+        loading.update("无法完成诊断检查。底层错误未显示，以避免泄露敏感信息。请重新检查。")
         loading.remove_class("hidden")
         self.query_one("#diagnostics-center-action", Button).add_class("hidden")
         self.query_one("#refresh-diagnostics-center", Button).disabled = False
@@ -163,7 +160,6 @@ class DiagnosticsCenterScreen(Screen[None]):
     @on(Button.Pressed, "#refresh-diagnostics-center")
     def refresh_report(self) -> None:
         self.report = None
-        self.error = None
         self.query_one("#diagnostics-center-summary", Static).add_class("hidden")
         self.query_one("#diagnostics-center-recommended-action", Static).add_class("hidden")
         self.query_one("#diagnostics-center-action", Button).add_class("hidden")

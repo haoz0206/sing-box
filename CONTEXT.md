@@ -179,3 +179,10 @@ conservative, retryable UI state: the original exception is not disclosed, no
 healthy conclusion is inferred, and the safest next action remains reinspection
 until a fresh report succeeds.
 _Avoid_: Unhealthy runtime result, failed host mutation, ignored worker exception
+
+**Unexpected read failure**:
+A read-only TUI workflow failed before its application interface could return a
+typed, disclosure-safe report. The screen shows generic retry guidance and never
+stores or renders the exception text; typed unavailable reports continue to show
+their already-sanitized evidence.
+_Avoid_: Probe finding, typed unavailable report, raw exception presentation
