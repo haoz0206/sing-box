@@ -12,38 +12,57 @@ from sb_manager.application.network_inventory import (
     NetworkInventory,
     NetworkProfileState,
 )
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+
+NETWORK_STATE_TEXT = {
+    NetworkProfileState.ENABLED: UiText.NETWORK_STATE_ENABLED,
+    NetworkProfileState.PAUSED: UiText.NETWORK_STATE_PAUSED,
+    NetworkProfileState.DRAFT: UiText.NETWORK_STATE_DRAFT,
+}
 
 
 class NetworkScreen(Screen[None]):
     """Present network intent without probing or changing the managed host."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, inventory: NetworkInventory) -> None:
+    def __init__(
+        self,
+        inventory: NetworkInventory,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.inventory = inventory
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="network-workspace"):
-            yield Static("网络概览", id="network-workspace-title", markup=False)
             yield Static(
-                "只读视图：不会探测网络或修改防火墙。",
+                self.copy.text(UiText.NETWORK_TITLE),
+                id="network-workspace-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.NETWORK_SAFETY),
                 id="network-firewall-policy",
                 markup=False,
             )
             if not self.inventory.profiles:
                 yield Static(
-                    "尚无配置，因此没有监听端口或公开地址意图。",
+                    self.copy.text(UiText.NETWORK_EMPTY),
                     id="network-workspace-empty",
                     markup=False,
                 )
             else:
                 yield Static(
-                    (
-                        f"监听意图：{self.inventory.enabled_count} 启用 · "
-                        f"{self.inventory.paused_count} 暂停 · "
-                        f"{self.inventory.draft_count} 草案"
+                    self.copy.text(
+                        UiText.NETWORK_LISTENER_SUMMARY,
+                        enabled=self.inventory.enabled_count,
+                        paused=self.inventory.paused_count,
+                        draft=self.inventory.draft_count,
                     ),
                     id="network-listener-summary",
                     markup=False,
@@ -53,24 +72,38 @@ class NetworkScreen(Screen[None]):
                         transport.value.upper() for transport in profile.transports
                     )
                     port = (
-                        "应用时自动选择端口"
+                        self.copy.text(UiText.NETWORK_PORT_AUTOMATIC)
                         if profile.listen_port is None
-                        else f"端口 {profile.listen_port}"
+                        else self.copy.text(
+                            UiText.NETWORK_PORT_FIXED,
+                            port=profile.listen_port,
+                        )
                     )
-                    state = {
-                        NetworkProfileState.ENABLED: "已启用",
-                        NetworkProfileState.PAUSED: "已暂停",
-                        NetworkProfileState.DRAFT: "草案",
-                    }[profile.state]
+                    state = self.copy.text(NETWORK_STATE_TEXT[profile.state])
                     yield Static(
-                        f"{profile.profile_name} · {transports} · {port} · {state}",
+                        self.copy.text(
+                            UiText.NETWORK_LISTENER_ROW,
+                            name=profile.profile_name,
+                            transports=transports,
+                            port=port,
+                            state=state,
+                        ),
                         id=f"network-listener-{index}",
                         markup=False,
                     )
-                yield Static("公开地址", id="network-public-address-title", markup=False)
+                yield Static(
+                    self.copy.text(UiText.NETWORK_PUBLIC_ADDRESS_TITLE),
+                    id="network-public-address-title",
+                    markup=False,
+                )
                 for index, profile in enumerate(self.inventory.profiles):
                     yield Static(
-                        f"{profile.profile_name} · {profile.public_address or '尚未设置'}",
+                        self.copy.text(
+                            UiText.NETWORK_PUBLIC_ADDRESS_ROW,
+                            name=profile.profile_name,
+                            address=profile.public_address
+                            or self.copy.text(UiText.NETWORK_PUBLIC_ADDRESS_UNSET),
+                        ),
                         id=f"network-public-address-{index}",
                         markup=False,
                     )

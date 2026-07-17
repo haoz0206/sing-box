@@ -827,7 +827,12 @@ class ManagerApp(App[None]):
 
     @on(Button.Pressed, "#open-network")
     def open_network_workspace(self) -> None:
-        self.push_screen(NetworkScreen(build_network_inventory(self.manager.get_installation())))
+        self.push_screen(
+            NetworkScreen(
+                build_network_inventory(self.manager.get_installation()),
+                self.copy_catalog,
+            )
+        )
 
     @on(Button.Pressed, "#open-settings")
     def open_settings_workspace(self) -> None:

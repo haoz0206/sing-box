@@ -444,8 +444,10 @@ Release gate adds:
 - read-only Network workspace acceptance for empty and populated desired state,
   lifecycle-aware TCP/UDP listener intent, fixed and apply-time automatic ports,
   public addresses, explicit no-probe/no-firewall policy, contextual `n`
-  navigation, and preservation of existing listener-diagnostics behavior
-  through the shared endpoint projection;
+  navigation, catalog-backed framing/empty/count/state/port/row/address copy,
+  literal non-markup profile and address evidence, no locale-authored screen
+  text, and preservation of existing listener-diagnostics behavior through the
+  shared endpoint projection;
 - Settings workspace acceptance for a visible/default-terminal entry,
   application-wide dark/light switching, reopening within one process and
   restoration in a new process, per-user/no-host-effect scope disclosure,

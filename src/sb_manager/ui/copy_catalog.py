@@ -148,6 +148,19 @@ class UiText(str, Enum):
     DASHBOARD_REFRESH_CERTIFICATES = "dashboard.refresh_certificates"
     DASHBOARD_ADOPT_CONFIGURATION = "dashboard.adopt_configuration"
     DASHBOARD_EMPTY_GUIDANCE = "dashboard.empty.guidance"
+    NETWORK_TITLE = "network.title"
+    NETWORK_SAFETY = "network.safety"
+    NETWORK_EMPTY = "network.empty"
+    NETWORK_LISTENER_SUMMARY = "network.listener.summary"
+    NETWORK_LISTENER_ROW = "network.listener.row"
+    NETWORK_PORT_AUTOMATIC = "network.port.automatic"
+    NETWORK_PORT_FIXED = "network.port.fixed"
+    NETWORK_STATE_ENABLED = "network.state.enabled"
+    NETWORK_STATE_PAUSED = "network.state.paused"
+    NETWORK_STATE_DRAFT = "network.state.draft"
+    NETWORK_PUBLIC_ADDRESS_TITLE = "network.public_address.title"
+    NETWORK_PUBLIC_ADDRESS_UNSET = "network.public_address.unset"
+    NETWORK_PUBLIC_ADDRESS_ROW = "network.public_address.row"
     PROFILES_TITLE = "profiles.title"
     PROFILES_SUMMARY = "profiles.summary"
     PROFILES_SAFETY = "profiles.safety"
@@ -887,6 +900,10 @@ _EXPECTED_FIELDS.update(
         UiText.DASHBOARD_PROFILE_SUMMARY: frozenset({"active", "paused", "drafts"}),
         UiText.DASHBOARD_RECOMMENDATION: frozenset({"summary"}),
         UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS: frozenset({"count"}),
+        UiText.NETWORK_LISTENER_SUMMARY: frozenset({"enabled", "paused", "draft"}),
+        UiText.NETWORK_LISTENER_ROW: frozenset({"name", "transports", "port", "state"}),
+        UiText.NETWORK_PORT_FIXED: frozenset({"port"}),
+        UiText.NETWORK_PUBLIC_ADDRESS_ROW: frozenset({"name", "address"}),
         UiText.PROFILES_PORT_FIXED: frozenset({"port"}),
         UiText.PROFILES_ROW: frozenset({"name", "protocol", "status", "port"}),
         UiText.PROFILE_DETAILS_NAME: frozenset({"name"}),
@@ -1168,6 +1185,21 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.DASHBOARD_REFRESH_CERTIFICATES: "重新检查证书",
         UiText.DASHBOARD_ADOPT_CONFIGURATION: "检查并接管现有配置",
         UiText.DASHBOARD_EMPTY_GUIDANCE: ("从一个引导式配置开始。应用前你会看到完整变更计划。"),
+        UiText.NETWORK_TITLE: "网络概览",
+        UiText.NETWORK_SAFETY: "只读视图：不会探测网络或修改防火墙。",
+        UiText.NETWORK_EMPTY: "尚无配置，因此没有监听端口或公开地址意图。",
+        UiText.NETWORK_LISTENER_SUMMARY: (
+            "监听意图：{enabled} 启用 · {paused} 暂停 · {draft} 草案"
+        ),
+        UiText.NETWORK_LISTENER_ROW: "{name} · {transports} · {port} · {state}",
+        UiText.NETWORK_PORT_AUTOMATIC: "应用时自动选择端口",
+        UiText.NETWORK_PORT_FIXED: "端口 {port}",
+        UiText.NETWORK_STATE_ENABLED: "已启用",
+        UiText.NETWORK_STATE_PAUSED: "已暂停",
+        UiText.NETWORK_STATE_DRAFT: "草案",
+        UiText.NETWORK_PUBLIC_ADDRESS_TITLE: "公开地址",
+        UiText.NETWORK_PUBLIC_ADDRESS_UNSET: "尚未设置",
+        UiText.NETWORK_PUBLIC_ADDRESS_ROW: "{name} · {address}",
         UiText.PROFILES_TITLE: "配置工作区",
         UiText.PROFILES_SUMMARY: "浏览 desired state 中的完整配置，并从这里开始生命周期操作。",
         UiText.PROFILES_SAFETY: (

@@ -138,6 +138,17 @@ Worked example — unavailable operational capabilities:
 > configured, its catalog action replaces only that explanation and opens the
 > existing destination workflow after explicit selection.
 
+Worked example — one mixed Network inventory:
+
+> The operator presses `n` and sees a read-only desired-state projection with
+> one enabled TCP profile on a fixed port, one paused UDP profile, and one draft
+> UDP profile whose port will be selected only during apply. Catalog templates
+> frame the page, counts, lifecycle labels, port policy, rows, public-address
+> heading, and missing-address fallback. Profile names, transport identifiers,
+> fixed ports, and declared public addresses remain literal non-markup evidence.
+> Opening the workspace performs no DNS, socket, reachability, ownership, or
+> firewall observation and offers no mutation control.
+
 ### 5.2 Dashboard
 
 The dashboard answers five questions without navigation:
@@ -1044,7 +1055,10 @@ Current implementation status (2026-07-17):
   that distinguishes enabled, paused, and draft listener intent, explains
   TCP/UDP plus fixed/automatic ports and public addresses, performs no probe or
   firewall mutation, and shares one protocol-to-endpoint projection with
-  listener diagnostics;
+  listener diagnostics. Page framing, empty state, counts, lifecycle labels,
+  port policy, row templates, public-address heading, and missing-address
+  fallback come from the validated interface copy catalog while profile and
+  address values remain literal non-markup evidence;
 - persisted interface Settings: the dashboard and `s` open a dedicated
   workspace where dark/light appearance changes apply application-wide and are
   restored from one strict per-user schema-v1 JSON document; missing storage
