@@ -95,6 +95,12 @@ class ProfileAvailabilityPlanScreen(Screen[None]):
                 ProfileAvailabilityErrorScreen(str(error)),
             )
             return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                ProfileAvailabilityErrorScreen(),
+            )
+            return
         self.app.call_from_thread(
             self.app.push_screen,
             ProfileAvailabilityResultScreen(result),
@@ -234,7 +240,7 @@ class ProfileAvailabilityErrorScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
 
-    def __init__(self, diagnostics: str) -> None:
+    def __init__(self, diagnostics: str | None = None) -> None:
         super().__init__()
         self.diagnostics = diagnostics
 
@@ -242,9 +248,17 @@ class ProfileAvailabilityErrorScreen(Screen[None]):
         yield Header()
         with Vertical(id="profile-availability-error"):
             yield Static("无法确认配置状态变更", id="profile-availability-error-title")
-            yield Static(self.diagnostics, id="profile-availability-error-details")
             yield Static(
-                "desired state 未提交。请重新打开配置详情并检查当前服务状态。",
+                self.diagnostics or "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-availability-error-details",
+            )
+            yield Static(
+                (
+                    "desired state 未提交。请重新打开配置详情并检查当前服务状态。"
+                    if self.diagnostics is not None
+                    else "服务器配置、服务和 desired state 的结果均未知。"
+                    "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+                ),
                 id="profile-availability-error-safety",
             )
         yield Footer()

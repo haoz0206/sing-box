@@ -143,6 +143,20 @@ class UnavailableProfileRemover(RecordingProfileRemover):
         raise ConfigurationApplyError("sudo authorization denied")
 
 
+class UnexpectedProfileRemover(RecordingProfileRemover):
+    def __init__(self) -> None:
+        super().__init__(status=ProfileStatus.APPLIED)
+
+    def remove_profile(
+        self,
+        plan: ProfileRemovalPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileRemovalResult:
+        assert confirmed
+        raise RuntimeError("token=private-profile-removal-worker-error")
+
+
 class StateMutatingProfileRemover(RecordingProfileRemover):
     def __init__(self, state_store: MemoryStateStore) -> None:
         super().__init__()
@@ -310,3 +324,26 @@ async def test_unknown_profile_removal_host_result_requires_operator_diagnostics
         assert app.screen.query_one("#profile-removal-error-safety", Static).content == (
             "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
         )
+
+
+async def test_unexpected_profile_removal_failure_is_unknown_and_not_disclosed() -> None:
+    app = app_for(UnexpectedProfileRemover())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-removal-error-title", Static).content == (
+            "无法确认配置移除结果"
+        )
+        assert app.screen.query_one("#profile-removal-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-removal-error-safety", Static).content == (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-removal-worker-error" not in rendered_text

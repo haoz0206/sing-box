@@ -7,6 +7,7 @@ from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_availability import (
     ProfileAvailability,
+    ProfileAvailabilityPlan,
     ProfileAvailabilityResult,
     ProfileAvailabilityService,
     ProfileResumePortUnavailableError,
@@ -101,6 +102,31 @@ class ResumePortUnavailableManager:
 
     def apply_change(self, plan: object, *, confirmed: bool) -> object:
         raise AssertionError("an unavailable resume plan must not be confirmed")
+
+
+class UnexpectedProfileAvailabilityManager:
+    def plan_change(self, request: object) -> ProfileAvailabilityPlan:
+        return ProfileAvailabilityPlan(
+            profile_id="profile-1",
+            profile_name="手机",
+            current=ProfileAvailability.PAUSED,
+            target=ProfileAvailability.ACTIVE,
+            expected_revision=5,
+            remaining_active_profile_count=1,
+            port_selection=PortSelection.FIXED,
+            recorded_listen_port=4433,
+            port_may_change=False,
+            requires_live_apply=True,
+        )
+
+    def apply_change(
+        self,
+        plan: ProfileAvailabilityPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileAvailabilityResult:
+        assert confirmed
+        raise RuntimeError("token=private-profile-availability-worker-error")
 
 
 async def test_operator_pauses_applied_profile_without_deleting_intent() -> None:
@@ -299,6 +325,47 @@ async def test_unavailable_resume_port_has_actionable_planning_guidance() -> Non
         assert app.screen.query_one("#profile-availability-error-safety", Static).content == (
             "desired state 未提交。请重新打开配置详情并检查当前服务状态。"
         )
+
+
+async def test_unexpected_availability_failure_is_unknown_and_not_disclosed() -> None:
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=5, profiles=(paused,))
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=PausedProfileDetailsReader(),
+            profile_availability_manager=UnexpectedProfileAvailabilityManager(),
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#change-profile-availability")
+        await pilot.click("#confirm-profile-availability")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-availability-error-title", Static).content == (
+            "无法确认配置状态变更"
+        )
+        assert app.screen.query_one("#profile-availability-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-availability-error-safety", Static).content == (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-availability-worker-error" not in rendered_text
 
 
 def availability_result(

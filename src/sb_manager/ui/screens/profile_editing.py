@@ -202,6 +202,12 @@ class ProfileEditPlanScreen(Screen[None]):
                 ProfileEditOperationalErrorScreen(str(error)),
             )
             return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                ProfileEditOperationalErrorScreen(),
+            )
+            return
         self.app.call_from_thread(
             self.app.push_screen,
             ProfileEditResultScreen(result),
@@ -346,7 +352,7 @@ class ProfileEditOperationalErrorScreen(Screen[None]):
 
     BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
 
-    def __init__(self, diagnostics: str) -> None:
+    def __init__(self, diagnostics: str | None = None) -> None:
         super().__init__()
         self.diagnostics = diagnostics
 
@@ -354,9 +360,17 @@ class ProfileEditOperationalErrorScreen(Screen[None]):
         yield Header()
         with Vertical(id="profile-edit-operational-error"):
             yield Static("无法确认配置编辑结果", id="profile-edit-error-title")
-            yield Static(self.diagnostics, id="profile-edit-error-details")
             yield Static(
-                "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。",
+                self.diagnostics or "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-edit-error-details",
+            )
+            yield Static(
+                (
+                    "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
+                    if self.diagnostics is not None
+                    else "服务器配置、服务和 desired state 的结果均未知。"
+                    "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+                ),
                 id="profile-edit-error-safety",
             )
         yield Footer()

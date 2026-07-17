@@ -698,10 +698,10 @@ Current implementation status (2026-07-17):
 - unprivileged client: explicit privileged apply mode stages deterministic
   mode-`0600` JSON, sends a SHA-256-only request through a non-interactive
   runner, strictly restores the typed transaction, and surfaces unknown host
-  results without committing desired state; the Textual apply and core-update
-  workers also convert unclassified post-confirmation exceptions into
-  non-disclosing unknown-result guidance rather than crashing or implying a
-  rollback;
+  results without committing desired state; the Textual apply, edit, removal,
+  pause/resume, and core-update workers also convert unclassified
+  post-confirmation exceptions into non-disclosing unknown-result guidance
+  rather than crashing or implying a rollback;
 - privileged installation: a root-only command installs fixed directories and
   exact no-arguments sudo/doas rules after a read-only plan and explicit
   `--confirm`, followed by native syntax validation; pinned Debian 12, Ubuntu
@@ -773,7 +773,9 @@ Current implementation status (2026-07-17):
   identity and material, transactionally reprojects the complete configuration,
   rechecks fixed ports or selects an automatic port under the shared lock, and
   commits desired state only after host success; transaction failures retain
-  typed validation, precondition, commit, rollback, and recovery evidence;
+  typed validation, precondition, commit, rollback, and recovery evidence,
+  while unclassified worker failures discard exception text and present the
+  complete live configuration, service, and desired-state result as unknown;
 - durable profile details: an applied profile can be reopened after restart to
   reconstruct its endpoint and share URI from persisted desired state through
   a read-only application query; stale concurrent selections produce a typed
