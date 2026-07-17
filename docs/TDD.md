@@ -416,7 +416,9 @@ Release gate adds:
   connection-share panel, a visible read-only lifecycle scope, endpoint intent
   when no share URI exists, one-page credential reveal/hide, disclosure-safe
   expected and unexpected read failures, scrollable layout, and unchanged
-  edit/availability/clone/removal plan handoff;
+  edit/availability/clone/removal plan handoff; the same public journeys protect
+  extraction of the complete details implementation behind the capabilities,
+  details-screen, and read-error-screen interface without adding internal tests;
 - profile-edit acceptance for catalog propagation from details through form,
   normalized plan, desired-state result, read-only planning failure, and
   unknown mutation result; exact desired-only versus live-transaction impact,

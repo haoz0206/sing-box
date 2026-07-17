@@ -233,6 +233,14 @@ configuration identity, service status, and apply-history inspection before
 retry. Profile names, transaction diagnostics, and recovery instructions render
 with markup disabled.
 
+The complete details presentation is one deep module. Its external interface is
+the immutable `ProfileDetailsCapabilities` dependency bundle, the details
+screen, and the expected/unexpected read-error screens used by the composition
+root. Connection disclosure, capability-aware lifecycle routing, planning-error
+classification, and successful clone refresh remain local implementation
+details. The root application owns report loading and top-level routing only;
+it does not duplicate lifecycle policy or screen composition.
+
 A connection share URI is a credential, not ordinary profile metadata. Profile
 details and successful first apply show the public endpoint and a disclosure
 warning, but do not mount the URI in a terminal control by default. The operator
