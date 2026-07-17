@@ -267,7 +267,10 @@ _Avoid_: Global command execution, hidden mutation, shell alias
 A capability-aware navigation space for core lifecycle planning and read-only
 runtime evidence. Opening it performs no probe or mutation; each available tool
 starts only after an explicit selection, while unavailable tools remain visible
-as explanations rather than dead controls.
+as explanations rather than dead controls. Page framing, safety policy, section
+labels, available actions, and startup-mode explanations come from one validated
+interface copy catalog. The workspace neither parses presentation text nor owns
+the destination workflows it opens.
 _Avoid_: Dashboard miscellaneous buttons, direct mutation shortcut, empty menu
 
 **Profiles workspace**:

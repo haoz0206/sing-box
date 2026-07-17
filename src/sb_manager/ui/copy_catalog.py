@@ -78,6 +78,16 @@ class UiText(str, Enum):
     HOST_DIAGNOSTICS_RECOVERY_TITLE = "host_diagnostics.recovery.title"
     HOST_DIAGNOSTICS_RECOVERY_STEP = "host_diagnostics.recovery.step"
     HOST_DIAGNOSTICS_RECOVERY_EMPTY = "host_diagnostics.recovery.empty"
+    OPERATIONS_TITLE = "operations.title"
+    OPERATIONS_SUMMARY = "operations.summary"
+    OPERATIONS_SAFETY = "operations.safety"
+    OPERATIONS_CORE_TITLE = "operations.core.title"
+    OPERATIONS_EVIDENCE_TITLE = "operations.evidence.title"
+    OPERATIONS_OPEN_SERVICE_LOGS = "operations.open_service_logs"
+    OPERATIONS_OPEN_APPLY_HISTORY = "operations.open_apply_history"
+    OPERATIONS_CORE_UNAVAILABLE = "operations.core.unavailable"
+    OPERATIONS_SERVICE_LOGS_UNAVAILABLE = "operations.service_logs.unavailable"
+    OPERATIONS_APPLY_HISTORY_UNAVAILABLE = "operations.apply_history.unavailable"
     DIAGNOSTICS_CENTER_TITLE = "diagnostics_center.title"
     DIAGNOSTICS_CENTER_SUMMARY_HEALTHY = "diagnostics_center.summary.healthy"
     DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE = "diagnostics_center.summary.actionable"
@@ -1080,6 +1090,18 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.HOST_DIAGNOSTICS_RECOVERY_TITLE: "建议的恢复步骤",
         UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: "{number}. {instruction}",
         UiText.HOST_DIAGNOSTICS_RECOVERY_EMPTY: "当前无需恢复操作。",
+        UiText.OPERATIONS_TITLE: "运维中心",
+        UiText.OPERATIONS_SUMMARY: "集中管理核心版本，并查看运行与配置变更证据。",
+        UiText.OPERATIONS_SAFETY: (
+            "打开本页不会修改主机。进入具体工具后，任何变更仍需先预览计划并明确确认。"
+        ),
+        UiText.OPERATIONS_CORE_TITLE: "核心管理",
+        UiText.OPERATIONS_EVIDENCE_TITLE: "运行证据",
+        UiText.OPERATIONS_OPEN_SERVICE_LOGS: "查看近期服务日志",
+        UiText.OPERATIONS_OPEN_APPLY_HISTORY: "查看配置应用历史",
+        UiText.OPERATIONS_CORE_UNAVAILABLE: "当前启动模式未提供可信核心更新能力。",
+        UiText.OPERATIONS_SERVICE_LOGS_UNAVAILABLE: "当前启动模式未提供服务日志读取能力。",
+        UiText.OPERATIONS_APPLY_HISTORY_UNAVAILABLE: "当前启动模式未提供配置应用历史。",
         UiText.DIAGNOSTICS_CENTER_TITLE: "诊断中心",
         UiText.DIAGNOSTICS_CENTER_SUMMARY_HEALTHY: "整体状态：所有检查均正常",
         UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE: (

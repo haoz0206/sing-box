@@ -76,6 +76,28 @@ class ApplyHistoryMarkerCatalog:
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
+class OperationsMarkerCatalog:
+    """Render markers for the capability-aware Operations workspace."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "operations.title": "目录运维中心",
+            "operations.summary": "目录集中管理与查看证据",
+            "operations.safety": "目录进入工具不修改主机",
+            "operations.core.title": "目录核心管理",
+            "operations.evidence.title": "目录运行证据",
+            "operations.open_service_logs": "目录查看服务日志",
+            "operations.open_apply_history": "目录查看应用历史",
+            "operations.core.unavailable": "目录核心能力不可用",
+            "operations.service_logs.unavailable": "目录日志能力不可用",
+            "operations.apply_history.unavailable": "目录历史能力不可用",
+            "core_update.open": "目录管理核心",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
 async def test_dashboard_routes_core_management_through_operations() -> None:
     app = ManagerApp(core_updater=NeverCalledCoreUpdater())
 
@@ -111,7 +133,7 @@ async def test_operator_opens_one_capability_aware_operations_workspace() -> Non
 
         assert app.screen.query_one("#operations-title", Static).content == "运维中心"
         assert app.screen.query_one("#operations-safety", Static).content == (
-            "进入工具不会修改主机; 任何变更仍需先预览计划并明确确认。"
+            "打开本页不会修改主机。进入具体工具后，任何变更仍需先预览计划并明确确认。"
         )
         assert str(app.screen.query_one("#manage-core", Button).label) == (
             "安装或升级 sing-box 核心"
@@ -119,6 +141,39 @@ async def test_operator_opens_one_capability_aware_operations_workspace() -> Non
         assert str(app.screen.query_one("#open-service-logs", Button).label) == ("查看近期服务日志")
         assert str(app.screen.query_one("#open-apply-history", Button).label) == (
             "查看配置应用历史"
+        )
+
+
+async def test_operations_catalog_owns_framing_and_available_capability_copy() -> None:
+    app = ManagerApp(
+        core_updater=NeverCalledCoreUpdater(),
+        host_tools=ManagerAppHostTools(
+            service_log_reader=NeverReadServiceLogs(),
+            apply_history_reader=NeverReadApplyHistory(),
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, OperationsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-operations")
+
+        assert app.screen.query_one("#operations-title", Static).content == "目录运维中心"
+        assert app.screen.query_one("#operations-summary", Static).content == (
+            "目录集中管理与查看证据"
+        )
+        assert app.screen.query_one("#operations-safety", Static).content == (
+            "目录进入工具不修改主机"
+        )
+        assert app.screen.query_one("#operations-core-title", Static).content == ("目录核心管理")
+        assert app.screen.query_one("#operations-evidence-title", Static).content == (
+            "目录运行证据"
+        )
+        assert str(app.screen.query_one("#manage-core", Button).label) == "目录管理核心"
+        assert str(app.screen.query_one("#open-service-logs", Button).label) == ("目录查看服务日志")
+        assert str(app.screen.query_one("#open-apply-history", Button).label) == (
+            "目录查看应用历史"
         )
 
 
@@ -139,6 +194,30 @@ async def test_operations_explains_capabilities_missing_from_the_current_mode() 
         )
         assert app.screen.query_one("#operations-apply-history-unavailable", Static).content == (
             "当前启动模式未提供配置应用历史。"
+        )
+
+
+async def test_operations_catalog_owns_missing_capability_explanations() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, OperationsMarkerCatalog())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-operations")
+
+        assert list(app.screen.query("#manage-core")) == []
+        assert list(app.screen.query("#open-service-logs")) == []
+        assert list(app.screen.query("#open-apply-history")) == []
+        assert app.screen.query_one("#operations-core-unavailable", Static).content == (
+            "目录核心能力不可用"
+        )
+        assert app.screen.query_one("#operations-service-logs-unavailable", Static).content == (
+            "目录日志能力不可用"
+        )
+        assert app.screen.query_one("#operations-apply-history-unavailable", Static).content == (
+            "目录历史能力不可用"
         )
 
 

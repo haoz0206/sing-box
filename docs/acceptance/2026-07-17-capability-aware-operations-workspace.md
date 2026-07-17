@@ -17,6 +17,10 @@ existing core-update, service-log, or apply-history workflows.
 - Available capabilities are grouped into core management and runtime evidence.
 - Missing capabilities render explicit startup-mode explanations and no dead
   buttons.
+- One injected interface copy catalog owns the page title, task summary,
+  host-effect boundary, section labels, available action labels, and all three
+  startup-mode explanations. The Operations screen contains no locale-authored
+  Han text.
 - Core selection opens the existing exact-version planning form without
   planning or activating anything eagerly.
 - Service logs and apply history are read only after their respective controls
@@ -27,15 +31,15 @@ existing core-update, service-log, or apply-history workflows.
 
 - Confirmed Seam A: Textual `App.run_test()` and Pilot only; tests click visible
   controls, press visible shortcuts, and assert mounted screen content.
-- Focused operations workspace acceptance: `7 passed`.
-- Affected keyboard/core/operations acceptance set: `16 passed`.
-- Complete repository suite: `549 passed, 18 skipped`.
-- Ruff check passed; Ruff format reported `246 files already formatted`.
-- Strict mypy passed for `152 source files`.
+- Focused operations workspace acceptance: `10 passed` in `4.72s`.
+- Affected keyboard/core/operations acceptance set: `23 passed` in `24.32s`.
+- Complete repository suite: `645 passed, 18 skipped` in `202.67s`.
+- Ruff check passed; Ruff format reported `262 files already formatted`.
+- Strict mypy passed for `164 source files`.
 - Source distribution and wheel built successfully, both including
   `sb_manager/ui/screens/operations.py`.
 - Wheel SHA-256:
-  `f5992d9e4123966b3c0bf890725491082ccdd84ba18c77e7140908201282edf9`.
+  `efef5560129dfc480d99e1e7455ebf45d964287c0e8173de4215ffa6e18ab51d`.
 
 ## External release boundary
 

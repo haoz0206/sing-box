@@ -128,6 +128,16 @@ input and no shortcut bypasses an existing plan or confirmation. `?` opens one
 read-only help screen; `Esc`, `Tab`, `Shift+Tab`, and `Enter` retain their normal
 screen and focus semantics.
 
+Worked example — unavailable operational capabilities:
+
+> The operator opens Operations in a startup mode with no trusted core updater,
+> service-log reader, or apply-history reader. The catalog supplies the title,
+> task summary, host-effect boundary, section labels, and three explicit
+> startup-mode explanations; no dead action is rendered. Opening the workspace
+> plans nothing, reads nothing, and mutates nothing. When a capability is
+> configured, its catalog action replaces only that explanation and opens the
+> existing destination workflow after explicit selection.
+
 ### 5.2 Dashboard
 
 The dashboard answers five questions without navigation:

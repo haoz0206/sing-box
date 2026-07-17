@@ -415,7 +415,9 @@ Release gate adds:
   add/profiles/network/settings/diagnostics/operations/quit actions, child-screen suppression,
   non-mutating navigation, and preservation of normal form input; the
   operations workspace must prove capability-aware available/unavailable
-  presentation plus on-demand core, service-log, and apply-history handoff; the
+  presentation, catalog-backed framing/safety/section/action/explanation copy,
+  no locale-authored screen text, no eager dependency call, plus on-demand core,
+  service-log, and apply-history handoff; the
   profiles workspace must prove dashboard/inventory separation, capability-
   aware row actions, exact profile-ID handoff through one typed UI message,
   `Esc` context preservation, dashboard refresh after lifecycle success,

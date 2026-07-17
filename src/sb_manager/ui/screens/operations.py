@@ -21,7 +21,9 @@ from sb_manager.ui.screens.service_logs import ServiceLogsScreen
 class OperationsScreen(Screen[None]):
     """Present available operational workflows without executing them eagerly."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
     def __init__(
         self,
@@ -40,40 +42,58 @@ class OperationsScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="operations"):
-            yield Static("运维中心", id="operations-title", markup=False)
             yield Static(
-                "集中管理核心版本，并查看运行与配置变更证据。",
+                self.copy.text(UiText.OPERATIONS_TITLE),
+                id="operations-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.OPERATIONS_SUMMARY),
                 id="operations-summary",
                 markup=False,
             )
             yield Static(
-                "进入工具不会修改主机; 任何变更仍需先预览计划并明确确认。",
+                self.copy.text(UiText.OPERATIONS_SAFETY),
                 id="operations-safety",
                 markup=False,
             )
-            yield Static("核心管理", id="operations-core-title", classes="section-title")
+            yield Static(
+                self.copy.text(UiText.OPERATIONS_CORE_TITLE),
+                id="operations-core-title",
+                classes="section-title",
+            )
             if self.core_updater is not None:
                 yield Button(self.copy.text(UiText.CORE_UPDATE_OPEN), id="manage-core")
             else:
                 yield Static(
-                    "当前启动模式未提供可信核心更新能力。",
+                    self.copy.text(UiText.OPERATIONS_CORE_UNAVAILABLE),
                     id="operations-core-unavailable",
                     markup=False,
                 )
-            yield Static("运行证据", id="operations-evidence-title", classes="section-title")
+            yield Static(
+                self.copy.text(UiText.OPERATIONS_EVIDENCE_TITLE),
+                id="operations-evidence-title",
+                classes="section-title",
+            )
             if self.service_log_reader is not None:
-                yield Button("查看近期服务日志", id="open-service-logs")
+                yield Button(
+                    self.copy.text(UiText.OPERATIONS_OPEN_SERVICE_LOGS),
+                    id="open-service-logs",
+                )
             else:
                 yield Static(
-                    "当前启动模式未提供服务日志读取能力。",
+                    self.copy.text(UiText.OPERATIONS_SERVICE_LOGS_UNAVAILABLE),
                     id="operations-service-logs-unavailable",
                     markup=False,
                 )
             if self.apply_history_reader is not None:
-                yield Button("查看配置应用历史", id="open-apply-history")
+                yield Button(
+                    self.copy.text(UiText.OPERATIONS_OPEN_APPLY_HISTORY),
+                    id="open-apply-history",
+                )
             else:
                 yield Static(
-                    "当前启动模式未提供配置应用历史。",
+                    self.copy.text(UiText.OPERATIONS_APPLY_HISTORY_UNAVAILABLE),
                     id="operations-apply-history-unavailable",
                     markup=False,
                 )
