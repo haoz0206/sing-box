@@ -154,6 +154,7 @@ from sb_manager.ui.screens.state_recovery import (
     StateRecoveryConfirmationScreen,
     StateRecoveryInspectionErrorPanel,
     StateRecoveryPanel,
+    StateRecoveryPlanningErrorScreen,
 )
 
 
@@ -1263,7 +1264,7 @@ class ManagerApp(App[None]):
             try:
                 return self.state_recovery_manager.inspect()
             except Exception:
-                return StateRecoveryInspectionErrorPanel()
+                return StateRecoveryInspectionErrorPanel(self.copy_catalog)
         return None
 
     def _initial_dashboard_statuses(self) -> tuple[str, str, str]:
@@ -1348,7 +1349,7 @@ class ManagerApp(App[None]):
             and recovery_report.availability is not RecoveryAvailability.HEALTHY
         ):
             self._dashboard_ready = False
-            yield StateRecoveryPanel(recovery_report)
+            yield StateRecoveryPanel(recovery_report, self.copy_catalog)
             yield Footer()
             return
         installation = (
@@ -1562,19 +1563,21 @@ class ManagerApp(App[None]):
     def open_state_recovery(self) -> None:
         if self.state_recovery_manager is None:
             return
-        report = self.state_recovery_manager.inspect()
+        try:
+            report = self.state_recovery_manager.inspect()
+        except Exception:
+            self.push_screen(StateRecoveryPlanningErrorScreen(self.copy_catalog))
+            return
         if report.plan is None:
             self.post_message(DashboardRefreshRequested())
             return
         self.push_screen(
-            StateRecoveryConfirmationScreen(self.state_recovery_manager, report.plan),
-            self.finish_state_recovery,
+            StateRecoveryConfirmationScreen(
+                self.state_recovery_manager,
+                report.plan,
+                self.copy_catalog,
+            )
         )
-
-    def finish_state_recovery(self, result: object | None) -> None:
-        if result is None:
-            return
-        self.post_message(DashboardRefreshRequested())
 
     @work(thread=True, exclusive=True)
     def load_host_diagnostics(self) -> None:

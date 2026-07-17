@@ -52,8 +52,23 @@ existing `.bak` is not rewritten during recovery.
 At startup, Textual uses the application report instead of loading corrupt
 state through `Manager`. A recoverable failure presents a safe page and a
 separate confirmation screen. Unsupported or unrecoverable states present
-guidance without a mutation button. After a successful restore, the app
-recomposes the normal dashboard and resumes host observations.
+guidance without a mutation button. One validated interface copy catalog owns
+startup classification, exact-fingerprint review, confirmation, guarded
+progress, rejection, terminal evidence, and unknown-result policy. SHA-256,
+typed diagnostics, and the corrupt archive path remain literal evidence with
+markup disabled.
+
+A `StateRecoveryPreconditionError` proves the reviewed plan is stale and is
+presented as a terminal rejection without re-enabling confirmation. A broader
+`StateRecoverySourceError` cannot prove whether archive or replacement work
+started, so it is classified with unhandled confirmed failures as an unknown
+mutation result and never as “recovery did not run.” A failed read-only
+reinspection is non-disclosing and states that no operation ran.
+
+After a successful restore, Textual presents the restored revision, profile
+count, and corrupt archive path. An explicit return action then clears the
+stale recovery stack, recomposes the normal dashboard, and resumes configured
+host observations.
 
 ## Consequences
 
@@ -64,6 +79,10 @@ recomposes the normal dashboard and resumes host observations.
 - Future-schema state remains protected from downgrade overwrite.
 - The damaged input and the backup used for recovery remain independently
   available after success.
+- A stale reviewed plan cannot be retried from the terminal rejection page, and
+  an uncertain storage result cannot be mistaken for a safe rejection.
+- The operator sees durable success evidence before the recovered dashboard
+  replaces the recovery workflow.
 - Textual knows recovery availability and summary data but contains no parsing,
   hashing, locking, or file-replacement policy.
 - Recovery currently restores only the automatically retained previous
@@ -96,4 +115,3 @@ their full hash provides an unambiguous archive identity.
 
 Rejected because this may be a normal downgrade attempt. The safe action is to
 open it with a compatible manager version, not overwrite it.
-

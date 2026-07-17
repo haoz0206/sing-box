@@ -514,6 +514,38 @@ class UiText(str, Enum):
     CONFIG_ADOPTION_UNKNOWN_SAFETY = "config_adoption.unknown.safety"
     CONFIG_ADOPTION_ERROR_TITLE = "config_adoption.error.title"
     CONFIG_ADOPTION_ERROR_SAFETY = "config_adoption.error.safety"
+    STATE_RECOVERY_AVAILABLE_TITLE = "state_recovery.available.title"
+    STATE_RECOVERY_AVAILABLE_BACKUP = "state_recovery.available.backup"
+    STATE_RECOVERY_AVAILABLE_GUIDANCE = "state_recovery.available.guidance"
+    STATE_RECOVERY_AVAILABLE_REVIEW = "state_recovery.available.review"
+    STATE_RECOVERY_CONFIRM_TITLE = "state_recovery.confirm.title"
+    STATE_RECOVERY_CONFIRM_BACKUP = "state_recovery.confirm.backup"
+    STATE_RECOVERY_CONFIRM_PRIMARY_FINGERPRINT = "state_recovery.confirm.primary_fingerprint"
+    STATE_RECOVERY_CONFIRM_BACKUP_FINGERPRINT = "state_recovery.confirm.backup_fingerprint"
+    STATE_RECOVERY_CONFIRM_SAFETY = "state_recovery.confirm.safety"
+    STATE_RECOVERY_CONFIRM_ACTION = "state_recovery.confirm.action"
+    STATE_RECOVERY_CONFIRM_PROGRESS = "state_recovery.confirm.progress"
+    STATE_RECOVERY_RESULT_TITLE = "state_recovery.result.title"
+    STATE_RECOVERY_RESULT_REVISION = "state_recovery.result.revision"
+    STATE_RECOVERY_RESULT_PROFILES = "state_recovery.result.profiles"
+    STATE_RECOVERY_RESULT_ARCHIVE = "state_recovery.result.archive"
+    STATE_RECOVERY_RESULT_SAFETY = "state_recovery.result.safety"
+    STATE_RECOVERY_RESULT_RETURN_DASHBOARD = "state_recovery.result.return_dashboard"
+    STATE_RECOVERY_REJECTION_TITLE = "state_recovery.rejection.title"
+    STATE_RECOVERY_REJECTION_SAFETY = "state_recovery.rejection.safety"
+    STATE_RECOVERY_UNKNOWN_TITLE = "state_recovery.unknown.title"
+    STATE_RECOVERY_UNKNOWN_DETAILS = "state_recovery.unknown.details"
+    STATE_RECOVERY_UNKNOWN_SAFETY = "state_recovery.unknown.safety"
+    STATE_RECOVERY_INSPECTION_ERROR_TITLE = "state_recovery.inspection_error.title"
+    STATE_RECOVERY_INSPECTION_ERROR_DETAILS = "state_recovery.inspection_error.details"
+    STATE_RECOVERY_INSPECTION_ERROR_SAFETY = "state_recovery.inspection_error.safety"
+    STATE_RECOVERY_UNSUPPORTED_TITLE = "state_recovery.unsupported.title"
+    STATE_RECOVERY_UNSUPPORTED_GUIDANCE = "state_recovery.unsupported.guidance"
+    STATE_RECOVERY_UNAVAILABLE_TITLE = "state_recovery.unavailable.title"
+    STATE_RECOVERY_UNAVAILABLE_GUIDANCE = "state_recovery.unavailable.guidance"
+    STATE_RECOVERY_PLANNING_ERROR_TITLE = "state_recovery.planning_error.title"
+    STATE_RECOVERY_PLANNING_ERROR_DETAILS = "state_recovery.planning_error.details"
+    STATE_RECOVERY_PLANNING_ERROR_SAFETY = "state_recovery.planning_error.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -622,6 +654,14 @@ _EXPECTED_FIELDS.update(
         UiText.CORE_UPDATE_RESULT_PREVIOUS: frozenset({"target"}),
         UiText.CONFIG_ADOPTION_PLAN_FINGERPRINT: frozenset({"sha256"}),
         UiText.CONFIG_ADOPTION_RESULT_REVISION: frozenset({"revision"}),
+        UiText.STATE_RECOVERY_AVAILABLE_BACKUP: frozenset({"revision", "profiles"}),
+        UiText.STATE_RECOVERY_CONFIRM_BACKUP: frozenset({"revision", "profiles"}),
+        UiText.STATE_RECOVERY_CONFIRM_PRIMARY_FINGERPRINT: frozenset({"sha256"}),
+        UiText.STATE_RECOVERY_CONFIRM_BACKUP_FINGERPRINT: frozenset({"sha256"}),
+        UiText.STATE_RECOVERY_RESULT_REVISION: frozenset({"revision"}),
+        UiText.STATE_RECOVERY_RESULT_PROFILES: frozenset({"profiles"}),
+        UiText.STATE_RECOVERY_RESULT_ARCHIVE: frozenset({"path"}),
+        UiText.STATE_RECOVERY_UNSUPPORTED_GUIDANCE: frozenset({"schema"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1258,6 +1298,67 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CONFIG_ADOPTION_ERROR_TITLE: "无法接管现有配置",
         UiText.CONFIG_ADOPTION_ERROR_SAFETY: (
             "服务器配置和 desired state 均未改变。请重新检查后再试。"
+        ),
+        UiText.STATE_RECOVERY_AVAILABLE_TITLE: "desired state 无法读取",
+        UiText.STATE_RECOVERY_AVAILABLE_BACKUP: (
+            "可恢复备份：revision {revision} · {profiles} 个配置"
+        ),
+        UiText.STATE_RECOVERY_AVAILABLE_GUIDANCE: (
+            "恢复前会再次核对主文件和备份指纹，损坏原文件会被完整保留。"
+        ),
+        UiText.STATE_RECOVERY_AVAILABLE_REVIEW: "审阅恢复计划",
+        UiText.STATE_RECOVERY_CONFIRM_TITLE: "确认恢复 desired state",
+        UiText.STATE_RECOVERY_CONFIRM_BACKUP: ("备份：revision {revision} · {profiles} 个配置"),
+        UiText.STATE_RECOVERY_CONFIRM_PRIMARY_FINGERPRINT: ("待替换主文件 SHA-256：{sha256}"),
+        UiText.STATE_RECOVERY_CONFIRM_BACKUP_FINGERPRINT: ("待恢复备份 SHA-256：{sha256}"),
+        UiText.STATE_RECOVERY_CONFIRM_SAFETY: (
+            "将用已审阅备份替换损坏主文件，损坏原文件会被完整归档。"
+        ),
+        UiText.STATE_RECOVERY_CONFIRM_ACTION: "确认并恢复",
+        UiText.STATE_RECOVERY_CONFIRM_PROGRESS: (
+            "操作已确认，正在恢复 desired state。完成前无法返回。"
+        ),
+        UiText.STATE_RECOVERY_RESULT_TITLE: "desired state 已恢复",
+        UiText.STATE_RECOVERY_RESULT_REVISION: "恢复至 revision {revision}",
+        UiText.STATE_RECOVERY_RESULT_PROFILES: "恢复配置数：{profiles}",
+        UiText.STATE_RECOVERY_RESULT_ARCHIVE: "损坏主文件归档：{path}",
+        UiText.STATE_RECOVERY_RESULT_SAFETY: (
+            "已验证的备份现在是 manager desired state，live configuration 未被修改。"
+        ),
+        UiText.STATE_RECOVERY_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.STATE_RECOVERY_REJECTION_TITLE: "无法执行 desired state 恢复",
+        UiText.STATE_RECOVERY_REJECTION_SAFETY: (
+            "未替换 desired state。审阅证据已失效，请返回并重新检查后再决定是否恢复。"
+        ),
+        UiText.STATE_RECOVERY_UNKNOWN_TITLE: "无法确认 desired state 恢复结果",
+        UiText.STATE_RECOVERY_UNKNOWN_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.STATE_RECOVERY_UNKNOWN_SAFETY: (
+            "主文件、备份和损坏文件归档的结果均未知。"
+            "请先只读检查这些文件的 SHA-256 和 revision，不要直接重试。"
+        ),
+        UiText.STATE_RECOVERY_INSPECTION_ERROR_TITLE: "无法检查 desired state",
+        UiText.STATE_RECOVERY_INSPECTION_ERROR_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.STATE_RECOVERY_INSPECTION_ERROR_SAFETY: (
+            "当前会话不会写入 desired state。请修复文件访问问题后重新启动 manager。"
+        ),
+        UiText.STATE_RECOVERY_UNSUPPORTED_TITLE: "desired state 版本高于当前管理器",
+        UiText.STATE_RECOVERY_UNSUPPORTED_GUIDANCE: (
+            "检测到 schema {schema}。请使用兼容版本的管理器打开，当前版本不会覆盖该文件。"
+        ),
+        UiText.STATE_RECOVERY_UNAVAILABLE_TITLE: "desired state 无法读取",
+        UiText.STATE_RECOVERY_UNAVAILABLE_GUIDANCE: (
+            "没有找到可验证的备份。当前版本不会覆盖主文件，请从外部备份恢复或检查文件权限。"
+        ),
+        UiText.STATE_RECOVERY_PLANNING_ERROR_TITLE: "无法重新检查恢复计划",
+        UiText.STATE_RECOVERY_PLANNING_ERROR_DETAILS: (
+            "读取 desired state 恢复证据时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.STATE_RECOVERY_PLANNING_ERROR_SAFETY: (
+            "尚未归档或替换任何 desired state 文件。请修复文件访问问题并重新启动 manager 后再审阅。"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (

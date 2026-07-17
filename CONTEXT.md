@@ -33,6 +33,17 @@ revision, and typed diagnostics remain literal non-markup evidence. Success
 explicitly returns to a freshly recomposed dashboard rather than a stale plan.
 _Avoid_: Import, automatic migration
 
+**Desired-state recovery**:
+An operator-confirmed replacement of one exact corrupt manager state file with
+one exact current-schema backup. Startup classification, review, both SHA-256
+identities, confirmation, guarded progress, typed rejection, durable success
+evidence, and unknown-result guidance come from one validated interface copy
+catalog. A precondition mismatch proves that replacement did not run; any
+broader storage failure after confirmation is an unknown result. Success shows
+the restored revision, profile count, and corrupt-file archive before an
+explicit return to a freshly recomposed dashboard.
+_Avoid_: Silent backup fallback, schema downgrade, retry after unknown result
+
 **Import**:
 Conversion of external configuration semantics into manager-owned desired
 state. Import is distinct from adoption and may be unsupported for some input.

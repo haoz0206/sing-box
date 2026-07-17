@@ -897,12 +897,20 @@ Current implementation status (2026-07-17):
   current-schema readable backup produces a reviewable plan, explicit
   confirmation rechecks both SHA-256 values under the shared mutation lock,
   preserves the corrupt bytes under their full hash, atomically restores the
-  backup without rewriting `.bak`, and recomposes the normal dashboard;
+  backup without rewriting `.bak`, and presents revision, profile-count, and
+  corrupt-archive evidence before an explicit return to a recomposed dashboard;
+  startup classification, both exact fingerprints, confirmation, guarded
+  progress, terminal outcomes, and recovery policy render through one validated
+  interface copy catalog, while typed diagnostics and archive paths remain
+  literal non-markup evidence;
   unsupported future schemas and inaccessible or invalid backups remain
   non-mutating guidance states; an unclassified startup inspection still
   renders a read-only TUI with every mutation entry disabled, while an
-  unclassified confirmed restore reports primary, backup, and corrupt-archive
-  results as unknown and forbids direct retry;
+  unclassified review reinspection states that no operation ran; a typed
+  precondition mismatch terminates the stale plan without offering direct
+  retry, while a broader storage failure or unclassified confirmed failure
+  reports primary, backup, and corrupt-archive results as unknown and forbids
+  direct retry;
 - purpose-first profile recommendation: adding a profile starts from four
   operator outcomes, returns three protocol variants with stable rationale
   identities from one pure application module, renders every reason, caveat,

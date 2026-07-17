@@ -353,6 +353,12 @@ Release gate adds:
   action-required, non-disclosing failure, explicit retry, recommendation
   priority, and direct/privileged production composition through the same
   application module used by the diagnostics center;
+- desired-state recovery acceptance for catalog propagation across recoverable,
+  unsupported-schema, unavailable-backup, and inspection-failure startup
+  states; exact primary/backup SHA-256 review; non-returning confirmation
+  progress; stale-plan rejection without retry; distinct unknown durability and
+  unclassified outcomes; non-disclosure; durable revision/profile/archive
+  evidence; and explicit return to a freshly recomposed dashboard;
 - live-configuration identity diagnostics for empty, untracked, matching,
   missing, externally changed, and failed-probe observations, including
   single-snapshot desired-state failure isolation and direct/privileged
