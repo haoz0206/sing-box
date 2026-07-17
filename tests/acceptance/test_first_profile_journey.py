@@ -405,11 +405,13 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
     async with app.run_test() as pilot:
         empty_title = app.screen.query_one("#empty-state-title", Static)
         create_button = app.screen.query_one("#create-first-profile", Button)
+        primary_action = app.screen.query_one("#dashboard-primary-action", Button)
 
         assert empty_title.content == "尚未创建代理配置"
         assert str(create_button.label) == "创建第一个配置"
+        assert str(primary_action.label) == "创建第一个配置"
 
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
 
         purpose_title = app.screen.query_one("#profile-purpose-title", Static)
         general_option = app.screen.query_one("#purpose-general", Button)
@@ -779,12 +781,15 @@ async def test_failed_host_readiness_is_conservative_and_retryable() -> None:
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
             "建议：先重新检查主机准备度"
         )
+        primary_action = app.screen.query_one("#dashboard-primary-action", Button)
+        assert str(primary_action.label) == "立即重新检查主机准备度"
+        assert not primary_action.has_class("hidden")
         assert app.screen.query_one("#view-readiness", Button).disabled
         assert not app.screen.query_one("#refresh-readiness", Button).disabled
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private diagnostics" not in rendered_text
 
-        await pilot.click("#refresh-readiness")
+        await pilot.click("#dashboard-primary-action")
         await pilot.pause()
 
         expected_calls = 2
@@ -975,7 +980,10 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
 
     async with app.run_test() as pilot:
         assert str(app.screen.query_one("#apply-profile-0", Button).label) == "应用草案"
-        await pilot.click("#apply-profile-0")
+        assert str(app.screen.query_one("#dashboard-primary-action", Button).label) == (
+            "审阅并应用草案"
+        )
+        await pilot.click("#dashboard-primary-action")
 
         assert app.screen.query_one("#apply-confirm-profile", Static).content == (
             "配置：待应用手机"

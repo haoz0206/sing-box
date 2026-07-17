@@ -134,6 +134,16 @@ The dashboard answers five questions without navigation:
 4. Are certificates or artifacts approaching maintenance?
 5. What is the safest next action?
 
+One application-level recommendation module owns that fifth answer. It consumes
+the desired-state snapshot plus typed runtime, readiness, and certificate
+evidence, including pending, unavailable, and failed probes. It returns one
+explanation and at most one stable action identity. Textual renders the wording
+and maps that identity to an existing add, review, diagnostics, or reinspection
+workflow; it never parses guidance text or bypasses the destination's planning
+and confirmation. While evidence needed for an applied profile is pending, the
+primary action is withheld rather than guessed. Empty-state profile planning
+remains available because it has no host effect.
+
 Initial empty-state primary action: `Create your first profile`.
 
 Runtime-health and host-readiness observations run independently in background

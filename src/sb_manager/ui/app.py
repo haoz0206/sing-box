@@ -19,6 +19,13 @@ from sb_manager.application.certificate_diagnostics import (
 )
 from sb_manager.application.config_adoption import ConfigAdopter
 from sb_manager.application.core_update import CoreUpdater
+from sb_manager.application.dashboard import (
+    DashboardActionKind,
+    DashboardEvidence,
+    DashboardProbeState,
+    DashboardRecommendation,
+    recommend_dashboard_action,
+)
 from sb_manager.application.diagnostics_center import DiagnosticsCenter
 from sb_manager.application.host_diagnostics import (
     HostCondition,
@@ -1049,6 +1056,7 @@ class ManagerApp(App[None]):
         self.state_recovery_manager = tools.state_recovery_manager
         self.service_log_reader = tools.service_log_reader
         self.apply_history_reader = tools.apply_history_reader
+        self._current_dashboard_recommendation: DashboardRecommendation | None = None
         self._dashboard_ready = False
         self._host_diagnostics_failed = False
         self._host_readiness_failed = False
@@ -1080,6 +1088,29 @@ class ManagerApp(App[None]):
         )
         return runtime, readiness, certificate
 
+    @staticmethod
+    def _profile_counts(installation: ManagedInstallation) -> tuple[int, int, int]:
+        active = sum(
+            profile.status is ProfileStatus.APPLIED and profile.enabled
+            for profile in installation.profiles
+        )
+        paused = sum(
+            profile.status is ProfileStatus.APPLIED and not profile.enabled
+            for profile in installation.profiles
+        )
+        drafts = sum(profile.status is ProfileStatus.DRAFT for profile in installation.profiles)
+        return active, paused, drafts
+
+    def _dashboard_recommendation_widgets(
+        self,
+        recommendation: DashboardRecommendation,
+    ) -> Iterator[Static | Button]:
+        yield Static(
+            f"建议：{recommendation.summary}",
+            id="dashboard-next-action",
+        )
+        yield self._dashboard_primary_action(recommendation)
+
     def compose(self) -> ComposeResult:
         yield Header()
         recovery_state = self._inspect_state_recovery()
@@ -1103,19 +1134,10 @@ class ManagerApp(App[None]):
             else self.manager.get_installation()
         )
         self._dashboard_ready = True
-        active_profiles = sum(
-            profile.status is ProfileStatus.APPLIED and profile.enabled
-            for profile in installation.profiles
-        )
-        paused_profiles = sum(
-            profile.status is ProfileStatus.APPLIED and not profile.enabled
-            for profile in installation.profiles
-        )
-        draft_profiles = sum(
-            profile.status is ProfileStatus.DRAFT for profile in installation.profiles
-        )
+        active_profiles, paused_profiles, draft_profiles = self._profile_counts(installation)
         runtime_status, readiness_status, certificate_status = self._initial_dashboard_statuses()
-        next_action = self._dashboard_next_action(installation)
+        recommendation = self._dashboard_recommendation(installation)
+        self._current_dashboard_recommendation = recommendation
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
                 yield Static("代理配置", id="profile-list-title")
@@ -1127,7 +1149,7 @@ class ManagerApp(App[None]):
                     f"{draft_profiles} 草案",
                     id="profile-summary",
                 )
-                yield Static(next_action, id="dashboard-next-action")
+                yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
                 for index, profile in enumerate(installation.profiles):
                     port = (
@@ -1169,7 +1191,6 @@ class ManagerApp(App[None]):
                     "添加配置",
                     id="add-profile",
                     classes="add-profile-action",
-                    variant="primary",
                 )
                 if self.core_updater is not None:
                     yield Button("安装或升级 sing-box 核心", id="manage-core")
@@ -1180,14 +1201,13 @@ class ManagerApp(App[None]):
                 yield Static(readiness_status, id="host-readiness-status")
                 yield Static(certificate_status, id="certificate-maintenance-status")
                 yield Static("配置：0 在线 · 0 已暂停 · 0 草案", id="profile-summary")
-                yield Static(next_action, id="dashboard-next-action")
+                yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
                 yield Button(
                     "创建第一个配置",
                     id="create-first-profile",
                     classes="add-profile-action",
-                    variant="primary",
                 )
                 if self.core_updater is not None:
                     yield Button("安装或升级 sing-box 核心", id="manage-core")
@@ -1379,49 +1399,100 @@ class ManagerApp(App[None]):
         self.query_one("#refresh-readiness", Button).disabled = False
         self._update_dashboard_next_action()
 
-    def _dashboard_next_action(self, installation: ManagedInstallation) -> str:
-        if self._host_readiness_failed or self._host_diagnostics_failed:
-            recommendation = (
-                "先重新检查主机准备度" if self._host_readiness_failed else "先重新检查服务状态"
-            )
-        elif self._certificate_diagnostics_failed:
-            recommendation = "先重新检查证书维护状态"
-        elif (
-            self.host_readiness_report is not None
-            and not self.host_readiness_report.ready_for_apply
-        ):
-            recommendation = self.host_readiness_report.recommended_action
-        elif (
-            self.host_diagnostics_report is not None
-            and self.host_diagnostics_report.condition is HostCondition.UNHEALTHY
-        ):
-            recommendation = "先检查 sing-box 服务，再进行配置变更"
-        elif (
-            self.certificate_diagnostics_report is not None
-            and self.certificate_diagnostics_report.condition
-            is CertificateDiagnosticCondition.ACTION_REQUIRED
-        ):
-            recommendation = self.certificate_diagnostics_report.guidance
-        elif draft_profiles := sum(
-            profile.status is ProfileStatus.DRAFT for profile in installation.profiles
-        ):
-            recommendation = f"先审阅并应用 {draft_profiles} 个草案"
-        elif (
-            self.certificate_diagnostics_report is not None
-            and self.certificate_diagnostics_report.condition
-            is CertificateDiagnosticCondition.ATTENTION
-        ):
-            recommendation = self.certificate_diagnostics_report.guidance
-        elif not installation.profiles:
-            recommendation = "创建第一个配置"
+    def _dashboard_recommendation(
+        self,
+        installation: ManagedInstallation,
+    ) -> DashboardRecommendation:
+        runtime: DashboardProbeState | HostDiagnosticsReport
+        if self._host_diagnostics_failed:
+            runtime = DashboardProbeState.FAILED
+        elif self.host_diagnostics_report is not None:
+            runtime = self.host_diagnostics_report
+        elif self.host_diagnostics is not None:
+            runtime = DashboardProbeState.PENDING
         else:
-            recommendation = "配置已应用，确认服务状态"
-        return f"建议：{recommendation}"
+            runtime = DashboardProbeState.NOT_CONFIGURED
+
+        readiness: DashboardProbeState | HostReadinessReport
+        if self._host_readiness_failed:
+            readiness = DashboardProbeState.FAILED
+        elif self.host_readiness_report is not None:
+            readiness = self.host_readiness_report
+        elif self.host_readiness is not None:
+            readiness = DashboardProbeState.PENDING
+        else:
+            readiness = DashboardProbeState.NOT_CONFIGURED
+
+        certificates: DashboardProbeState | CertificateDiagnosticsReport
+        if self._certificate_diagnostics_failed:
+            certificates = DashboardProbeState.FAILED
+        elif self.certificate_diagnostics_report is not None:
+            certificates = self.certificate_diagnostics_report
+        elif self.certificate_diagnostics is not None:
+            certificates = DashboardProbeState.PENDING
+        else:
+            certificates = DashboardProbeState.NOT_CONFIGURED
+
+        return recommend_dashboard_action(
+            DashboardEvidence(
+                installation=installation,
+                runtime=runtime,
+                readiness=readiness,
+                certificates=certificates,
+                diagnostics_available=self.diagnostics_center is not None,
+                profile_apply_available=self.profile_applier is not None,
+            )
+        )
+
+    @staticmethod
+    def _dashboard_primary_action(
+        recommendation: DashboardRecommendation,
+    ) -> Button:
+        action = recommendation.action
+        return Button(
+            action.label if action is not None else "暂无可执行建议",
+            id="dashboard-primary-action",
+            classes="" if action is not None else "hidden",
+            disabled=action is None,
+            variant="primary",
+        )
 
     def _update_dashboard_next_action(self) -> None:
-        self.query_one("#dashboard-next-action", Static).update(
-            self._dashboard_next_action(self.manager.get_installation())
-        )
+        recommendation = self._dashboard_recommendation(self.manager.get_installation())
+        self._current_dashboard_recommendation = recommendation
+        self.query_one("#dashboard-next-action", Static).update(f"建议：{recommendation.summary}")
+        button = self.query_one("#dashboard-primary-action", Button)
+        if recommendation.action is None:
+            button.disabled = True
+            button.add_class("hidden")
+            return
+        button.label = recommendation.action.label
+        button.disabled = False
+        button.remove_class("hidden")
+
+    @on(Button.Pressed, "#dashboard-primary-action")
+    def execute_dashboard_primary_action(self) -> None:
+        recommendation = self._current_dashboard_recommendation
+        if recommendation is None or recommendation.action is None:
+            return
+        action = recommendation.action
+        if action.kind is DashboardActionKind.RECHECK_READINESS:
+            self.refresh_host_readiness()
+        elif action.kind is DashboardActionKind.RECHECK_RUNTIME:
+            self.refresh_host_diagnostics()
+        elif action.kind is DashboardActionKind.RECHECK_CERTIFICATES:
+            self.refresh_certificate_diagnostics()
+        elif action.kind is DashboardActionKind.OPEN_READINESS:
+            self.open_host_readiness()
+        elif action.kind is DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS:
+            self.open_host_diagnostics()
+        elif action.kind is DashboardActionKind.OPEN_DIAGNOSTICS:
+            self.open_diagnostics_center()
+        elif action.kind is DashboardActionKind.APPLY_DRAFT:
+            if action.profile_id is not None:
+                self._open_saved_draft_apply(action.profile_id)
+        elif action.kind is DashboardActionKind.ADD_PROFILE:
+            self.open_protocol_selection()
 
     @on(Button.Pressed, "#view-diagnostics")
     def open_host_diagnostics(self) -> None:
@@ -1432,11 +1503,13 @@ class ManagerApp(App[None]):
     def refresh_host_diagnostics(self) -> None:
         if self.host_diagnostics is None:
             return
+        self._host_diagnostics_failed = False
         self.host_diagnostics_report = None
         self.query_one("#runtime-status", Static).update("服务状态：正在检查…")
         if self.diagnostics_center is None:
             self.query_one("#view-diagnostics", Button).disabled = True
         self.query_one("#refresh-runtime-status", Button).disabled = True
+        self._update_dashboard_next_action()
         self.load_host_diagnostics()
 
     @on(Button.Pressed, "#open-diagnostics-center")
@@ -1466,9 +1539,12 @@ class ManagerApp(App[None]):
     def refresh_host_readiness(self) -> None:
         if self.host_readiness is None:
             return
+        self._host_readiness_failed = False
+        self.host_readiness_report = None
         self.query_one("#host-readiness-status", Static).update("主机准备度：正在检查…")
         self.query_one("#view-readiness", Button).disabled = True
         self.query_one("#refresh-readiness", Button).disabled = True
+        self._update_dashboard_next_action()
         self.load_host_readiness()
 
     @on(Button.Pressed, "#refresh-certificate-maintenance")
@@ -1503,12 +1579,15 @@ class ManagerApp(App[None]):
     def open_saved_draft_apply(self, event: Button.Pressed) -> None:
         if self.profile_applier is None or event.button.name is None:
             return
+        self._open_saved_draft_apply(event.button.name)
+
+    def _open_saved_draft_apply(self, profile_id: str) -> None:
+        if self.profile_applier is None:
+            return
         installation = self.manager.get_installation()
         try:
             profile = next(
-                profile
-                for profile in installation.profiles
-                if profile.profile_id == event.button.name
+                profile for profile in installation.profiles if profile.profile_id == profile_id
             )
         except StopIteration:
             return

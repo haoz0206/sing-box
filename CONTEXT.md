@@ -173,6 +173,14 @@ workflow's plan, confirmation, or host-effect policy, and printable keys remain
 available to focused form fields outside the shortcut's context.
 _Avoid_: Global command execution, hidden mutation, shell alias
 
+**Dashboard recommendation**:
+The single safest next step selected from desired state and independent runtime,
+readiness, and certificate evidence. It carries a stable action identity when
+the destination capability exists, so Textual never parses translated guidance
+to choose navigation. Pending evidence may withhold an action; opening one
+never bypasses an existing plan or confirmation.
+_Avoid_: Status text parsed by the UI, a list of equally primary buttons
+
 **Probe failure**:
 An unexpected inability to complete a read-only dashboard observation. It is a
 conservative, retryable UI state: the original exception is not disclosed, no

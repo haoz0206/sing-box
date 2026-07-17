@@ -322,6 +322,11 @@ Release gate adds:
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
   explicit read-only retry, and successful recovery;
+- typed dashboard recommendation priority across failed, pending, blocking,
+  maintenance, draft, empty, and healthy evidence; stable action identities,
+  capability-aware withholding, one visible primary action, and Pilot journeys
+  that execute add, draft-review, and failed-probe recovery without parsing
+  presentation text;
 - dashboard continuity after successful profile edit, removal, pause/resume,
   template creation, or desired-state recovery: stale observations are cleared,
   current desired state is recomposed, and all configured read-only workers run
