@@ -10,6 +10,9 @@ existing core-update, service-log, or apply-history workflows.
 
 - The dashboard exposes one `打开运维中心` navigation action and no direct core
   update control.
+- At `60x18`, dashboard evidence scrolls independently while the contextual
+  action row and four workspace destinations remain visible; a mouse user can
+  open Operations directly without first using a shortcut or hidden scroll.
 - `o` opens the operations workspace; the former `c` shortcut no longer jumps
   directly into a host-mutation form.
 - Opening the workspace does not plan a core update, read service logs, read
@@ -31,15 +34,18 @@ existing core-update, service-log, or apply-history workflows.
 
 - Confirmed Seam A: Textual `App.run_test()` and Pilot only; tests click visible
   controls, press visible shortcuts, and assert mounted screen content.
-- Focused operations workspace acceptance: `10 passed` in `4.72s`.
-- Affected keyboard/core/operations acceptance set: `23 passed` in `24.32s`.
-- Complete repository suite: `645 passed, 18 skipped` in `202.67s`.
-- Ruff check passed; Ruff format reported `262 files already formatted`.
+- Red evidence: the compact dashboard placed `打开运维中心` below the visible
+  screen and Pilot raised `OutOfBounds` at offset `(29, 20)`.
+- Compact dashboard regression: `1 passed`.
+- Focused operations workspace acceptance: `11 passed`.
+- Affected dashboard and workspace journeys: `93 passed`.
+- Complete repository suite: `655 passed, 18 skipped` in `218.72s`.
+- Ruff check passed; Ruff format reported `263 files already formatted`.
 - Strict mypy passed for `164 source files`.
-- Source distribution and wheel built successfully, both including
-  `sb_manager/ui/screens/operations.py`.
+- Source distribution and wheel built successfully, both including the updated
+  `sb_manager/ui/app.py` and `sb_manager/ui/theme.tcss`.
 - Wheel SHA-256:
-  `efef5560129dfc480d99e1e7455ebf45d964287c0e8173de4215ffa6e18ab51d`.
+  `c73e85fcb570df5d438b6a21cf7d5fcaeed0e87cef0ba5a75d448a1ed9fe2812`.
 
 ## External release boundary
 

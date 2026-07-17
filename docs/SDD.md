@@ -177,6 +177,13 @@ The Textual presentation adapter renders the recommendation summary and action
 label through the same catalog; detailed readiness and certificate guidance
 remains on its evidence screen instead of becoming unbounded Dashboard copy.
 
+The dashboard layout has three stable zones: independently scrollable evidence,
+a fixed contextual-action row, and a fixed workspace-navigation row. At the
+supported compact size of 60 columns by 18 rows, both action rows remain visible
+and directly clickable while longer status evidence scrolls without moving the
+primary navigation off-screen. Empty and populated dashboards share this one
+layout contract.
+
 It shows aggregate profile counts, not the complete profile inventory or a row
 of lifecycle buttons per profile. One visible `Manage profiles` action and the
 contextual `p` shortcut open the dedicated profiles workspace. The empty state

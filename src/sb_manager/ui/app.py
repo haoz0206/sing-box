@@ -5,7 +5,7 @@ from typing import ClassVar
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Horizontal, Vertical
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Button, Footer, Header, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -321,15 +321,14 @@ class ManagerApp(App[None]):
         drafts = sum(profile.status is ProfileStatus.DRAFT for profile in installation.profiles)
         return active, paused, drafts
 
-    def _dashboard_recommendation_widgets(
+    def _dashboard_recommendation_widget(
         self,
         recommendation: DashboardRecommendation,
-    ) -> Iterator[Static | Button]:
-        yield Static(
+    ) -> Static:
+        return Static(
             self._dashboard_recommendation_text(recommendation),
             id="dashboard-next-action",
         )
-        yield self._dashboard_primary_action(recommendation)
 
     def _dashboard_recommendation_text(
         self,
@@ -356,6 +355,17 @@ class ManagerApp(App[None]):
             ),
             Button(self.copy_catalog.text(UiText.SETTINGS_OPEN), id="open-settings"),
             id="dashboard-workspace-navigation",
+        )
+
+    def _dashboard_context_actions(
+        self,
+        recommendation: DashboardRecommendation,
+        installation: ManagedInstallation,
+    ) -> Horizontal:
+        return Horizontal(
+            self._dashboard_primary_action(recommendation),
+            *self._host_action_buttons(installation),
+            id="dashboard-context-actions",
         )
 
     def compose(self) -> ComposeResult:
@@ -387,53 +397,57 @@ class ManagerApp(App[None]):
         self._current_dashboard_recommendation = recommendation
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
-                yield Static(self.copy_catalog.text(UiText.DASHBOARD_TITLE), id="dashboard-title")
-                yield Static(
-                    self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
-                    id="dashboard-safety",
-                    markup=False,
-                )
-                yield Static(runtime_status, id="runtime-status")
-                yield Static(readiness_status, id="host-readiness-status")
-                yield Static(certificate_status, id="certificate-maintenance-status")
-                yield Static(
-                    self.copy_catalog.text(
-                        UiText.DASHBOARD_PROFILE_SUMMARY,
-                        active=active_profiles,
-                        paused=paused_profiles,
-                        drafts=draft_profiles,
-                    ),
-                    id="profile-summary",
-                )
-                yield from self._dashboard_recommendation_widgets(recommendation)
-                yield from self._host_action_buttons(installation)
+                with VerticalScroll(classes="dashboard-evidence"):
+                    yield Static(
+                        self.copy_catalog.text(UiText.DASHBOARD_TITLE), id="dashboard-title"
+                    )
+                    yield Static(
+                        self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
+                        id="dashboard-safety",
+                        markup=False,
+                    )
+                    yield Static(runtime_status, id="runtime-status")
+                    yield Static(readiness_status, id="host-readiness-status")
+                    yield Static(certificate_status, id="certificate-maintenance-status")
+                    yield Static(
+                        self.copy_catalog.text(
+                            UiText.DASHBOARD_PROFILE_SUMMARY,
+                            active=active_profiles,
+                            paused=paused_profiles,
+                            drafts=draft_profiles,
+                        ),
+                        id="profile-summary",
+                    )
+                    yield self._dashboard_recommendation_widget(recommendation)
+                yield self._dashboard_context_actions(recommendation, installation)
                 yield self._workspace_navigation()
         else:
             with Vertical(id="dashboard-empty"):
-                yield Static(
-                    self.copy_catalog.text(UiText.DASHBOARD_EMPTY_TITLE),
-                    id="empty-state-title",
-                )
-                yield Static(
-                    self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
-                    id="dashboard-safety",
-                    markup=False,
-                )
-                yield Static(runtime_status, id="runtime-status")
-                yield Static(readiness_status, id="host-readiness-status")
-                yield Static(certificate_status, id="certificate-maintenance-status")
-                yield Static(
-                    self.copy_catalog.text(
-                        UiText.DASHBOARD_PROFILE_SUMMARY,
-                        active=0,
-                        paused=0,
-                        drafts=0,
-                    ),
-                    id="profile-summary",
-                )
-                yield from self._dashboard_recommendation_widgets(recommendation)
-                yield from self._host_action_buttons(installation)
-                yield Static(self.copy_catalog.text(UiText.DASHBOARD_EMPTY_GUIDANCE))
+                with VerticalScroll(classes="dashboard-evidence"):
+                    yield Static(
+                        self.copy_catalog.text(UiText.DASHBOARD_EMPTY_TITLE),
+                        id="empty-state-title",
+                    )
+                    yield Static(
+                        self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
+                        id="dashboard-safety",
+                        markup=False,
+                    )
+                    yield Static(runtime_status, id="runtime-status")
+                    yield Static(readiness_status, id="host-readiness-status")
+                    yield Static(certificate_status, id="certificate-maintenance-status")
+                    yield Static(
+                        self.copy_catalog.text(
+                            UiText.DASHBOARD_PROFILE_SUMMARY,
+                            active=0,
+                            paused=0,
+                            drafts=0,
+                        ),
+                        id="profile-summary",
+                    )
+                    yield self._dashboard_recommendation_widget(recommendation)
+                    yield Static(self.copy_catalog.text(UiText.DASHBOARD_EMPTY_GUIDANCE))
+                yield self._dashboard_context_actions(recommendation, installation)
                 yield self._workspace_navigation()
         yield Footer()
 

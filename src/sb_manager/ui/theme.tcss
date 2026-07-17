@@ -10,13 +10,14 @@ Footer {
     dock: bottom;
 }
 
-#dashboard-workspace-navigation {
+#dashboard-context-actions, #dashboard-workspace-navigation {
     height: 3;
 }
 
-#dashboard-workspace-navigation Button {
+#dashboard-context-actions Button, #dashboard-workspace-navigation Button {
     width: 1fr;
     min-width: 0;
+    margin-top: 0;
 }
 
 #dashboard-empty, #dashboard-profiles, #protocol-selection, #reality-form,
@@ -54,6 +55,16 @@ Footer {
     padding: 2 4;
     border: round $primary;
     background: $surface;
+}
+
+#dashboard-empty, #dashboard-profiles {
+    height: 100%;
+    max-height: 100%;
+    padding: 0 2;
+}
+
+.dashboard-evidence {
+    height: 1fr;
 }
 
 #empty-state-title, #protocol-selection-title, #reality-form-title,

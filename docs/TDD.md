@@ -279,6 +279,9 @@ Release gate adds:
   journey catalog supplies the visible `common.cancel` Footer description,
   pre-confirmation `Esc` returns to the intact parent form, and in-flight
   navigation remains visible but disabled until a typed terminal state;
+- compact-dashboard traversal through the Textual Pilot seam at `60x18`:
+  evidence may overflow inside its scrollable zone, while contextual actions
+  and all four workspace destinations remain visible and directly clickable;
 - purpose-first recommendation examples for general, low-latency,
   restricted-network, and compatibility outcomes; exact protocol/transport
   variant and rationale identity, catalog-rendered reasons and tradeoffs,

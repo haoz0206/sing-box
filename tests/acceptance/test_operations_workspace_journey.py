@@ -106,6 +106,15 @@ async def test_dashboard_routes_core_management_through_operations() -> None:
         assert str(app.screen.query_one("#open-operations", Button).label) == "打开运维中心"
 
 
+async def test_compact_dashboard_keeps_workspace_navigation_visible() -> None:
+    app = ManagerApp(core_updater=NeverCalledCoreUpdater())
+
+    async with app.run_test(size=(60, 18)) as pilot:
+        await pilot.click("#open-operations")
+
+        assert app.screen.query_one("#operations-title", Static).content == "运维中心"
+
+
 async def test_operations_shortcut_opens_the_workspace_instead_of_a_mutation_form() -> None:
     app = ManagerApp(core_updater=NeverCalledCoreUpdater())
 
