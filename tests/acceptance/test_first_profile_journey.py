@@ -182,6 +182,25 @@ class ProfileCreationMarkerCatalog:
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
+class HostDiagnosticsMarkerCatalog:
+    """Render markers across the host-runtime diagnostics drill-down."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "host_diagnostics.title": "目录主机诊断",
+            "host_diagnostics.summary.healthy": "目录服务运行正常",
+            "host_diagnostics.summary.unhealthy": "目录服务需要检查",
+            "host_diagnostics.details.unavailable": "目录无运行时详情",
+            "host_diagnostics.recovery.title": "目录恢复步骤",
+            "host_diagnostics.recovery.empty": "目录无需恢复操作",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        if key.value == "host_diagnostics.recovery.step":
+            return f"目录步骤 {values['number']}：{values['instruction']}"
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
 async def open_direct_protocol_selection(
     app: ManagerApp,
     pilot: Pilot[None],
@@ -344,7 +363,7 @@ class HealthyHostDiagnostics:
         return HostDiagnosticsReport(
             condition=HostCondition.HEALTHY,
             summary="sing-box 服务运行正常",
-            diagnostics="active",
+            diagnostics="",
             recovery_instructions=(),
         )
 
@@ -912,7 +931,12 @@ async def test_failed_certificate_maintenance_probe_is_conservative_and_retryabl
 
 
 async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics() -> None:
-    app = ManagerApp(host_tools=ManagerAppHostTools(host_diagnostics=UnhealthyHostDiagnostics()))
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(host_diagnostics=UnhealthyHostDiagnostics()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, HostDiagnosticsMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.pause()
@@ -925,16 +949,42 @@ async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics(
 
         await pilot.click("#view-diagnostics")
 
-        assert app.screen.query_one("#diagnostics-title", Static).content == "主机诊断"
-        assert app.screen.query_one("#diagnostics-summary", Static).content == (
-            "sing-box 服务未通过健康检查"
-        )
+        assert app.screen.query_one("#diagnostics-title", Static).content == "目录主机诊断"
+        assert app.screen.query_one("#diagnostics-summary", Static).content == ("目录服务需要检查")
         assert app.screen.query_one("#diagnostics-details", Static).content == (
             "sing-box.service is inactive"
         )
         assert app.screen.query_one("#diagnostics-recovery-0", Static).content == (
-            "1. 运行 systemctl restart sing-box.service。"
+            "目录步骤 1：运行 systemctl restart sing-box.service。"
         )
+        assert app.screen.query_one("#diagnostics-recovery-title", Static).content == (
+            "目录恢复步骤"
+        )
+
+        await pilot.press("escape")
+
+        assert len(app.screen.query("#empty-state-title")) == 1
+
+
+async def test_operator_can_view_healthy_runtime_evidence_without_recovery_action() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(host_diagnostics=HealthyHostDiagnostics()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, HostDiagnosticsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#view-diagnostics")
+
+        assert app.screen.query_one("#diagnostics-title", Static).content == "目录主机诊断"
+        assert app.screen.query_one("#diagnostics-summary", Static).content == ("目录服务运行正常")
+        assert app.screen.query_one("#diagnostics-details", Static).content == ("目录无运行时详情")
+        assert app.screen.query_one("#diagnostics-recovery-empty", Static).content == (
+            "目录无需恢复操作"
+        )
+        assert len(app.screen.query("#diagnostics-recovery-title")) == 0
 
 
 async def test_failed_runtime_inspection_is_conservative_and_retryable() -> None:

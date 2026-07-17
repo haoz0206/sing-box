@@ -343,6 +343,10 @@ Release gate adds:
   recovery, non-disclosing unexpected failure retry, and production composition;
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
+  catalog propagation into the host-runtime fallback drill-down, exact
+  healthy/unhealthy summaries, missing-detail fallback, literal non-markup
+  diagnostics and recovery instructions, no recovery action for healthy state,
+  and `Esc` return to the existing dashboard context;
   explicit read-only retry, successful recovery, a persistent no-automatic-
   mutation scope statement, and catalog-backed titles, probe states, counts,
   navigation, and reinspection controls;

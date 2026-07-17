@@ -982,7 +982,11 @@ Current implementation status (2026-07-17):
   next action, exposes typed diagnostics plus recovery guidance without parsing
   subprocess output in the UI, and converts unexpected runtime/readiness probe
   exceptions into non-disclosing, conservative states with explicit read-only
-  retry actions;
+  retry actions; when the full diagnostics center is unavailable, its dedicated
+  drill-down module maps typed healthy/unhealthy state, missing-detail fallback,
+  recovery labels, and step numbering through the validated copy catalog while
+  rendering runtime diagnostics and adapter instructions literally with markup
+  disabled;
 - read-only network inventory: the dashboard and `n` open a dedicated workspace
   that distinguishes enabled, paused, and draft listener intent, explains
   TCP/UDP plus fixed/automatic ports and public addresses, performs no probe or

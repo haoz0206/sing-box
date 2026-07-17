@@ -71,6 +71,13 @@ class UiText(str, Enum):
     DASHBOARD_NAV_OPERATIONS = "dashboard.navigation.operations"
     DASHBOARD_OPEN_DIAGNOSTICS = "dashboard.open_diagnostics"
     DASHBOARD_VIEW_DIAGNOSTICS = "dashboard.view_diagnostics"
+    HOST_DIAGNOSTICS_TITLE = "host_diagnostics.title"
+    HOST_DIAGNOSTICS_SUMMARY_HEALTHY = "host_diagnostics.summary.healthy"
+    HOST_DIAGNOSTICS_SUMMARY_UNHEALTHY = "host_diagnostics.summary.unhealthy"
+    HOST_DIAGNOSTICS_DETAILS_UNAVAILABLE = "host_diagnostics.details.unavailable"
+    HOST_DIAGNOSTICS_RECOVERY_TITLE = "host_diagnostics.recovery.title"
+    HOST_DIAGNOSTICS_RECOVERY_STEP = "host_diagnostics.recovery.step"
+    HOST_DIAGNOSTICS_RECOVERY_EMPTY = "host_diagnostics.recovery.empty"
     DASHBOARD_REFRESH_RUNTIME = "dashboard.refresh_runtime"
     DASHBOARD_VIEW_READINESS = "dashboard.view_readiness"
     DASHBOARD_REFRESH_READINESS = "dashboard.refresh_readiness"
@@ -886,6 +893,7 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_CREATION_APPLY_CONFIRM_PROFILE: frozenset({"name"}),
         UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION: frozenset({"revision"}),
         UiText.PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -996,6 +1004,13 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.DASHBOARD_NAV_OPERATIONS: "打开运维中心",
         UiText.DASHBOARD_OPEN_DIAGNOSTICS: "打开诊断中心",
         UiText.DASHBOARD_VIEW_DIAGNOSTICS: "查看诊断",
+        UiText.HOST_DIAGNOSTICS_TITLE: "主机诊断",
+        UiText.HOST_DIAGNOSTICS_SUMMARY_HEALTHY: "sing-box 服务运行正常",
+        UiText.HOST_DIAGNOSTICS_SUMMARY_UNHEALTHY: "sing-box 服务未通过健康检查",
+        UiText.HOST_DIAGNOSTICS_DETAILS_UNAVAILABLE: "运行时未提供详细信息",
+        UiText.HOST_DIAGNOSTICS_RECOVERY_TITLE: "建议的恢复步骤",
+        UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: "{number}. {instruction}",
+        UiText.HOST_DIAGNOSTICS_RECOVERY_EMPTY: "当前无需恢复操作。",
         UiText.DASHBOARD_REFRESH_RUNTIME: "重新检查服务状态",
         UiText.DASHBOARD_VIEW_READINESS: "查看准备度",
         UiText.DASHBOARD_REFRESH_READINESS: "重新检查",

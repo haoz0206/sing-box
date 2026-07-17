@@ -177,6 +177,15 @@ recommended operator action. A failed probe becomes its own check and does not
 erase independent evidence.
 _Avoid_: Raw log dump, runtime status page, readiness wizard
 
+**Host runtime diagnostics**:
+The read-only drill-down for one typed runtime health observation when the full
+diagnostics center is unavailable. Healthy/unhealthy policy, missing-detail
+fallback, recovery section labels, and step numbering come from one validated
+interface copy catalog. Runtime diagnostics and adapter-provided recovery
+instructions remain literal non-markup evidence; returning preserves the
+dashboard context and performs no new probe or mutation.
+_Avoid_: Diagnostics center, service log viewer, runtime refresh
+
 **Generated configuration inspection**:
 A read-only projection of one desired-state snapshot into a disposable complete
 sing-box document followed by the configured semantic validator. It reports

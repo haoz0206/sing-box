@@ -96,6 +96,7 @@ from sb_manager.ui.screens.diagnostics_center import (
     DiagnosticsCenterScreen,
     DiagnosticsCenterTools,
 )
+from sb_manager.ui.screens.host_diagnostics import HostDiagnosticsScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
 from sb_manager.ui.screens.network import NetworkScreen
@@ -141,35 +142,6 @@ from sb_manager.ui.screens.state_recovery import (
     StateRecoveryPanel,
     StateRecoveryPlanningErrorScreen,
 )
-
-
-class HostDiagnosticsScreen(Screen[None]):
-    """Present one typed host observation with operator recovery guidance."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-
-    def __init__(self, report: HostDiagnosticsReport) -> None:
-        super().__init__()
-        self.report = report
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="host-diagnostics"):
-            yield Static("主机诊断", id="diagnostics-title")
-            yield Static(self.report.summary, id="diagnostics-summary")
-            yield Static(
-                self.report.diagnostics or "运行时未提供详细信息", id="diagnostics-details"
-            )
-            if self.report.recovery_instructions:
-                yield Static("建议的恢复步骤", id="diagnostics-recovery-title")
-                for index, instruction in enumerate(self.report.recovery_instructions):
-                    yield Static(
-                        f"{index + 1}. {instruction}",
-                        id=f"diagnostics-recovery-{index}",
-                    )
-            else:
-                yield Static("当前无需恢复操作。", id="diagnostics-recovery-empty")
-        yield Footer()
 
 
 @dataclass(frozen=True, slots=True)
@@ -1089,7 +1061,7 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, "#view-diagnostics")
     def open_host_diagnostics(self) -> None:
         if self.host_diagnostics_report is not None:
-            self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report))
+            self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report, self.copy_catalog))
 
     @on(Button.Pressed, "#refresh-runtime-status")
     def refresh_host_diagnostics(self) -> None:
