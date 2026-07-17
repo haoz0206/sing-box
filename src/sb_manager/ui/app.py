@@ -434,7 +434,11 @@ class ProfileDetailsScreen(Screen[None]):
     def open_profile_editing(self) -> None:
         if self.capabilities.editor is not None:
             self.app.push_screen(
-                ProfileEditFormScreen(self.capabilities.editor, details=self.details)
+                ProfileEditFormScreen(
+                    self.capabilities.editor,
+                    details=self.details,
+                    copy_catalog=self.copy,
+                )
             )
 
     @on(Button.Pressed, "#remove-profile")

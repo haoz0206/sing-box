@@ -113,6 +113,68 @@ class UiText(str, Enum):
     PROFILE_DETAILS_UNEXPECTED_TITLE = "profile_details.unexpected.title"
     PROFILE_DETAILS_UNEXPECTED_DETAILS = "profile_details.unexpected.details"
     PROFILE_DETAILS_UNEXPECTED_SAFETY = "profile_details.unexpected.safety"
+    PROFILE_EDIT_TITLE = "profile_edit.title"
+    PROFILE_EDIT_CANCEL = "profile_edit.cancel"
+    PROFILE_EDIT_GUIDANCE = "profile_edit.guidance"
+    PROFILE_EDIT_NAME_LABEL = "profile_edit.name.label"
+    PROFILE_EDIT_SERVER_ADDRESS_LABEL = "profile_edit.server_address.label"
+    PROFILE_EDIT_LISTEN_PORT_LABEL = "profile_edit.listen_port.label"
+    PROFILE_EDIT_LISTEN_PORT_PLACEHOLDER = "profile_edit.listen_port.placeholder"
+    PROFILE_EDIT_PORT_GUIDANCE = "profile_edit.listen_port.guidance"
+    PROFILE_EDIT_PREVIEW = "profile_edit.preview"
+    PROFILE_EDIT_PORT_INVALID = "profile_edit.port.invalid"
+    PROFILE_EDIT_NO_CHANGES = "profile_edit.no_changes"
+    PROFILE_EDIT_NOT_FOUND = "profile_edit.not_found"
+    PROFILE_EDIT_PLANNING_TITLE = "profile_edit.planning.title"
+    PROFILE_EDIT_PLANNING_DETAILS = "profile_edit.planning.details"
+    PROFILE_EDIT_PLANNING_SAFETY = "profile_edit.planning.safety"
+    PROFILE_EDIT_PLAN_TITLE = "profile_edit.plan.title"
+    PROFILE_EDIT_PLAN_CHANGE_NAME = "profile_edit.plan.change.name"
+    PROFILE_EDIT_PLAN_CHANGE_SERVER_ADDRESS = "profile_edit.plan.change.server_address"
+    PROFILE_EDIT_PLAN_CHANGE_LISTEN_PORT = "profile_edit.plan.change.listen_port"
+    PROFILE_EDIT_PLAN_CHANGE_PORT_SELECTION = "profile_edit.plan.change.port_selection"
+    PROFILE_EDIT_PLAN_VALUE_UNSET = "profile_edit.plan.value.unset"
+    PROFILE_EDIT_PLAN_VALUE_AUTOMATIC = "profile_edit.plan.value.automatic"
+    PROFILE_EDIT_PLAN_VALUE_AUTOMATIC_AT_CONFIRMATION = (
+        "profile_edit.plan.value.automatic_at_confirmation"
+    )
+    PROFILE_EDIT_PLAN_VALUE_FIXED = "profile_edit.plan.value.fixed"
+    PROFILE_EDIT_PLAN_IMPACT_DESIRED = "profile_edit.plan.impact.desired"
+    PROFILE_EDIT_PLAN_IMPACT_LIVE = "profile_edit.plan.impact.live"
+    PROFILE_EDIT_PLAN_SAFETY_PREVIEW = "profile_edit.plan.safety.preview"
+    PROFILE_EDIT_PLAN_CONFIRM_DESIRED = "profile_edit.plan.confirm.desired"
+    PROFILE_EDIT_PLAN_CONFIRM_LIVE = "profile_edit.plan.confirm.live"
+    PROFILE_EDIT_PLAN_IN_PROGRESS = "profile_edit.plan.in_progress"
+    PROFILE_EDIT_RESULT_DESIRED_TITLE = "profile_edit.result.desired.title"
+    PROFILE_EDIT_RESULT_REVISION = "profile_edit.result.revision"
+    PROFILE_EDIT_RESULT_DESIRED_SAFETY = "profile_edit.result.desired.safety"
+    PROFILE_EDIT_RESULT_APPLIED_TITLE = "profile_edit.result.applied.title"
+    PROFILE_EDIT_RESULT_APPLIED_SAFETY = "profile_edit.result.applied.safety"
+    PROFILE_EDIT_RESULT_VALIDATION_FAILED_TITLE = "profile_edit.result.validation_failed.title"
+    PROFILE_EDIT_RESULT_VALIDATION_FAILED_SAFETY = "profile_edit.result.validation_failed.safety"
+    PROFILE_EDIT_RESULT_PRECONDITION_FAILED_TITLE = "profile_edit.result.precondition_failed.title"
+    PROFILE_EDIT_RESULT_PRECONDITION_FALLBACK = "profile_edit.result.precondition_failed.fallback"
+    PROFILE_EDIT_RESULT_PRECONDITION_SAFETY = "profile_edit.result.precondition_failed.safety"
+    PROFILE_EDIT_RESULT_COMMIT_FAILED_TITLE = "profile_edit.result.commit_failed.title"
+    PROFILE_EDIT_RESULT_COMMIT_FALLBACK = "profile_edit.result.commit_failed.fallback"
+    PROFILE_EDIT_RESULT_COMMIT_SAFETY = "profile_edit.result.commit_failed.safety"
+    PROFILE_EDIT_RESULT_ROLLED_BACK_TITLE = "profile_edit.result.rolled_back.title"
+    PROFILE_EDIT_RESULT_ROLLED_BACK_FALLBACK = "profile_edit.result.rolled_back.fallback"
+    PROFILE_EDIT_RESULT_ROLLED_BACK_SAFETY = "profile_edit.result.rolled_back.safety"
+    PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_TITLE = "profile_edit.result.rollback_unknown.title"
+    PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_FALLBACK = "profile_edit.result.rollback_unknown.fallback"
+    PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_SAFETY = "profile_edit.result.rollback_unknown.safety"
+    PROFILE_EDIT_RESULT_RECOVERY_STEP = "profile_edit.result.recovery_step"
+    PROFILE_EDIT_RESULT_LISTEN_PORT = "profile_edit.result.listen_port"
+    PROFILE_EDIT_RESULT_RETURN_DASHBOARD = "profile_edit.result.return_dashboard"
+    PROFILE_EDIT_OPERATIONAL_TITLE = "profile_edit.operational.title"
+    PROFILE_EDIT_OPERATIONAL_UNEXPECTED_DETAILS = "profile_edit.operational.unexpected.details"
+    PROFILE_EDIT_OPERATIONAL_KNOWN_SAFETY = "profile_edit.operational.known.safety"
+    PROFILE_EDIT_OPERATIONAL_UNKNOWN_SAFETY = "profile_edit.operational.unknown.safety"
+    PROFILE_EDIT_PORT_CONFLICT_TITLE = "profile_edit.port_conflict.title"
+    PROFILE_EDIT_PORT_CONFLICT_SAFETY = "profile_edit.port_conflict.safety"
+    PROFILE_EDIT_CONFLICT_TITLE = "profile_edit.conflict.title"
+    PROFILE_EDIT_CONFLICT_SAFETY = "profile_edit.conflict.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -183,6 +245,13 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_DETAILS_STATUS: frozenset({"status"}),
         UiText.PROFILE_DETAILS_SERVER_ADDRESS: frozenset({"address"}),
         UiText.PROFILE_DETAILS_LISTEN_PORT: frozenset({"port"}),
+        UiText.PROFILE_EDIT_PLAN_CHANGE_NAME: frozenset({"previous", "current"}),
+        UiText.PROFILE_EDIT_PLAN_CHANGE_SERVER_ADDRESS: frozenset({"previous", "current"}),
+        UiText.PROFILE_EDIT_PLAN_CHANGE_LISTEN_PORT: frozenset({"previous", "current"}),
+        UiText.PROFILE_EDIT_PLAN_CHANGE_PORT_SELECTION: frozenset({"previous", "current"}),
+        UiText.PROFILE_EDIT_RESULT_REVISION: frozenset({"revision"}),
+        UiText.PROFILE_EDIT_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.PROFILE_EDIT_RESULT_LISTEN_PORT: frozenset({"port"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -345,6 +414,95 @@ SIMPLIFIED_CHINESE = CopyCatalog(
             "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
         ),
         UiText.PROFILE_DETAILS_UNEXPECTED_SAFETY: "尚未修改任何配置。请返回列表后重新读取。",
+        UiText.PROFILE_EDIT_TITLE: "编辑配置",
+        UiText.PROFILE_EDIT_CANCEL: "取消",
+        UiText.PROFILE_EDIT_GUIDANCE: "稳定 ID、协议和凭据保持不变。提交前会显示影响计划。",
+        UiText.PROFILE_EDIT_NAME_LABEL: "配置名称",
+        UiText.PROFILE_EDIT_SERVER_ADDRESS_LABEL: "公开服务器地址 (可留空)",
+        UiText.PROFILE_EDIT_LISTEN_PORT_LABEL: "监听端口 (可留空)",
+        UiText.PROFILE_EDIT_LISTEN_PORT_PLACEHOLDER: "留空自动选择",
+        UiText.PROFILE_EDIT_PORT_GUIDANCE: (
+            "留空表示自动选择。已应用配置会在确认后选择端口并执行完整事务。"
+        ),
+        UiText.PROFILE_EDIT_PREVIEW: "预览变更",
+        UiText.PROFILE_EDIT_PORT_INVALID: ("端口必须是 1 到 65535 之间的整数，或留空自动选择"),
+        UiText.PROFILE_EDIT_NO_CHANGES: "没有可保存的变更",
+        UiText.PROFILE_EDIT_NOT_FOUND: "配置可能已被另一个会话移除，请返回后重新打开列表。",
+        UiText.PROFILE_EDIT_PLANNING_TITLE: "无法准备配置编辑",
+        UiText.PROFILE_EDIT_PLANNING_DETAILS: (
+            "读取配置编辑计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_EDIT_PLANNING_SAFETY: (
+            "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        ),
+        UiText.PROFILE_EDIT_PLAN_TITLE: "确认配置变更",
+        UiText.PROFILE_EDIT_PLAN_CHANGE_NAME: "名称：{previous} → {current}",
+        UiText.PROFILE_EDIT_PLAN_CHANGE_SERVER_ADDRESS: "公开地址：{previous} → {current}",
+        UiText.PROFILE_EDIT_PLAN_CHANGE_LISTEN_PORT: "监听端口：{previous} → {current}",
+        UiText.PROFILE_EDIT_PLAN_CHANGE_PORT_SELECTION: "端口策略：{previous} → {current}",
+        UiText.PROFILE_EDIT_PLAN_VALUE_UNSET: "未设置",
+        UiText.PROFILE_EDIT_PLAN_VALUE_AUTOMATIC: "自动选择",
+        UiText.PROFILE_EDIT_PLAN_VALUE_AUTOMATIC_AT_CONFIRMATION: "自动选择 - 确认时",
+        UiText.PROFILE_EDIT_PLAN_VALUE_FIXED: "固定",
+        UiText.PROFILE_EDIT_PLAN_IMPACT_DESIRED: (
+            "只更新 manager desired state，不会写入 sing-box 配置或刷新服务。"
+        ),
+        UiText.PROFILE_EDIT_PLAN_IMPACT_LIVE: (
+            "将生成完整 sing-box 配置，校验并刷新服务，失败时自动回滚。"
+        ),
+        UiText.PROFILE_EDIT_PLAN_SAFETY_PREVIEW: "当前仅预览，尚未修改任何内容。",
+        UiText.PROFILE_EDIT_PLAN_CONFIRM_DESIRED: "确认保存",
+        UiText.PROFILE_EDIT_PLAN_CONFIRM_LIVE: "确认修改并应用",
+        UiText.PROFILE_EDIT_PLAN_IN_PROGRESS: ("操作已确认，正在执行配置变更。完成前无法返回。"),
+        UiText.PROFILE_EDIT_RESULT_DESIRED_TITLE: "配置已更新",
+        UiText.PROFILE_EDIT_RESULT_REVISION: "desired state 已提交 revision {revision}。",
+        UiText.PROFILE_EDIT_RESULT_DESIRED_SAFETY: "未写入 sing-box 配置，也未刷新服务。",
+        UiText.PROFILE_EDIT_RESULT_APPLIED_TITLE: "配置已应用并更新",
+        UiText.PROFILE_EDIT_RESULT_APPLIED_SAFETY: ("新配置已通过校验，服务刷新和健康检查已完成。"),
+        UiText.PROFILE_EDIT_RESULT_VALIDATION_FAILED_TITLE: "配置校验失败，未更新",
+        UiText.PROFILE_EDIT_RESULT_VALIDATION_FAILED_SAFETY: (
+            "原有配置、服务和 desired state 均未改变。"
+        ),
+        UiText.PROFILE_EDIT_RESULT_PRECONDITION_FAILED_TITLE: "服务器配置已变化，未更新",
+        UiText.PROFILE_EDIT_RESULT_PRECONDITION_FALLBACK: (
+            "live configuration 不再匹配已确认的版本"
+        ),
+        UiText.PROFILE_EDIT_RESULT_PRECONDITION_SAFETY: ("本次尚未写入配置，请重新检查后再确认。"),
+        UiText.PROFILE_EDIT_RESULT_COMMIT_FAILED_TITLE: "无法写入编辑后的配置",
+        UiText.PROFILE_EDIT_RESULT_COMMIT_FALLBACK: "配置提交失败",
+        UiText.PROFILE_EDIT_RESULT_COMMIT_SAFETY: (
+            "尚未刷新服务，原有配置和 desired state 保持不变。"
+        ),
+        UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_TITLE: "编辑失败，已自动回滚",
+        UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_FALLBACK: "旧配置已恢复。",
+        UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_SAFETY: ("原有配置、服务和 desired state 已保留。"),
+        UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_TITLE: "回滚未完成，需要人工恢复",
+        UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_FALLBACK: "回滚状态未知",
+        UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_SAFETY: (
+            "desired state 未提交。完成恢复前不要再次修改配置。"
+        ),
+        UiText.PROFILE_EDIT_RESULT_RECOVERY_STEP: "{number}. {instruction}",
+        UiText.PROFILE_EDIT_RESULT_LISTEN_PORT: "当前监听端口：{port}",
+        UiText.PROFILE_EDIT_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.PROFILE_EDIT_OPERATIONAL_TITLE: "无法确认配置编辑结果",
+        UiText.PROFILE_EDIT_OPERATIONAL_UNEXPECTED_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_EDIT_OPERATIONAL_KNOWN_SAFETY: (
+            "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
+        ),
+        UiText.PROFILE_EDIT_OPERATIONAL_UNKNOWN_SAFETY: (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        ),
+        UiText.PROFILE_EDIT_PORT_CONFLICT_TITLE: "监听端口已不可用",
+        UiText.PROFILE_EDIT_PORT_CONFLICT_SAFETY: (
+            "尚未调用配置 applier，实时配置、服务和 desired state 均未改变。"
+        ),
+        UiText.PROFILE_EDIT_CONFLICT_TITLE: "配置已被其他会话修改",
+        UiText.PROFILE_EDIT_CONFLICT_SAFETY: (
+            "本次变更未执行。请返回列表，重新打开详情并预览最新计划。"
+        ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (
             "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"

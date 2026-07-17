@@ -243,6 +243,15 @@ Draft edits and public-address-only edits update desired state without host
 effects. Renaming an applied profile transactionally projects and applies the
 complete configuration because the display name is present in generated
 sing-box user records. Desired state advances only after host success.
+The details view passes one validated interface copy catalog through the edit
+form, normalized plan, confirmation worker, terminal result, planning failure,
+confirmation conflict, and unknown-result guidance. Authored interface copy is
+selected only by semantic identity; profile values and typed diagnostic
+evidence are rendered with markup disabled. The plan gives desired-state-only
+updates a warning confirmation and live configuration transactions an error
+confirmation, while both state explicitly that the preview has no effect.
+Unexpected post-confirmation failure remains an unknown mutation result and
+requires identity, service, and apply-history inspection before retry.
 
 Listening-port editing accepts a validated fixed port or an empty automatic
 selection. Plans reject ranges outside 1–65535, ports declared by another
@@ -461,9 +470,12 @@ unsupported mutation controls are absent.
 Chinese is the only offered UI language. The immutable interface copy catalog
 uses semantic text identities, validates complete key coverage and exact
 template placeholders at construction, and exposes only one rendering method
-to screens. The first complete migration unit covers Settings and every
-preference-reset outcome; those screens contain no locale text. Settings states
-that Chinese is fully supported and explains why other languages are withheld.
+to screens. Complete migration units now cover Settings and every
+preference-reset outcome, the Dashboard read-only shell and semantic
+recommendation, Profiles inventory, profile details and credential disclosure,
+and the complete profile-edit journey. Those migrated screen ranges contain no
+locale-authored text. Settings states that Chinese is fully supported and
+explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
 string has moved into the catalog, so an operator never receives a partially
 translated safety workflow. Additional accessibility preferences require their

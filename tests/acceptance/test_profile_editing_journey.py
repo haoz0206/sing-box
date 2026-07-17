@@ -1,3 +1,5 @@
+from typing import cast
+
 from textual.widgets import Button, Input, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -27,10 +29,27 @@ from sb_manager.transactions.apply import (
     CommitResult,
     RollbackResult,
 )
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 LISTEN_PORT = 4433
 EDITED_PORT = 8443
+
+
+class ProfileEditMarkerCatalog:
+    """Render markers across the nested profile-edit journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_edit.title": "目录编辑配置",
+            "profile_edit.plan.title": "目录确认配置变更",
+            "profile_edit.result.desired.title": "目录配置已更新",
+            "profile_edit.operational.title": "目录无法确认编辑结果",
+            "profile_edit.planning.title": "目录无法准备配置编辑",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 class FixedProfileDetailsReader:
@@ -279,6 +298,7 @@ def app_for(
     editor: RecordingProfileEditor,
     *,
     state_store: MemoryStateStore | None = None,
+    copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
 ) -> ManagerApp:
     profile = ManagedProfile(
         profile_id="profile-1",
@@ -298,6 +318,7 @@ def app_for(
             profile_details_reader=FixedProfileDetailsReader(editor.status),
             profile_editor=editor,
         ),
+        interface_tools=ManagerAppInterfaceTools(copy_catalog=copy_catalog),
     )
 
 
@@ -323,6 +344,74 @@ async def test_operator_opens_prefilled_profile_edit_form_without_creating_a_pla
         )
         assert editor.requests == []
         assert editor.edits == []
+
+
+async def test_profile_edit_copy_catalog_flows_from_details_through_plan() -> None:
+    editor = RecordingProfileEditor()
+    app = app_for(
+        editor,
+        copy_catalog=cast(CopyCatalog, ProfileEditMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+
+        assert app.screen.query_one("#profile-edit-title", Static).content == "目录编辑配置"
+
+        app.screen.query_one("#profile-edit-name", Input).value = "平板"
+        await pilot.click("#preview-profile-edit")
+
+        assert app.screen.query_one("#profile-edit-plan-title", Static).content == (
+            "目录确认配置变更"
+        )
+
+        await pilot.click("#confirm-profile-edit")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-edit-result-title", Static).content == (
+            "目录配置已更新"
+        )
+
+
+async def test_profile_edit_copy_catalog_reaches_unknown_result_guidance() -> None:
+    editor = UnexpectedProfileEditor()
+    app = app_for(
+        editor,
+        copy_catalog=cast(CopyCatalog, ProfileEditMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-name", Input).value = "平板"
+        await pilot.click("#preview-profile-edit")
+        await pilot.click("#confirm-profile-edit")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-edit-error-title", Static).content == (
+            "目录无法确认编辑结果"
+        )
+
+
+async def test_profile_edit_copy_catalog_reaches_planning_failure_guidance() -> None:
+    app = app_for(
+        UnexpectedPlanningProfileEditor(),
+        copy_catalog=cast(CopyCatalog, ProfileEditMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-name", Input).value = "平板"
+        await pilot.click("#preview-profile-edit")
+
+        assert app.screen.query_one("#profile-edit-planning-error-title", Static).content == (
+            "目录无法准备配置编辑"
+        )
 
 
 async def test_operator_previews_normalized_draft_metadata_changes_before_confirmation() -> None:

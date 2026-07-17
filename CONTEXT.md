@@ -70,7 +70,10 @@ _Avoid_: Delete inbound JSON, forget profile, unlink configuration
 An operator-confirmed, revision-bound change to the supported mutable intent of
 one stable profile. Metadata-only changes may update desired state, while any
 field that changes generated server configuration uses one complete live
-transaction.
+transaction. Form guidance, normalized change review, host-effect scope,
+confirmation, terminal outcomes, and recovery guidance come from one validated
+interface copy catalog; typed application and transaction diagnostics remain
+evidence and are never interpreted as navigation or safety policy.
 _Avoid_: Patch generated JSON, recreate profile, rotate credentials
 
 **Listen port edit**:

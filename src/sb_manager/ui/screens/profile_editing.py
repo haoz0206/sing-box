@@ -27,48 +27,84 @@ from sb_manager.domain.installation import PortSelection
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
 class ProfileEditFormScreen(Screen[None]):
     """Collect editable metadata without creating a plan on navigation."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        (
+            "escape",
+            "app.pop_screen",
+            SIMPLIFIED_CHINESE.text(UiText.PROFILE_EDIT_CANCEL),
+        )
+    ]
 
-    def __init__(self, profile_editor: ProfileEditor, *, details: ProfileDetails) -> None:
+    def __init__(
+        self,
+        profile_editor: ProfileEditor,
+        *,
+        details: ProfileDetails,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.profile_editor = profile_editor
         self.details = details
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="profile-edit"):
-            yield Static("编辑配置", id="profile-edit-title")
             yield Static(
-                "稳定 ID、协议和凭据保持不变。提交前会显示影响计划。",
-                id="profile-edit-guidance",
+                self.copy.text(UiText.PROFILE_EDIT_TITLE),
+                id="profile-edit-title",
+                markup=False,
             )
-            yield Label("配置名称", id="profile-edit-name-label")
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_GUIDANCE),
+                id="profile-edit-guidance",
+                markup=False,
+            )
+            yield Label(
+                self.copy.text(UiText.PROFILE_EDIT_NAME_LABEL),
+                id="profile-edit-name-label",
+                markup=False,
+            )
             yield Input(value=self.details.profile_name, id="profile-edit-name")
-            yield Label("公开服务器地址 (可留空)", id="profile-edit-server-address-label")
+            yield Label(
+                self.copy.text(UiText.PROFILE_EDIT_SERVER_ADDRESS_LABEL),
+                id="profile-edit-server-address-label",
+                markup=False,
+            )
             yield Input(
                 value=self.details.server_address or "",
                 id="profile-edit-server-address",
             )
-            yield Label("监听端口 (可留空)", id="profile-edit-listen-port-label")
+            yield Label(
+                self.copy.text(UiText.PROFILE_EDIT_LISTEN_PORT_LABEL),
+                id="profile-edit-listen-port-label",
+                markup=False,
+            )
             yield Input(
                 value=(
                     str(self.details.listen_port) if self.details.listen_port is not None else ""
                 ),
-                placeholder="留空自动选择",
+                placeholder=self.copy.text(UiText.PROFILE_EDIT_LISTEN_PORT_PLACEHOLDER),
                 id="profile-edit-listen-port",
             )
             yield Static(
-                "留空表示自动选择。已应用配置会在确认后选择端口并执行完整事务。",
+                self.copy.text(UiText.PROFILE_EDIT_PORT_GUIDANCE),
                 id="profile-edit-port-guidance",
+                markup=False,
             )
-            yield Static("", id="profile-edit-error")
-            yield Button("预览变更", id="preview-profile-edit", variant="primary")
+            yield Static("", id="profile-edit-error", markup=False)
+            yield Button(
+                self.copy.text(UiText.PROFILE_EDIT_PREVIEW),
+                id="preview-profile-edit",
+                variant="primary",
+            )
         yield Footer()
 
     @on(Button.Pressed, "#preview-profile-edit")
@@ -79,7 +115,7 @@ class ProfileEditFormScreen(Screen[None]):
             listen_port = int(listen_port_text) if listen_port_text else None
         except ValueError:
             self.query_one("#profile-edit-error", Static).update(
-                "端口必须是 1 到 65535 之间的整数，或留空自动选择"
+                self.copy.text(UiText.PROFILE_EDIT_PORT_INVALID)
             )
             listen_port_input.focus()
             return
@@ -97,35 +133,55 @@ class ProfileEditFormScreen(Screen[None]):
             self.query_one(f"#profile-edit-{error.field.removeprefix('profile_')}").focus()
             return
         except ProfileEditNoChangesError:
-            self.query_one("#profile-edit-error", Static).update("没有可保存的变更")
+            self.query_one("#profile-edit-error", Static).update(
+                self.copy.text(UiText.PROFILE_EDIT_NO_CHANGES)
+            )
             return
         except ProfileEditNotFoundError:
             self.query_one("#profile-edit-error", Static).update(
-                "配置可能已被另一个会话移除，请返回后重新打开列表。"
+                self.copy.text(UiText.PROFILE_EDIT_NOT_FOUND)
             )
             return
         except Exception:
-            self.app.push_screen(ProfileEditPlanningErrorScreen())
+            self.app.push_screen(ProfileEditPlanningErrorScreen(self.copy))
             return
-        self.app.push_screen(ProfileEditPlanScreen(self.profile_editor, plan=plan))
+        self.app.push_screen(
+            ProfileEditPlanScreen(
+                self.profile_editor,
+                plan=plan,
+                copy_catalog=self.copy,
+            )
+        )
 
 
 class ProfileEditPlanningErrorScreen(Screen[None]):
     """Report an unexpected read-only edit-planning failure safely."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-edit-planning-error"):
-            yield Static("无法准备配置编辑", id="profile-edit-planning-error-title")
             yield Static(
-                "读取配置编辑计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
-                id="profile-edit-planning-error-details",
+                self.copy.text(UiText.PROFILE_EDIT_PLANNING_TITLE),
+                id="profile-edit-planning-error-title",
+                markup=False,
             )
             yield Static(
-                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                self.copy.text(UiText.PROFILE_EDIT_PLANNING_DETAILS),
+                id="profile-edit-planning-error-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_PLANNING_SAFETY),
                 id="profile-edit-planning-error-safety",
+                markup=False,
             )
         yield Footer()
 
@@ -133,58 +189,108 @@ class ProfileEditPlanningErrorScreen(Screen[None]):
 class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
     """Present exact normalized changes and their host impact."""
 
-    def __init__(self, profile_editor: ProfileEditor, *, plan: ProfileEditPlan) -> None:
+    def __init__(
+        self,
+        profile_editor: ProfileEditor,
+        *,
+        plan: ProfileEditPlan,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.profile_editor = profile_editor
         self.plan = plan
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         changes: list[str] = []
         if "profile_name" in self.plan.changed_fields:
-            changes.append(f"名称：{self.plan.previous_profile_name} → {self.plan.profile_name}")
+            changes.append(
+                self.copy.text(
+                    UiText.PROFILE_EDIT_PLAN_CHANGE_NAME,
+                    previous=self.plan.previous_profile_name,
+                    current=self.plan.profile_name,
+                )
+            )
         if "server_address" in self.plan.changed_fields:
             changes.append(
-                "公开地址："
-                f"{self.plan.previous_server_address or '未设置'} → "
-                f"{self.plan.server_address or '未设置'}"
+                self.copy.text(
+                    UiText.PROFILE_EDIT_PLAN_CHANGE_SERVER_ADDRESS,
+                    previous=(
+                        self.plan.previous_server_address
+                        or self.copy.text(UiText.PROFILE_EDIT_PLAN_VALUE_UNSET)
+                    ),
+                    current=(
+                        self.plan.server_address
+                        or self.copy.text(UiText.PROFILE_EDIT_PLAN_VALUE_UNSET)
+                    ),
+                )
             )
         if "listen_port" in self.plan.changed_fields:
             changes.append(
-                "监听端口："
-                f"{self.plan.previous_listen_port or '自动选择'} → "
-                f"{self.plan.listen_port or '自动选择 - 确认时'}"
+                self.copy.text(
+                    UiText.PROFILE_EDIT_PLAN_CHANGE_LISTEN_PORT,
+                    previous=(
+                        self.plan.previous_listen_port
+                        if self.plan.previous_listen_port is not None
+                        else self.copy.text(UiText.PROFILE_EDIT_PLAN_VALUE_AUTOMATIC)
+                    ),
+                    current=(
+                        self.plan.listen_port
+                        if self.plan.listen_port is not None
+                        else self.copy.text(
+                            UiText.PROFILE_EDIT_PLAN_VALUE_AUTOMATIC_AT_CONFIRMATION
+                        )
+                    ),
+                )
             )
         if "port_selection" in self.plan.changed_fields:
             changes.append(
-                "端口策略："
-                f"{self._port_selection_label(self.plan.previous_port_selection)}"
-                " → "
-                f"{self._port_selection_label(self.plan.port_selection)}"
+                self.copy.text(
+                    UiText.PROFILE_EDIT_PLAN_CHANGE_PORT_SELECTION,
+                    previous=self._port_selection_label(self.plan.previous_port_selection),
+                    current=self._port_selection_label(self.plan.port_selection),
+                )
             )
         desired_only = self.plan.scope is ProfileEditScope.DESIRED_STATE_ONLY
         yield Header()
         with Vertical(id="profile-edit-plan"):
-            yield Static("确认配置变更", id="profile-edit-plan-title")
-            yield Static("\n".join(changes), id="profile-edit-plan-changes")
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_PLAN_TITLE),
+                id="profile-edit-plan-title",
+                markup=False,
+            )
+            yield Static("\n".join(changes), id="profile-edit-plan-changes", markup=False)
             yield Static(
                 (
-                    "只更新 manager desired state，不会写入 sing-box 配置或刷新服务。"
+                    self.copy.text(UiText.PROFILE_EDIT_PLAN_IMPACT_DESIRED)
                     if desired_only
-                    else "将生成完整 sing-box 配置，校验并刷新服务，失败时自动回滚。"
+                    else self.copy.text(UiText.PROFILE_EDIT_PLAN_IMPACT_LIVE)
                 ),
                 id="profile-edit-plan-impact",
+                markup=False,
             )
-            yield Static("当前仅预览，尚未修改任何内容。", id="profile-edit-plan-safety")
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_PLAN_SAFETY_PREVIEW),
+                id="profile-edit-plan-safety",
+                markup=False,
+            )
             yield Button(
-                "确认保存" if desired_only else "确认修改并应用",
+                self.copy.text(
+                    UiText.PROFILE_EDIT_PLAN_CONFIRM_DESIRED
+                    if desired_only
+                    else UiText.PROFILE_EDIT_PLAN_CONFIRM_LIVE
+                ),
                 id="confirm-profile-edit",
                 variant="warning" if desired_only else "error",
             )
         yield Footer()
 
-    @staticmethod
-    def _port_selection_label(selection: PortSelection) -> str:
-        return "自动选择" if selection is PortSelection.AUTOMATIC else "固定"
+    def _port_selection_label(self, selection: PortSelection) -> str:
+        return self.copy.text(
+            UiText.PROFILE_EDIT_PLAN_VALUE_AUTOMATIC
+            if selection is PortSelection.AUTOMATIC
+            else UiText.PROFILE_EDIT_PLAN_VALUE_FIXED
+        )
 
     @on(Button.Pressed, "#confirm-profile-edit")
     def confirm_edit(self) -> None:
@@ -192,7 +298,7 @@ class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
             return
         self.query_one("#confirm-profile-edit", Button).disabled = True
         self.query_one("#profile-edit-plan-safety", Static).update(
-            "操作已确认，正在执行配置变更。完成前无法返回。"
+            self.copy.text(UiText.PROFILE_EDIT_PLAN_IN_PROGRESS)
         )
         self.execute_edit()
 
@@ -203,7 +309,7 @@ class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
         except ProfileEditPortUnavailableError as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileEditPortConflictScreen(str(error)),
+                ProfileEditPortConflictScreen(str(error), copy_catalog=self.copy),
             )
             return
         except (
@@ -214,7 +320,7 @@ class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
         ) as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileEditConflictScreen(str(error)),
+                ProfileEditConflictScreen(str(error), copy_catalog=self.copy),
             )
             return
         except (
@@ -224,142 +330,215 @@ class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
         ) as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileEditOperationalErrorScreen(str(error)),
+                ProfileEditOperationalErrorScreen(str(error), copy_catalog=self.copy),
             )
             return
         except Exception:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileEditOperationalErrorScreen(),
+                ProfileEditOperationalErrorScreen(copy_catalog=self.copy),
             )
             return
         self.app.call_from_thread(
             self.push_terminal_screen,
-            ProfileEditResultScreen(result),
+            ProfileEditResultScreen(result, copy_catalog=self.copy),
         )
 
 
 class ProfileEditResultScreen(Screen[None]):
     """Present the committed desired-state result of profile editing."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, result: ProfileEditResult) -> None:
+    def __init__(
+        self,
+        result: ProfileEditResult,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.result = result
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-edit-result"):
             if self.result.scope is ProfileEditScope.DESIRED_STATE_ONLY:
-                yield Static("配置已更新", id="profile-edit-result-title")
                 yield Static(
-                    f"desired state 已提交 revision {self.result.committed_revision}。",
-                    id="profile-edit-result-details",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_DESIRED_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    "未写入 sing-box 配置，也未刷新服务。",
+                    self.copy.text(
+                        UiText.PROFILE_EDIT_RESULT_REVISION,
+                        revision=self.result.committed_revision,
+                    ),
+                    id="profile-edit-result-details",
+                    markup=False,
+                )
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_DESIRED_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif (
                 self.result.transaction is not None
                 and self.result.transaction.outcome is ApplyOutcome.APPLIED
             ):
-                yield Static("配置已应用并更新", id="profile-edit-result-title")
                 yield Static(
-                    f"desired state 已提交 revision {self.result.committed_revision}。",
-                    id="profile-edit-result-details",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_APPLIED_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    "新配置已通过校验，服务刷新和健康检查已完成。",
+                    self.copy.text(
+                        UiText.PROFILE_EDIT_RESULT_REVISION,
+                        revision=self.result.committed_revision,
+                    ),
+                    id="profile-edit-result-details",
+                    markup=False,
+                )
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_APPLIED_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif (
                 self.result.transaction is not None
                 and self.result.transaction.outcome is ApplyOutcome.VALIDATION_FAILED
             ):
-                yield Static("配置校验失败，未更新", id="profile-edit-result-title")
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_VALIDATION_FAILED_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
+                )
                 yield Static(
                     self.result.transaction.validation.diagnostics,
                     id="profile-edit-result-details",
+                    markup=False,
                 )
                 yield Static(
-                    "原有配置、服务和 desired state 均未改变。",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_VALIDATION_FAILED_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif (
                 self.result.transaction is not None
                 and self.result.transaction.outcome is ApplyOutcome.PRECONDITION_FAILED
             ):
-                yield Static("服务器配置已变化，未更新", id="profile-edit-result-title")
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_PRECONDITION_FAILED_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
+                )
                 yield Static(
                     (
                         self.result.transaction.commit.diagnostics
                         if self.result.transaction.commit is not None
-                        else "live configuration 不再匹配已确认的版本"
+                        else self.copy.text(UiText.PROFILE_EDIT_RESULT_PRECONDITION_FALLBACK)
                     ),
                     id="profile-edit-result-details",
+                    markup=False,
                 )
                 yield Static(
-                    "本次尚未写入配置，请重新检查后再确认。",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_PRECONDITION_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif (
                 self.result.transaction is not None
                 and self.result.transaction.outcome is ApplyOutcome.COMMIT_FAILED
             ):
-                yield Static("无法写入编辑后的配置", id="profile-edit-result-title")
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_COMMIT_FAILED_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
+                )
                 yield Static(
                     (
                         self.result.transaction.commit.diagnostics
                         if self.result.transaction.commit is not None
-                        else "配置提交失败"
+                        else self.copy.text(UiText.PROFILE_EDIT_RESULT_COMMIT_FALLBACK)
                     ),
                     id="profile-edit-result-details",
+                    markup=False,
                 )
                 yield Static(
-                    "尚未刷新服务，原有配置和 desired state 保持不变。",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_COMMIT_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif (
                 self.result.transaction is not None
                 and self.result.transaction.outcome is ApplyOutcome.ROLLED_BACK
             ):
                 rollback = self.result.transaction.rollback
-                yield Static("编辑失败，已自动回滚", id="profile-edit-result-title")
                 yield Static(
-                    rollback.diagnostics if rollback is not None else "旧配置已恢复。",
-                    id="profile-edit-result-details",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    "原有配置、服务和 desired state 已保留。",
+                    (
+                        rollback.diagnostics
+                        if rollback is not None
+                        else self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_FALLBACK)
+                    ),
+                    id="profile-edit-result-details",
+                    markup=False,
+                )
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLED_BACK_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
             elif self.result.transaction is not None:
                 rollback = self.result.transaction.rollback
-                yield Static("回滚未完成，需要人工恢复", id="profile-edit-result-title")
                 yield Static(
-                    rollback.diagnostics if rollback is not None else "回滚状态未知",
-                    id="profile-edit-result-details",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_TITLE),
+                    id="profile-edit-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    "desired state 未提交。完成恢复前不要再次修改配置。",
+                    (
+                        rollback.diagnostics
+                        if rollback is not None
+                        else self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_FALLBACK)
+                    ),
+                    id="profile-edit-result-details",
+                    markup=False,
+                )
+                yield Static(
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_ROLLBACK_UNKNOWN_SAFETY),
                     id="profile-edit-result-safety",
+                    markup=False,
                 )
                 if rollback is not None:
                     for index, instruction in enumerate(rollback.recovery_instructions):
                         yield Static(
-                            f"{index + 1}. {instruction}",
+                            self.copy.text(
+                                UiText.PROFILE_EDIT_RESULT_RECOVERY_STEP,
+                                number=index + 1,
+                                instruction=instruction,
+                            ),
                             id=f"profile-edit-recovery-step-{index}",
+                            markup=False,
                         )
             if self.result.committed_revision is not None and self.result.listen_port is not None:
                 yield Static(
-                    f"当前监听端口：{self.result.listen_port}",
+                    self.copy.text(
+                        UiText.PROFILE_EDIT_RESULT_LISTEN_PORT,
+                        port=self.result.listen_port,
+                    ),
                     id="profile-edit-result-listen-port",
+                    markup=False,
                 )
             if self.result.committed_revision is not None:
                 yield Button(
-                    "返回仪表盘",
+                    self.copy.text(UiText.PROFILE_EDIT_RESULT_RETURN_DASHBOARD),
                     id="profile-edit-return-dashboard",
                     variant="primary",
                 )
@@ -375,28 +554,42 @@ class ProfileEditResultScreen(Screen[None]):
 class ProfileEditOperationalErrorScreen(Screen[None]):
     """Explain an unknown host result without claiming profile changes."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, diagnostics: str | None = None) -> None:
+    def __init__(
+        self,
+        diagnostics: str | None = None,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.diagnostics = diagnostics
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-edit-operational-error"):
-            yield Static("无法确认配置编辑结果", id="profile-edit-error-title")
             yield Static(
-                self.diagnostics or "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                self.copy.text(UiText.PROFILE_EDIT_OPERATIONAL_TITLE),
+                id="profile-edit-error-title",
+                markup=False,
+            )
+            yield Static(
+                self.diagnostics
+                or self.copy.text(UiText.PROFILE_EDIT_OPERATIONAL_UNEXPECTED_DETAILS),
                 id="profile-edit-error-details",
+                markup=False,
             )
             yield Static(
                 (
-                    "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
+                    self.copy.text(UiText.PROFILE_EDIT_OPERATIONAL_KNOWN_SAFETY)
                     if self.diagnostics is not None
-                    else "服务器配置、服务和 desired state 的结果均未知。"
-                    "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+                    else self.copy.text(UiText.PROFILE_EDIT_OPERATIONAL_UNKNOWN_SAFETY)
                 ),
                 id="profile-edit-error-safety",
+                markup=False,
             )
         yield Footer()
 
@@ -404,20 +597,37 @@ class ProfileEditOperationalErrorScreen(Screen[None]):
 class ProfileEditPortConflictScreen(Screen[None]):
     """Explain a safe confirmation-time port conflict without implying host mutation."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, diagnostics: str) -> None:
+    def __init__(
+        self,
+        diagnostics: str,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.diagnostics = diagnostics
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-edit-port-conflict"):
-            yield Static("监听端口已不可用", id="profile-edit-port-conflict-title")
-            yield Static(self.diagnostics, id="profile-edit-port-conflict-details")
             yield Static(
-                "尚未调用配置 applier，实时配置、服务和 desired state 均未改变。",
+                self.copy.text(UiText.PROFILE_EDIT_PORT_CONFLICT_TITLE),
+                id="profile-edit-port-conflict-title",
+                markup=False,
+            )
+            yield Static(
+                self.diagnostics,
+                id="profile-edit-port-conflict-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_PORT_CONFLICT_SAFETY),
                 id="profile-edit-port-conflict-safety",
+                markup=False,
             )
         yield Footer()
 
@@ -425,19 +635,36 @@ class ProfileEditPortConflictScreen(Screen[None]):
 class ProfileEditConflictScreen(Screen[None]):
     """Explain that a reviewed edit plan is no longer current."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, diagnostics: str) -> None:
+    def __init__(
+        self,
+        diagnostics: str,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.diagnostics = diagnostics
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-edit-conflict"):
-            yield Static("配置已被其他会话修改", id="profile-edit-conflict-title")
-            yield Static(self.diagnostics, id="profile-edit-conflict-details")
             yield Static(
-                "本次变更未执行。请返回列表，重新打开详情并预览最新计划。",
+                self.copy.text(UiText.PROFILE_EDIT_CONFLICT_TITLE),
+                id="profile-edit-conflict-title",
+                markup=False,
+            )
+            yield Static(
+                self.diagnostics,
+                id="profile-edit-conflict-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_EDIT_CONFLICT_SAFETY),
                 id="profile-edit-conflict-safety",
+                markup=False,
             )
         yield Footer()

@@ -385,6 +385,12 @@ Release gate adds:
   when no share URI exists, one-page credential reveal/hide, disclosure-safe
   expected and unexpected read failures, scrollable layout, and unchanged
   edit/availability/clone/removal plan handoff;
+- profile-edit acceptance for catalog propagation from details through form,
+  normalized plan, desired-state result, read-only planning failure, and
+  unknown mutation result; exact desired-only versus live-transaction impact,
+  actionable field validation, revision-bound confirmation, typed conflict and
+  rollback outcomes, non-disclosing unexpected failures, and non-markup dynamic
+  profile/diagnostic evidence;
 - read-only Network workspace acceptance for empty and populated desired state,
   lifecycle-aware TCP/UDP listener intent, fixed and apply-time automatic ports,
   public addresses, explicit no-probe/no-firewall policy, contextual `n`
