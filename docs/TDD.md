@@ -299,6 +299,9 @@ Release gate adds:
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after
   recovery, unexpected failure retry, and production composition;
+- dashboard background-probe isolation for non-disclosing runtime/readiness
+  failure states, conservative next-action guidance, disabled stale details,
+  explicit read-only retry, and successful recovery;
 - live-configuration identity diagnostics for empty, untracked, matching,
   missing, externally changed, and failed-probe observations, including
   single-snapshot desired-state failure isolation and direct/privileged

@@ -185,6 +185,22 @@ class UnhealthyHostDiagnostics:
         )
 
 
+class FlakyHostDiagnostics:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def inspect(self) -> HostDiagnosticsReport:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("synthetic runtime failure containing private diagnostics")
+        return HostDiagnosticsReport(
+            condition=HostCondition.HEALTHY,
+            summary="sing-box 服务运行正常",
+            diagnostics="active",
+            recovery_instructions=(),
+        )
+
+
 class FixedHostReadiness:
     def __init__(self, *reports: HostReadinessReport) -> None:
         self.reports = reports
@@ -194,6 +210,18 @@ class FixedHostReadiness:
         report = self.reports[min(self.calls, len(self.reports) - 1)]
         self.calls += 1
         return report
+
+
+class FlakyHostReadiness:
+    def __init__(self, recovered_report: HostReadinessReport) -> None:
+        self.recovered_report = recovered_report
+        self.calls = 0
+
+    def inspect(self) -> HostReadinessReport:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("synthetic probe failure containing private diagnostics")
+        return self.recovered_report
 
 
 class NeverCalledCoreUpdater:
@@ -399,6 +427,31 @@ async def test_operator_can_drill_into_actionable_unhealthy_runtime_diagnostics(
         )
 
 
+async def test_failed_runtime_inspection_is_conservative_and_retryable() -> None:
+    diagnostics = FlakyHostDiagnostics()
+    app = ManagerApp(host_tools=ManagerAppHostTools(host_diagnostics=diagnostics))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#runtime-status", Static).content == "服务状态：无法检查"
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：先重新检查服务状态"
+        )
+        assert app.screen.query_one("#view-diagnostics", Button).disabled
+        assert not app.screen.query_one("#refresh-runtime-status", Button).disabled
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private diagnostics" not in rendered_text
+
+        await pilot.click("#refresh-runtime-status")
+        await pilot.pause()
+
+        expected_calls = 2
+        assert diagnostics.calls == expected_calls
+        assert app.screen.query_one("#runtime-status", Static).content == "服务状态：运行正常"
+        assert not app.screen.query_one("#view-diagnostics", Button).disabled
+
+
 async def test_first_run_dashboard_prioritizes_host_readiness_before_profile_apply() -> None:
     readiness = FixedHostReadiness(
         HostReadinessReport(
@@ -492,6 +545,41 @@ async def test_operator_can_refresh_host_readiness_after_setup() -> None:
         await pilot.pause()
 
         assert readiness.calls == len(readiness.reports)
+        assert app.screen.query_one("#host-readiness-status", Static).content == (
+            "主机准备度：可以应用配置"
+        )
+
+
+async def test_failed_host_readiness_is_conservative_and_retryable() -> None:
+    readiness = FlakyHostReadiness(
+        HostReadinessReport(
+            items=(
+                _helper_readiness(ReadinessState.READY),
+                _core_readiness(ReadinessState.READY),
+            )
+        )
+    )
+    app = ManagerApp(host_tools=ManagerAppHostTools(host_readiness=readiness))
+
+    async with app.run_test() as pilot:
+        await pilot.pause()
+
+        assert app.screen.query_one("#host-readiness-status", Static).content == (
+            "主机准备度：无法检查"
+        )
+        assert app.screen.query_one("#dashboard-next-action", Static).content == (
+            "建议：先重新检查主机准备度"
+        )
+        assert app.screen.query_one("#view-readiness", Button).disabled
+        assert not app.screen.query_one("#refresh-readiness", Button).disabled
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private diagnostics" not in rendered_text
+
+        await pilot.click("#refresh-readiness")
+        await pilot.pause()
+
+        expected_calls = 2
+        assert readiness.calls == expected_calls
         assert app.screen.query_one("#host-readiness-status", Static).content == (
             "主机准备度：可以应用配置"
         )

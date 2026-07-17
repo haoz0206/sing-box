@@ -136,6 +136,13 @@ The dashboard answers five questions without navigation:
 
 Initial empty-state primary action: `Create your first profile`.
 
+Runtime-health and host-readiness observations run independently in background
+workers. An unexpected probe exception becomes a visible `无法检查` state rather
+than a worker crash or a healthy inference. The dashboard never renders the raw
+exception, keeps the affected detail action disabled, enables one read-only
+reinspection action, and continues to recommend reinspection until a fresh
+report succeeds. A failed retry remains in the same conservative state.
+
 ### 5.3 Profiles
 
 Profiles represent operator intent, not raw inbound JSON.
@@ -687,8 +694,10 @@ Current implementation status (2026-07-17):
   revision into the existing confirmation and background apply flow;
 - host diagnostics: the dashboard performs a read-only systemd/OpenRC health
   observation in a Textual worker, reports applied/draft counts and the safest
-  next action, and exposes typed diagnostics plus recovery guidance without
-  parsing subprocess output in the UI;
+  next action, exposes typed diagnostics plus recovery guidance without parsing
+  subprocess output in the UI, and converts unexpected runtime/readiness probe
+  exceptions into non-disclosing, conservative states with explicit read-only
+  retry actions;
 - diagnostics center: an on-demand Textual workflow aggregates desired-state
   identity/material/fingerprint consistency, configuration target, minimum
   privilege helper, configured core, and runtime health through one deep

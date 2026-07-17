@@ -960,6 +960,8 @@ class ManagerApp(App[None]):
         self.service_log_reader = tools.service_log_reader
         self.apply_history_reader = tools.apply_history_reader
         self._dashboard_ready = False
+        self._host_diagnostics_failed = False
+        self._host_readiness_failed = False
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1111,6 +1113,8 @@ class ManagerApp(App[None]):
             yield Button("打开诊断中心", id="open-diagnostics-center")
         elif self.host_diagnostics is not None:
             yield Button("查看诊断", id="view-diagnostics", disabled=True)
+        if self.host_diagnostics is not None:
+            yield Button("重新检查服务状态", id="refresh-runtime-status", disabled=True)
         if self.host_readiness is not None:
             yield Button("查看准备度", id="view-readiness", disabled=True)
             yield Button("重新检查", id="refresh-readiness", disabled=True)
@@ -1150,10 +1154,15 @@ class ManagerApp(App[None]):
     def load_host_diagnostics(self) -> None:
         if self.host_diagnostics is None:
             return
-        report = self.host_diagnostics.inspect()
+        try:
+            report = self.host_diagnostics.inspect()
+        except Exception:
+            self.call_from_thread(self.show_host_diagnostics_failure)
+            return
         self.call_from_thread(self.show_host_diagnostics, report)
 
     def show_host_diagnostics(self, report: HostDiagnosticsReport) -> None:
+        self._host_diagnostics_failed = False
         self.host_diagnostics_report = report
         status = (
             "服务状态：运行正常"
@@ -1163,16 +1172,31 @@ class ManagerApp(App[None]):
         self.query_one("#runtime-status", Static).update(status)
         if self.diagnostics_center is None:
             self.query_one("#view-diagnostics", Button).disabled = False
+        self.query_one("#refresh-runtime-status", Button).disabled = False
+        self._update_dashboard_next_action()
+
+    def show_host_diagnostics_failure(self) -> None:
+        self._host_diagnostics_failed = True
+        self.host_diagnostics_report = None
+        self.query_one("#runtime-status", Static).update("服务状态：无法检查")
+        if self.diagnostics_center is None:
+            self.query_one("#view-diagnostics", Button).disabled = True
+        self.query_one("#refresh-runtime-status", Button).disabled = False
         self._update_dashboard_next_action()
 
     @work(thread=True, exclusive=True)
     def load_host_readiness(self) -> None:
         if self.host_readiness is None:
             return
-        report = self.host_readiness.inspect()
+        try:
+            report = self.host_readiness.inspect()
+        except Exception:
+            self.call_from_thread(self.show_host_readiness_failure)
+            return
         self.call_from_thread(self.show_host_readiness, report)
 
     def show_host_readiness(self, report: HostReadinessReport) -> None:
+        self._host_readiness_failed = False
         self.host_readiness_report = report
         status = (
             "主机准备度：可以应用配置"
@@ -1184,7 +1208,21 @@ class ManagerApp(App[None]):
         self.query_one("#refresh-readiness", Button).disabled = False
         self._update_dashboard_next_action()
 
+    def show_host_readiness_failure(self) -> None:
+        self._host_readiness_failed = True
+        self.host_readiness_report = None
+        self.query_one("#host-readiness-status", Static).update("主机准备度：无法检查")
+        self.query_one("#view-readiness", Button).disabled = True
+        self.query_one("#refresh-readiness", Button).disabled = False
+        self._update_dashboard_next_action()
+
     def _dashboard_next_action(self, installation: ManagedInstallation) -> str:
+        if self._host_readiness_failed or self._host_diagnostics_failed:
+            return (
+                "建议：先重新检查主机准备度"
+                if self._host_readiness_failed
+                else "建议：先重新检查服务状态"
+            )
         if (
             self.host_readiness_report is not None
             and not self.host_readiness_report.ready_for_apply
@@ -1213,6 +1251,17 @@ class ManagerApp(App[None]):
     def open_host_diagnostics(self) -> None:
         if self.host_diagnostics_report is not None:
             self.push_screen(HostDiagnosticsScreen(self.host_diagnostics_report))
+
+    @on(Button.Pressed, "#refresh-runtime-status")
+    def refresh_host_diagnostics(self) -> None:
+        if self.host_diagnostics is None:
+            return
+        self.host_diagnostics_report = None
+        self.query_one("#runtime-status", Static).update("服务状态：正在检查…")
+        if self.diagnostics_center is None:
+            self.query_one("#view-diagnostics", Button).disabled = True
+        self.query_one("#refresh-runtime-status", Button).disabled = True
+        self.load_host_diagnostics()
 
     @on(Button.Pressed, "#open-diagnostics-center")
     def open_diagnostics_center(self) -> None:

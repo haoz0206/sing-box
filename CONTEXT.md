@@ -172,3 +172,10 @@ destination workflow is currently safe to open. It never bypasses that
 workflow's plan, confirmation, or host-effect policy, and printable keys remain
 available to focused form fields outside the shortcut's context.
 _Avoid_: Global command execution, hidden mutation, shell alias
+
+**Probe failure**:
+An unexpected inability to complete a read-only dashboard observation. It is a
+conservative, retryable UI state: the original exception is not disclosed, no
+healthy conclusion is inferred, and the safest next action remains reinspection
+until a fresh report succeeds.
+_Avoid_: Unhealthy runtime result, failed host mutation, ignored worker exception
