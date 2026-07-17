@@ -322,12 +322,15 @@ The wizard uses progressive disclosure:
 The implemented entry journey asks for general setup, mobile/low-latency,
 restricted-network connection choices, or existing-client compatibility before
 showing protocol terminology. A pure application advisor returns three ordered
-exact protocol variants with one reason and one tradeoff each. Textual renders
-that evidence without recomputing policy, labels the first choice as a starting
-point rather than an automatic decision, and states that no recommendation
-guarantees connectivity. Selection opens the existing form and retains all
-normal plan and confirmation steps. An explicit advanced action exposes every
-supported protocol/transport variant without ranking.
+exact protocol variants with stable rationale identities. Textual resolves each
+rationale into its reason and tradeoff through the validated interface copy
+catalog without recomputing policy, labels the first choice as a starting point
+rather than an automatic decision, and states that no recommendation guarantees
+connectivity. Selection opens the existing form and retains all normal plan and
+confirmation steps. An explicit advanced action exposes every supported
+protocol/transport variant without ranking. If the advisor fails unexpectedly,
+the recovery page hides the exception and offers direct selection immediately;
+the chosen variant still hands off to the existing guided form.
 
 Wizard purpose remains ephemeral navigation intent. `ProtocolVariant` identifies
 the exact form, including WebSocket/gRPC distinctions, but persisted profiles
@@ -506,7 +509,9 @@ preference-reset outcome, the Dashboard read-only shell and semantic
 recommendation, Profiles inventory, profile details and credential disclosure,
 the complete profile-edit journey, and profile pause/resume. Those migrated
 screen ranges also include the complete profile-removal and profile-template-
-clone journeys and contain no locale-authored text. Settings states that
+clone journeys plus the purpose-first recommendation, recommendation-failure,
+and advanced direct-selection journey, and contain no locale-authored text.
+Settings states that
 Chinese is fully supported and explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
 string has moved into the catalog, so an operator never receives a partially
@@ -893,10 +898,12 @@ Current implementation status (2026-07-17):
   unclassified confirmed restore reports primary, backup, and corrupt-archive
   results as unknown and forbids direct retry;
 - purpose-first profile recommendation: adding a profile starts from four
-  operator outcomes, returns three reasoned and caveated protocol variants from
-  one pure application module, opens the existing guided form after selection,
-  and retains an unranked advanced list of all ten supported variants; an
-  unavailable advisor is non-disclosing and keeps the advanced path reachable;
+  operator outcomes, returns three protocol variants with stable rationale
+  identities from one pure application module, renders every reason, caveat,
+  recovery action, and direct-choice label through the validated interface copy
+  catalog, opens the existing guided form after selection, and retains an
+  unranked advanced list of all ten supported variants; an unavailable advisor
+  is non-disclosing and exposes the advanced path on the same recovery page;
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
 - shared TLS strategies: the guided TUI supports sing-box 1.14 ACME certificate

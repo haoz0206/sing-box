@@ -127,7 +127,11 @@ _Avoid_: Protocol kind alone, generated inbound type
 **Protocol recommendation**:
 An ordered, read-only shortlist for one profile purpose. Every choice states a
 reason and a tradeoff, never applies automatically, and does not guarantee
-connectivity or suitability for a particular network.
+connectivity or suitability for a particular network. The application report
+carries stable variant and rationale identities only; purpose labels, ranking,
+reason/tradeoff wording, error guidance, and advanced-choice labels come from
+one validated interface copy catalog. An unexpected advisor failure discloses
+no exception and offers direct protocol selection on the same recovery page.
 _Avoid_: Network probe result, automatic protocol selection, compatibility proof
 
 **Diagnostics center**:

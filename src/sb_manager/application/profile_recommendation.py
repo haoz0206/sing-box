@@ -29,13 +29,29 @@ class ProtocolVariant(str, Enum):
     VMESS_GRPC = "vmess-grpc"
 
 
+class RecommendationRationale(str, Enum):
+    """Stable recommendation evidence rendered by the presentation catalog."""
+
+    GENERAL_VLESS_REALITY = "general.vless-reality"
+    GENERAL_SHADOWSOCKS = "general.shadowsocks"
+    GENERAL_TROJAN = "general.trojan"
+    LOW_LATENCY_HYSTERIA2 = "low-latency.hysteria2"
+    LOW_LATENCY_TUIC = "low-latency.tuic"
+    LOW_LATENCY_VLESS_REALITY = "low-latency.vless-reality"
+    RESTRICTED_NETWORK_VLESS_REALITY = "restricted-network.vless-reality"
+    RESTRICTED_NETWORK_ANYTLS = "restricted-network.anytls"
+    RESTRICTED_NETWORK_VLESS_WEBSOCKET = "restricted-network.vless-websocket"
+    COMPATIBILITY_TROJAN = "compatibility.trojan"
+    COMPATIBILITY_SHADOWSOCKS = "compatibility.shadowsocks"
+    COMPATIBILITY_VMESS_WEBSOCKET = "compatibility.vmess-websocket"
+
+
 @dataclass(frozen=True, slots=True)
 class ProtocolRecommendation:
     """One ranked choice with enough evidence to make its cost visible."""
 
     variant: ProtocolVariant
-    reason: str
-    tradeoff: str
+    rationale: RecommendationRationale
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,18 +78,15 @@ class ProfileRecommendationService:
                 recommendations=(
                     ProtocolRecommendation(
                         variant=ProtocolVariant.TROJAN,
-                        reason="密码认证与标准 TLS 组合便于对照既有 TLS 客户端",
-                        tradeoff="需要可解析的域名和可用证书",
+                        rationale=RecommendationRationale.COMPATIBILITY_TROJAN,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.SHADOWSOCKS,
-                        reason="协议认知广，manager 使用官方推荐的 AEAD 2022 方法",
-                        tradeoff="旧客户端可能不支持 Shadowsocks 2022",
+                        rationale=RecommendationRationale.COMPATIBILITY_SHADOWSOCKS,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.VMESS_WEBSOCKET,
-                        reason="仅在需要兼容既有 VMess 客户端时保留",
-                        tradeoff="新部署不默认推荐，并需要 TLS 与 WebSocket",
+                        rationale=RecommendationRationale.COMPATIBILITY_VMESS_WEBSOCKET,
                     ),
                 ),
             )
@@ -83,18 +96,15 @@ class ProfileRecommendationService:
                 recommendations=(
                     ProtocolRecommendation(
                         variant=ProtocolVariant.VLESS_REALITY,
-                        reason="Reality 使用 TCP，且不要求管理自有 TLS 证书",
-                        tradeoff="不保证适用于所有受限网络; 客户端必须支持 Reality",
+                        rationale=RecommendationRationale.RESTRICTED_NETWORK_VLESS_REALITY,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.ANYTLS,
-                        reason="TLS、填充和多路复用组合提供另一种 TCP 方案",
-                        tradeoff="需要域名、证书和支持 AnyTLS 的较新客户端",
+                        rationale=RecommendationRationale.RESTRICTED_NETWORK_ANYTLS,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.VLESS_WEBSOCKET,
-                        reason="TLS WebSocket 适合明确需要 HTTP 兼容传输的场景",
-                        tradeoff="配置项更多，且同样不保证适用于所有受限网络",
+                        rationale=RecommendationRationale.RESTRICTED_NETWORK_VLESS_WEBSOCKET,
                     ),
                 ),
             )
@@ -104,18 +114,15 @@ class ProfileRecommendationService:
                 recommendations=(
                     ProtocolRecommendation(
                         variant=ProtocolVariant.HYSTERIA2,
-                        reason="QUIC 与专用拥塞控制适合存在丢包的移动链路",
-                        tradeoff="必须能稳定使用 UDP; UDP 代理流量特征也更明显",
+                        rationale=RecommendationRationale.LOW_LATENCY_HYSTERIA2,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.TUIC,
-                        reason="QUIC 传输支持多路复用和可选拥塞控制策略",
-                        tradeoff="需要 UDP、TLS 和支持 TUIC 的客户端",
+                        rationale=RecommendationRationale.LOW_LATENCY_TUIC,
                     ),
                     ProtocolRecommendation(
                         variant=ProtocolVariant.VLESS_REALITY,
-                        reason="不依赖 UDP，可作为移动网络中的 TCP 备选",
-                        tradeoff="高丢包链路没有 Hysteria2 的专用拥塞控制",
+                        rationale=RecommendationRationale.LOW_LATENCY_VLESS_REALITY,
                     ),
                 ),
             )
@@ -124,18 +131,15 @@ class ProfileRecommendationService:
             recommendations=(
                 ProtocolRecommendation(
                     variant=ProtocolVariant.VLESS_REALITY,
-                    reason="无需管理自有 TLS 证书，向导所需信息最少",
-                    tradeoff="客户端必须支持 VLESS Reality",
+                    rationale=RecommendationRationale.GENERAL_VLESS_REALITY,
                 ),
                 ProtocolRecommendation(
                     variant=ProtocolVariant.SHADOWSOCKS,
-                    reason="配置字段少，并使用官方推荐的 AEAD 2022 方法",
-                    tradeoff="客户端必须支持 Shadowsocks 2022",
+                    rationale=RecommendationRationale.GENERAL_SHADOWSOCKS,
                 ),
                 ProtocolRecommendation(
                     variant=ProtocolVariant.TROJAN,
-                    reason="使用标准 TLS 证书路径，适合作为常规 TLS 方案",
-                    tradeoff="需要可解析的域名和可用证书",
+                    rationale=RecommendationRationale.GENERAL_TROJAN,
                 ),
             ),
         )

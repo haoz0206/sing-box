@@ -5,9 +5,11 @@
 This record covers the purpose-first add-profile journey, its pure protocol
 recommendation policy, exact protocol/transport variant identity, advanced
 direct selection, handoff to every existing guided form, and production package
-composition.
+composition. The follow-up acceptance also covers stable rationale identities,
+complete interface-copy-catalog rendering, and same-page recovery from an
+unexpected advisor failure.
 
-## Evidence
+## Original evidence
 
 - Full local suite: `409 passed, 18 skipped`.
 - Focused recommendation/application/TUI tests: `15 passed`.
@@ -30,6 +32,18 @@ The 18 skipped tests remain explicit opt-in external gates, chiefly live
 systemd/OpenRC execution and release tests requiring separately configured
 inputs.
 
+## Copy-catalog follow-up evidence
+
+- Full local suite: `604 passed, 18 skipped`.
+- Focused semantic-policy and Textual Pilot tests: `18 passed`.
+- Ruff formatting: `259 files already formatted`.
+- Ruff lint: `All checks passed`.
+- mypy strict source check: `Success: no issues found in 161 source files`.
+- Git whitespace check: passed.
+- Source distribution and wheel build: passed.
+- Wheel SHA-256:
+  `aa3b6bb5f15e71c94e3f393cd5719c94a6924e2b072c044d315fd405ec400c77`.
+
 ## Accepted behavior
 
 - Adding a profile starts with general, low-latency, restricted-network, or
@@ -49,6 +63,14 @@ inputs.
   new navigation path.
 - Production `ManagerApp` composition exposes the same recommendation advisor
   exercised by the TUI.
+- Application recommendation reports contain stable variant and rationale
+  identities rather than locale-authored reason and tradeoff strings.
+- Purpose, ranking, reason/tradeoff, error, recovery-action, and all ten direct
+  choice labels flow from one validated copy catalog with exact placeholder
+  validation.
+- An unexpected advisor failure hides the exception and offers direct protocol
+  selection on the recovery page; a selected variant still opens its existing
+  guided form.
 
 ## Remaining external release gates
 

@@ -14,59 +14,133 @@ from sb_manager.application.profile_recommendation import (
     ProfileRecommendationAdvisor,
     ProfileRecommendationReport,
     ProtocolVariant,
+    RecommendationRationale,
 )
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
-PURPOSE_LABELS: dict[ProfilePurpose, str] = {
-    ProfilePurpose.GENERAL: "通用搭建",
-    ProfilePurpose.LOW_LATENCY: "移动网络与低延迟",
-    ProfilePurpose.RESTRICTED_NETWORK: "受限网络中的连接选择",
-    ProfilePurpose.COMPATIBILITY: "兼容既有客户端",
+PURPOSE_LABELS: dict[ProfilePurpose, UiText] = {
+    ProfilePurpose.GENERAL: UiText.PROFILE_RECOMMENDATION_PURPOSE_GENERAL,
+    ProfilePurpose.LOW_LATENCY: UiText.PROFILE_RECOMMENDATION_PURPOSE_LOW_LATENCY,
+    ProfilePurpose.RESTRICTED_NETWORK: (UiText.PROFILE_RECOMMENDATION_PURPOSE_RESTRICTED_NETWORK),
+    ProfilePurpose.COMPATIBILITY: UiText.PROFILE_RECOMMENDATION_PURPOSE_COMPATIBILITY,
 }
 
-VARIANT_LABELS: dict[ProtocolVariant, str] = {
-    ProtocolVariant.VLESS_REALITY: "VLESS Reality",
-    ProtocolVariant.SHADOWSOCKS: "Shadowsocks 2022",
-    ProtocolVariant.HYSTERIA2: "Hysteria2",
-    ProtocolVariant.TROJAN: "Trojan",
-    ProtocolVariant.ANYTLS: "AnyTLS",
-    ProtocolVariant.TUIC: "TUIC",
-    ProtocolVariant.VLESS_WEBSOCKET: "VLESS TLS · WebSocket",
-    ProtocolVariant.VLESS_GRPC: "VLESS TLS · gRPC",
-    ProtocolVariant.VMESS_WEBSOCKET: "VMess TLS · WebSocket",
-    ProtocolVariant.VMESS_GRPC: "VMess TLS · gRPC",
+VARIANT_LABELS: dict[ProtocolVariant, UiText] = {
+    ProtocolVariant.VLESS_REALITY: UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_REALITY,
+    ProtocolVariant.SHADOWSOCKS: UiText.PROFILE_RECOMMENDATION_VARIANT_SHADOWSOCKS,
+    ProtocolVariant.HYSTERIA2: UiText.PROFILE_RECOMMENDATION_VARIANT_HYSTERIA2,
+    ProtocolVariant.TROJAN: UiText.PROFILE_RECOMMENDATION_VARIANT_TROJAN,
+    ProtocolVariant.ANYTLS: UiText.PROFILE_RECOMMENDATION_VARIANT_ANYTLS,
+    ProtocolVariant.TUIC: UiText.PROFILE_RECOMMENDATION_VARIANT_TUIC,
+    ProtocolVariant.VLESS_WEBSOCKET: (UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_WEBSOCKET),
+    ProtocolVariant.VLESS_GRPC: UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_GRPC,
+    ProtocolVariant.VMESS_WEBSOCKET: (UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_WEBSOCKET),
+    ProtocolVariant.VMESS_GRPC: UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC,
+}
+
+RATIONALE_COPY: dict[RecommendationRationale, tuple[UiText, UiText]] = {
+    RecommendationRationale.GENERAL_VLESS_REALITY: (
+        UiText.PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_REASON,
+        UiText.PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_TRADEOFF,
+    ),
+    RecommendationRationale.GENERAL_SHADOWSOCKS: (
+        UiText.PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_REASON,
+        UiText.PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_TRADEOFF,
+    ),
+    RecommendationRationale.GENERAL_TROJAN: (
+        UiText.PROFILE_RECOMMENDATION_GENERAL_TROJAN_REASON,
+        UiText.PROFILE_RECOMMENDATION_GENERAL_TROJAN_TRADEOFF,
+    ),
+    RecommendationRationale.LOW_LATENCY_HYSTERIA2: (
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_REASON,
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_TRADEOFF,
+    ),
+    RecommendationRationale.LOW_LATENCY_TUIC: (
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_REASON,
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_TRADEOFF,
+    ),
+    RecommendationRationale.LOW_LATENCY_VLESS_REALITY: (
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_REASON,
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_TRADEOFF,
+    ),
+    RecommendationRationale.RESTRICTED_NETWORK_VLESS_REALITY: (
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_REASON,
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_TRADEOFF,
+    ),
+    RecommendationRationale.RESTRICTED_NETWORK_ANYTLS: (
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_REASON,
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_TRADEOFF,
+    ),
+    RecommendationRationale.RESTRICTED_NETWORK_VLESS_WEBSOCKET: (
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_REASON,
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_TRADEOFF,
+    ),
+    RecommendationRationale.COMPATIBILITY_TROJAN: (
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_REASON,
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_TRADEOFF,
+    ),
+    RecommendationRationale.COMPATIBILITY_SHADOWSOCKS: (
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_REASON,
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_TRADEOFF,
+    ),
+    RecommendationRationale.COMPATIBILITY_VMESS_WEBSOCKET: (
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_REASON,
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF,
+    ),
 }
 
 
 class ProfilePurposeScreen(Screen[ProtocolVariant | None]):
     """Ask about operator intent before exposing protocol terminology."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, advisor: ProfileRecommendationAdvisor) -> None:
+    def __init__(
+        self,
+        advisor: ProfileRecommendationAdvisor,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.advisor = advisor
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="profile-purpose"):
-            yield Static("你主要想优化什么?", id="profile-purpose-title")
             yield Static(
-                "先按使用目的缩小选择范围; 推荐会同时说明限制，不会自动应用配置。",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_PURPOSE_TITLE),
+                id="profile-purpose-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_PURPOSE_GUIDANCE),
                 id="profile-purpose-guidance",
+                markup=False,
             )
             yield Button(
-                "通用搭建 · 推荐",
+                self.copy.text(
+                    UiText.PROFILE_RECOMMENDATION_PURPOSE_CHOICE_RECOMMENDED,
+                    purpose=self.copy.text(PURPOSE_LABELS[ProfilePurpose.GENERAL]),
+                ),
                 id="purpose-general",
                 variant="primary",
             )
-            yield Button("移动网络与低延迟", id="purpose-low-latency")
             yield Button(
-                "受限网络中的连接选择",
+                self.copy.text(PURPOSE_LABELS[ProfilePurpose.LOW_LATENCY]),
+                id="purpose-low-latency",
+            )
+            yield Button(
+                self.copy.text(PURPOSE_LABELS[ProfilePurpose.RESTRICTED_NETWORK]),
                 id="purpose-restricted-network",
             )
-            yield Button("兼容既有客户端", id="purpose-compatibility")
             yield Button(
-                "直接选择协议 · 高级",
+                self.copy.text(PURPOSE_LABELS[ProfilePurpose.COMPATIBILITY]),
+                id="purpose-compatibility",
+            )
+            yield Button(
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_PURPOSE_CHOOSE_DIRECTLY),
                 id="choose-protocol-directly",
             )
         yield Footer()
@@ -87,10 +161,13 @@ class ProfilePurposeScreen(Screen[ProtocolVariant | None]):
         try:
             report = self.advisor.recommend(purpose)
         except Exception:
-            self.app.push_screen(ProfileRecommendationErrorScreen())
+            self.app.push_screen(
+                ProfileRecommendationErrorScreen(self.copy),
+                self.finish_selection,
+            )
             return
         self.app.push_screen(
-            ProfileRecommendationScreen(report),
+            ProfileRecommendationScreen(report, self.copy),
             self.finish_selection,
         )
 
@@ -101,70 +178,128 @@ class ProfilePurposeScreen(Screen[ProtocolVariant | None]):
     @on(Button.Pressed, "#choose-protocol-directly")
     def choose_protocol_directly(self) -> None:
         self.app.push_screen(
-            DirectProtocolSelectionScreen(),
+            DirectProtocolSelectionScreen(self.copy),
             self.finish_selection,
         )
 
 
-class ProfileRecommendationErrorScreen(Screen[None]):
+class ProfileRecommendationErrorScreen(Screen[ProtocolVariant | None]):
     """Keep an unavailable recommendation policy from blocking advanced setup."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="profile-recommendation-error"):
             yield Static(
-                "暂时无法生成协议建议",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_ERROR_TITLE),
                 id="profile-recommendation-error-title",
+                markup=False,
             )
             yield Static(
-                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_ERROR_DETAILS),
                 id="profile-recommendation-error-details",
+                markup=False,
             )
             yield Static(
-                "尚未创建或修改任何配置。请返回后重试，或使用“直接选择协议”的高级入口。",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_ERROR_SAFETY),
                 id="profile-recommendation-error-safety",
+                markup=False,
+            )
+            yield Button(
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_ERROR_CHOOSE_DIRECTLY),
+                id="recommendation-error-choose-directly",
+                variant="primary",
             )
         yield Footer()
+
+    @on(Button.Pressed, "#recommendation-error-choose-directly")
+    def choose_protocol_directly(self) -> None:
+        self.app.push_screen(
+            DirectProtocolSelectionScreen(self.copy),
+            self.finish_selection,
+        )
+
+    def finish_selection(self, variant: ProtocolVariant | None) -> None:
+        if variant is not None:
+            self.dismiss(variant)
 
 
 class ProfileRecommendationScreen(Screen[ProtocolVariant | None]):
     """Present ranked choices with reasons and costs before selection."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, report: ProfileRecommendationReport) -> None:
+    def __init__(
+        self,
+        report: ProfileRecommendationReport,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.report = report
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="profile-recommendation"):
             yield Static(
-                f"{PURPOSE_LABELS[self.report.purpose]}的推荐顺序",
+                self.copy.text(
+                    UiText.PROFILE_RECOMMENDATION_RANKING_TITLE,
+                    purpose=self.copy.text(PURPOSE_LABELS[self.report.purpose]),
+                ),
                 id="profile-recommendation-title",
+                markup=False,
             )
             yield Static(
-                "推荐只帮助缩小选择，不承诺连通性或适用于所有网络。",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_RANKING_CAVEAT),
                 id="profile-recommendation-caveat",
+                markup=False,
             )
             for index, recommendation in enumerate(self.report.recommendations):
-                label = VARIANT_LABELS[recommendation.variant]
+                label = self.copy.text(VARIANT_LABELS[recommendation.variant])
+                reason_key, tradeoff_key = RATIONALE_COPY[recommendation.rationale]
                 yield Static(
-                    f"{index + 1}. {label}{' · 首选' if index == 0 else ''}",
+                    self.copy.text(
+                        (
+                            UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE_PRIMARY
+                            if index == 0
+                            else UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE
+                        ),
+                        rank=index + 1,
+                        label=label,
+                    ),
                     id=f"recommendation-{index}-name",
+                    markup=False,
                 )
                 yield Static(
-                    f"适合原因：{recommendation.reason}",
+                    self.copy.text(
+                        UiText.PROFILE_RECOMMENDATION_RANKING_REASON,
+                        reason=self.copy.text(reason_key),
+                    ),
                     id=f"recommendation-{index}-reason",
+                    markup=False,
                 )
                 yield Static(
-                    f"需要注意：{recommendation.tradeoff}",
+                    self.copy.text(
+                        UiText.PROFILE_RECOMMENDATION_RANKING_TRADEOFF,
+                        tradeoff=self.copy.text(tradeoff_key),
+                    ),
                     id=f"recommendation-{index}-tradeoff",
+                    markup=False,
                 )
                 yield Button(
-                    f"使用 {label}",
+                    self.copy.text(
+                        UiText.PROFILE_RECOMMENDATION_RANKING_SELECT,
+                        label=label,
+                    ),
                     id=f"select-recommendation-{index}",
                     name=recommendation.variant.value,
                     classes="recommendation-choice",
@@ -181,39 +316,82 @@ class ProfileRecommendationScreen(Screen[ProtocolVariant | None]):
 class DirectProtocolSelectionScreen(Screen[ProtocolVariant | None]):
     """Expose every exact guided variant for operators who already chose."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
-    CHOICES: ClassVar[tuple[tuple[ProtocolVariant, str, str], ...]] = (
-        (ProtocolVariant.VLESS_REALITY, "vless-reality", "VLESS Reality"),
-        (ProtocolVariant.SHADOWSOCKS, "shadowsocks", "Shadowsocks 2022 · 简洁稳定"),
-        (ProtocolVariant.HYSTERIA2, "hysteria2", "Hysteria2 · 移动网络"),
-        (ProtocolVariant.TROJAN, "trojan", "Trojan · TLS 兼容"),
-        (ProtocolVariant.ANYTLS, "anytls", "AnyTLS · 抗 TLS 嵌套指纹"),
-        (ProtocolVariant.TUIC, "tuic", "TUIC · QUIC 低延迟"),
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+    CHOICES: ClassVar[tuple[tuple[ProtocolVariant, str, UiText], ...]] = (
+        (
+            ProtocolVariant.VLESS_REALITY,
+            "vless-reality",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_REALITY,
+        ),
+        (
+            ProtocolVariant.SHADOWSOCKS,
+            "shadowsocks",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_SHADOWSOCKS,
+        ),
+        (
+            ProtocolVariant.HYSTERIA2,
+            "hysteria2",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_HYSTERIA2,
+        ),
+        (
+            ProtocolVariant.TROJAN,
+            "trojan",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_TROJAN,
+        ),
+        (
+            ProtocolVariant.ANYTLS,
+            "anytls",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_ANYTLS,
+        ),
+        (
+            ProtocolVariant.TUIC,
+            "tuic",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_TUIC,
+        ),
         (
             ProtocolVariant.VLESS_WEBSOCKET,
             "vless-websocket",
-            "VLESS TLS · WebSocket/CDN",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_WEBSOCKET,
         ),
-        (ProtocolVariant.VLESS_GRPC, "vless-grpc", "VLESS TLS · gRPC"),
+        (
+            ProtocolVariant.VLESS_GRPC,
+            "vless-grpc",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_GRPC,
+        ),
         (
             ProtocolVariant.VMESS_WEBSOCKET,
             "vmess-websocket",
-            "VMess TLS · 旧客户端兼容",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_WEBSOCKET,
         ),
-        (ProtocolVariant.VMESS_GRPC, "vmess-grpc", "VMess TLS · gRPC 兼容"),
+        (
+            ProtocolVariant.VMESS_GRPC,
+            "vmess-grpc",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC,
+        ),
     )
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="protocol-selection"):
-            yield Static("直接选择协议", id="protocol-selection-title")
             yield Static(
-                "这里不再排序; 请只选择你确认客户端和网络都支持的协议。",
-                id="protocol-selection-guidance",
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_DIRECT_TITLE),
+                id="protocol-selection-title",
+                markup=False,
             )
-            for variant, button_id, label in self.CHOICES:
+            yield Static(
+                self.copy.text(UiText.PROFILE_RECOMMENDATION_DIRECT_GUIDANCE),
+                id="protocol-selection-guidance",
+                markup=False,
+            )
+            for variant, button_id, label_key in self.CHOICES:
                 yield Button(
-                    label,
+                    self.copy.text(label_key),
                     id=f"protocol-{button_id}",
                     name=variant.value,
                     classes="direct-protocol-choice",

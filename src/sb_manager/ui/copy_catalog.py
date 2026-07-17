@@ -323,6 +323,143 @@ class UiText(str, Enum):
     PROFILE_CLONE_OPERATIONAL_TITLE = "profile_clone.operational.title"
     PROFILE_CLONE_OPERATIONAL_DETAILS = "profile_clone.operational.details"
     PROFILE_CLONE_OPERATIONAL_SAFETY = "profile_clone.operational.safety"
+    PROFILE_RECOMMENDATION_PURPOSE_TITLE = "profile_recommendation.purpose.title"
+    PROFILE_RECOMMENDATION_PURPOSE_GUIDANCE = "profile_recommendation.purpose.guidance"
+    PROFILE_RECOMMENDATION_PURPOSE_CHOICE_RECOMMENDED = (
+        "profile_recommendation.purpose.choice.recommended"
+    )
+    PROFILE_RECOMMENDATION_PURPOSE_CHOOSE_DIRECTLY = (
+        "profile_recommendation.purpose.choose_directly"
+    )
+    PROFILE_RECOMMENDATION_PURPOSE_GENERAL = "profile_recommendation.purpose.general"
+    PROFILE_RECOMMENDATION_PURPOSE_LOW_LATENCY = "profile_recommendation.purpose.low_latency"
+    PROFILE_RECOMMENDATION_PURPOSE_RESTRICTED_NETWORK = (
+        "profile_recommendation.purpose.restricted_network"
+    )
+    PROFILE_RECOMMENDATION_PURPOSE_COMPATIBILITY = "profile_recommendation.purpose.compatibility"
+    PROFILE_RECOMMENDATION_VARIANT_VLESS_REALITY = "profile_recommendation.variant.vless_reality"
+    PROFILE_RECOMMENDATION_VARIANT_SHADOWSOCKS = "profile_recommendation.variant.shadowsocks"
+    PROFILE_RECOMMENDATION_VARIANT_HYSTERIA2 = "profile_recommendation.variant.hysteria2"
+    PROFILE_RECOMMENDATION_VARIANT_TROJAN = "profile_recommendation.variant.trojan"
+    PROFILE_RECOMMENDATION_VARIANT_ANYTLS = "profile_recommendation.variant.anytls"
+    PROFILE_RECOMMENDATION_VARIANT_TUIC = "profile_recommendation.variant.tuic"
+    PROFILE_RECOMMENDATION_VARIANT_VLESS_WEBSOCKET = (
+        "profile_recommendation.variant.vless_websocket"
+    )
+    PROFILE_RECOMMENDATION_VARIANT_VLESS_GRPC = "profile_recommendation.variant.vless_grpc"
+    PROFILE_RECOMMENDATION_VARIANT_VMESS_WEBSOCKET = (
+        "profile_recommendation.variant.vmess_websocket"
+    )
+    PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC = "profile_recommendation.variant.vmess_grpc"
+    PROFILE_RECOMMENDATION_RANKING_TITLE = "profile_recommendation.ranking.title"
+    PROFILE_RECOMMENDATION_RANKING_CAVEAT = "profile_recommendation.ranking.caveat"
+    PROFILE_RECOMMENDATION_RANKING_CHOICE_PRIMARY = "profile_recommendation.ranking.choice.primary"
+    PROFILE_RECOMMENDATION_RANKING_CHOICE = "profile_recommendation.ranking.choice"
+    PROFILE_RECOMMENDATION_RANKING_REASON = "profile_recommendation.ranking.reason"
+    PROFILE_RECOMMENDATION_RANKING_TRADEOFF = "profile_recommendation.ranking.tradeoff"
+    PROFILE_RECOMMENDATION_RANKING_SELECT = "profile_recommendation.ranking.select"
+    PROFILE_RECOMMENDATION_ERROR_TITLE = "profile_recommendation.error.title"
+    PROFILE_RECOMMENDATION_ERROR_DETAILS = "profile_recommendation.error.details"
+    PROFILE_RECOMMENDATION_ERROR_SAFETY = "profile_recommendation.error.safety"
+    PROFILE_RECOMMENDATION_ERROR_CHOOSE_DIRECTLY = "profile_recommendation.error.choose_directly"
+    PROFILE_RECOMMENDATION_DIRECT_TITLE = "profile_recommendation.direct.title"
+    PROFILE_RECOMMENDATION_DIRECT_GUIDANCE = "profile_recommendation.direct.guidance"
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_REALITY = (
+        "profile_recommendation.direct.choice.vless_reality"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_SHADOWSOCKS = (
+        "profile_recommendation.direct.choice.shadowsocks"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_HYSTERIA2 = (
+        "profile_recommendation.direct.choice.hysteria2"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_TROJAN = "profile_recommendation.direct.choice.trojan"
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_ANYTLS = "profile_recommendation.direct.choice.anytls"
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_TUIC = "profile_recommendation.direct.choice.tuic"
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_WEBSOCKET = (
+        "profile_recommendation.direct.choice.vless_websocket"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_GRPC = (
+        "profile_recommendation.direct.choice.vless_grpc"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_WEBSOCKET = (
+        "profile_recommendation.direct.choice.vmess_websocket"
+    )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC = (
+        "profile_recommendation.direct.choice.vmess_grpc"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_REASON = (
+        "profile_recommendation.rationale.general_vless_reality.reason"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_TRADEOFF = (
+        "profile_recommendation.rationale.general_vless_reality.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_REASON = (
+        "profile_recommendation.rationale.general_shadowsocks.reason"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_TRADEOFF = (
+        "profile_recommendation.rationale.general_shadowsocks.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_TROJAN_REASON = (
+        "profile_recommendation.rationale.general_trojan.reason"
+    )
+    PROFILE_RECOMMENDATION_GENERAL_TROJAN_TRADEOFF = (
+        "profile_recommendation.rationale.general_trojan.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_REASON = (
+        "profile_recommendation.rationale.low_latency_hysteria2.reason"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_TRADEOFF = (
+        "profile_recommendation.rationale.low_latency_hysteria2.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_REASON = (
+        "profile_recommendation.rationale.low_latency_tuic.reason"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_TRADEOFF = (
+        "profile_recommendation.rationale.low_latency_tuic.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_REASON = (
+        "profile_recommendation.rationale.low_latency_vless_reality.reason"
+    )
+    PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_TRADEOFF = (
+        "profile_recommendation.rationale.low_latency_vless_reality.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_REASON = (
+        "profile_recommendation.rationale.restricted_vless_reality.reason"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_TRADEOFF = (
+        "profile_recommendation.rationale.restricted_vless_reality.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_REASON = (
+        "profile_recommendation.rationale.restricted_anytls.reason"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_TRADEOFF = (
+        "profile_recommendation.rationale.restricted_anytls.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_REASON = (
+        "profile_recommendation.rationale.restricted_vless_websocket.reason"
+    )
+    PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_TRADEOFF = (
+        "profile_recommendation.rationale.restricted_vless_websocket.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_REASON = (
+        "profile_recommendation.rationale.compatibility_trojan.reason"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_TRADEOFF = (
+        "profile_recommendation.rationale.compatibility_trojan.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_REASON = (
+        "profile_recommendation.rationale.compatibility_shadowsocks.reason"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_TRADEOFF = (
+        "profile_recommendation.rationale.compatibility_shadowsocks.tradeoff"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_REASON = (
+        "profile_recommendation.rationale.compatibility_vmess_websocket.reason"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF = (
+        "profile_recommendation.rationale.compatibility_vmess_websocket.tradeoff"
+    )
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -414,6 +551,13 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_CLONE_FORM_RESET: frozenset({"facets"}),
         UiText.PROFILE_CLONE_REVIEW_SUMMARY: frozenset({"source", "target"}),
         UiText.PROFILE_CLONE_RESULT_SUMMARY: frozenset({"name", "revision"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_TITLE: frozenset({"purpose"}),
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_CHOICE_RECOMMENDED: frozenset({"purpose"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE_PRIMARY: frozenset({"rank", "label"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE: frozenset({"rank", "label"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_REASON: frozenset({"reason"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_TRADEOFF: frozenset({"tradeoff"}),
+        UiText.PROFILE_RECOMMENDATION_RANKING_SELECT: frozenset({"label"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -848,6 +992,125 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_CLONE_OPERATIONAL_SAFETY: (
             "该流程不修改服务器配置或服务。desired state 是否已创建草案未知。"
             "请先返回配置列表检查，再决定是否重试。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_TITLE: "你主要想优化什么?",
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_GUIDANCE: (
+            "先按使用目的缩小选择范围; 推荐会同时说明限制，不会自动应用配置。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_CHOICE_RECOMMENDED: ("{purpose} · 推荐"),
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_CHOOSE_DIRECTLY: "直接选择协议 · 高级",
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_GENERAL: "通用搭建",
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_LOW_LATENCY: "移动网络与低延迟",
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_RESTRICTED_NETWORK: "受限网络中的连接选择",
+        UiText.PROFILE_RECOMMENDATION_PURPOSE_COMPATIBILITY: "兼容既有客户端",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_REALITY: "VLESS Reality",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_SHADOWSOCKS: "Shadowsocks 2022",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_HYSTERIA2: "Hysteria2",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_TROJAN: "Trojan",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_ANYTLS: "AnyTLS",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_TUIC: "TUIC",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_WEBSOCKET: "VLESS TLS · WebSocket",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_GRPC: "VLESS TLS · gRPC",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_WEBSOCKET: "VMess TLS · WebSocket",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC: "VMess TLS · gRPC",
+        UiText.PROFILE_RECOMMENDATION_RANKING_TITLE: "{purpose}的推荐顺序",
+        UiText.PROFILE_RECOMMENDATION_RANKING_CAVEAT: (
+            "推荐只帮助缩小选择，不承诺连通性或适用于所有网络。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE_PRIMARY: ("{rank}. {label} · 首选"),
+        UiText.PROFILE_RECOMMENDATION_RANKING_CHOICE: "{rank}. {label}",
+        UiText.PROFILE_RECOMMENDATION_RANKING_REASON: "适合原因：{reason}",
+        UiText.PROFILE_RECOMMENDATION_RANKING_TRADEOFF: "需要注意：{tradeoff}",
+        UiText.PROFILE_RECOMMENDATION_RANKING_SELECT: "使用 {label}",
+        UiText.PROFILE_RECOMMENDATION_ERROR_TITLE: "暂时无法生成协议建议",
+        UiText.PROFILE_RECOMMENDATION_ERROR_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_ERROR_SAFETY: (
+            "尚未创建或修改任何配置。请返回后重试，或使用“直接选择协议”的高级入口。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_ERROR_CHOOSE_DIRECTLY: "直接选择协议 · 高级",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_TITLE: "直接选择协议",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_GUIDANCE: (
+            "这里不再排序; 请只选择你确认客户端和网络都支持的协议。"
+        ),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_REALITY: "VLESS Reality",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_SHADOWSOCKS: ("Shadowsocks 2022 · 简洁稳定"),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_HYSTERIA2: "Hysteria2 · 移动网络",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_TROJAN: "Trojan · TLS 兼容",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_ANYTLS: ("AnyTLS · 抗 TLS 嵌套指纹"),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_TUIC: "TUIC · QUIC 低延迟",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_WEBSOCKET: ("VLESS TLS · WebSocket/CDN"),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_GRPC: "VLESS TLS · gRPC",
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_WEBSOCKET: ("VMess TLS · 旧客户端兼容"),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC: ("VMess TLS · gRPC 兼容"),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_REASON: (
+            "无需管理自有 TLS 证书，向导所需信息最少"
+        ),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_TRADEOFF: (
+            "客户端必须支持 VLESS Reality"
+        ),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_REASON: (
+            "配置字段少，并使用官方推荐的 AEAD 2022 方法"
+        ),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_SHADOWSOCKS_TRADEOFF: (
+            "客户端必须支持 Shadowsocks 2022"
+        ),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_TROJAN_REASON: (
+            "使用标准 TLS 证书路径，适合作为常规 TLS 方案"
+        ),
+        UiText.PROFILE_RECOMMENDATION_GENERAL_TROJAN_TRADEOFF: ("需要可解析的域名和可用证书"),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_REASON: (
+            "QUIC 与专用拥塞控制适合存在丢包的移动链路"
+        ),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_HYSTERIA2_TRADEOFF: (
+            "必须能稳定使用 UDP; UDP 代理流量特征也更明显"
+        ),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_REASON: (
+            "QUIC 传输支持多路复用和可选拥塞控制策略"
+        ),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_TUIC_TRADEOFF: (
+            "需要 UDP、TLS 和支持 TUIC 的客户端"
+        ),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_REASON: (
+            "不依赖 UDP，可作为移动网络中的 TCP 备选"
+        ),
+        UiText.PROFILE_RECOMMENDATION_LOW_LATENCY_VLESS_REALITY_TRADEOFF: (
+            "高丢包链路没有 Hysteria2 的专用拥塞控制"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_REASON: (
+            "Reality 使用 TCP，且不要求管理自有 TLS 证书"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_REALITY_TRADEOFF: (
+            "不保证适用于所有受限网络; 客户端必须支持 Reality"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_REASON: (
+            "TLS、填充和多路复用组合提供另一种 TCP 方案"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_ANYTLS_TRADEOFF: (
+            "需要域名、证书和支持 AnyTLS 的较新客户端"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_REASON: (
+            "TLS WebSocket 适合明确需要 HTTP 兼容传输的场景"
+        ),
+        UiText.PROFILE_RECOMMENDATION_RESTRICTED_VLESS_WEBSOCKET_TRADEOFF: (
+            "配置项更多，且同样不保证适用于所有受限网络"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_REASON: (
+            "密码认证与标准 TLS 组合便于对照既有 TLS 客户端"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_TROJAN_TRADEOFF: ("需要可解析的域名和可用证书"),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_REASON: (
+            "协议认知广，manager 使用官方推荐的 AEAD 2022 方法"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SHADOWSOCKS_TRADEOFF: (
+            "旧客户端可能不支持 Shadowsocks 2022"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_REASON: (
+            "仅在需要兼容既有 VMess 客户端时保留"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF: (
+            "新部署不默认推荐，并需要 TLS 与 WebSocket"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (

@@ -271,9 +271,11 @@ Release gate adds:
 
 - purpose-first recommendation examples for general, low-latency,
   restricted-network, and compatibility outcomes; exact protocol/transport
-  variant identity, visible reasons and tradeoffs, non-guarantee wording,
-  advanced direct selection, existing-form handoff, production composition,
-  and regression coverage for every supported profile form;
+  variant and rationale identity, catalog-rendered reasons and tradeoffs,
+  non-guarantee wording, catalog-rendered advanced direct selection,
+  non-disclosing same-page fallback after unexpected advisor failure,
+  existing-form handoff, production composition, and regression coverage for
+  every supported profile form;
 - package build and clean-environment install;
 - exact retained-package rollback plan, confirmation, stale-plan, and stable
   launcher behavior;

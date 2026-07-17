@@ -30,9 +30,11 @@ Start every add-profile journey by asking for one `ProfilePurpose`:
 
 `ProfileRecommendationAdvisor.recommend(purpose)` is the small application
 interface. It returns exactly three ordered `ProtocolRecommendation` values.
-Every choice includes a positive reason and a visible tradeoff. Recommendation
-policy and wording stay in the application module; Textual only renders the
-report and returns the selected variant.
+Every choice includes an exact `ProtocolVariant` and a stable
+`RecommendationRationale`. Recommendation policy stays in the application
+module; the Textual presentation adapter resolves purpose, ranking, rationale,
+tradeoff, error, and advanced-choice copy through the validated interface copy
+catalog and returns the selected variant.
 
 Introduce `ProtocolVariant` as the identity of one exact guided form, including
 WebSocket or gRPC when needed. It is navigation state, not persisted desired
@@ -68,7 +70,10 @@ The initial wording is grounded in the upstream sing-box documentation:
 
 - New operators start from intent and see costs before protocol vocabulary.
 - Recommendation policy is testable without Textual and changes in one module.
-- The UI receives an exact form identity and contains no ranking rules.
+- The UI receives exact form and rationale identities, contains no ranking
+  rules, and owns no locale-authored recommendation copy.
+- An unexpected advisor failure remains non-disclosing and exposes direct
+  protocol selection without requiring the operator to navigate backward.
 - Existing protocol planning, persistence, generation, and apply modules remain
   unchanged.
 - Purpose is deliberately ephemeral; choosing a different purpose never changes

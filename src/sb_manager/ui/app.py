@@ -1905,7 +1905,10 @@ class ManagerApp(App[None]):
 
     def open_protocol_selection(self) -> None:
         self.push_screen(
-            ProfilePurposeScreen(self.profile_recommendation_advisor),
+            ProfilePurposeScreen(
+                self.profile_recommendation_advisor,
+                self.copy_catalog,
+            ),
             self.open_guided_profile_variant,
         )
 

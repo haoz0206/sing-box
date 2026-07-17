@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 from textual.widgets import Button, Static
 
@@ -7,12 +9,86 @@ from sb_manager.application.profile_recommendation import (
     ProfilePurpose,
     ProfileRecommendationReport,
 )
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+
+
+class ProfileRecommendationMarkerCatalog:
+    """Render markers across the purpose-first recommendation journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_recommendation.purpose.title": "目录用途选择",
+            "profile_recommendation.purpose.guidance": "目录用途说明",
+            "profile_recommendation.purpose.general": "目录通用用途",
+            "profile_recommendation.purpose.choose_directly": "目录高级选择",
+            "profile_recommendation.ranking.title": "目录推荐顺序",
+            "profile_recommendation.rationale.general_vless_reality.reason": ("目录低复杂度原因"),
+            "profile_recommendation.rationale.general_vless_reality.tradeoff": ("目录客户端代价"),
+            "profile_recommendation.error.title": "目录推荐错误",
+            "profile_recommendation.error.details": "目录错误详情",
+            "profile_recommendation.error.safety": "目录错误安全说明",
+            "profile_recommendation.error.choose_directly": "目录直接选择",
+            "profile_recommendation.direct.title": "目录直接选择标题",
+            "profile_recommendation.direct.guidance": "目录直接选择说明",
+            "profile_recommendation.direct.choice.vmess_grpc": "目录 VMess gRPC",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        if key.value == "profile_recommendation.ranking.reason":
+            return str(values["reason"])
+        if key.value == "profile_recommendation.ranking.tradeoff":
+            return str(values["tradeoff"])
+        if key.value == "profile_recommendation.purpose.choice.recommended":
+            return f"{values['purpose']} · 目录推荐"
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 class UnexpectedProfileRecommendationAdvisor:
     def recommend(self, purpose: ProfilePurpose) -> ProfileRecommendationReport:
         raise RuntimeError("token=private-profile-recommendation-error")
+
+
+async def test_profile_recommendation_copy_catalog_flows_to_purpose() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileRecommendationMarkerCatalog())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+
+        assert app.screen.query_one("#profile-purpose-title", Static).content == "目录用途选择"
+        assert app.screen.query_one("#profile-purpose-guidance", Static).content == "目录用途说明"
+        assert str(app.screen.query_one("#purpose-general", Button).label) == (
+            "目录通用用途 · 目录推荐"
+        )
+        assert str(app.screen.query_one("#choose-protocol-directly", Button).label) == (
+            "目录高级选择"
+        )
+
+
+async def test_profile_recommendation_copy_catalog_renders_semantic_rationale() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileRecommendationMarkerCatalog())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await pilot.click("#purpose-general")
+
+        assert app.screen.query_one("#profile-recommendation-title", Static).content == (
+            "目录推荐顺序"
+        )
+        assert app.screen.query_one("#recommendation-0-reason", Static).content == (
+            "目录低复杂度原因"
+        )
+        assert app.screen.query_one("#recommendation-0-tradeoff", Static).content == (
+            "目录客户端代价"
+        )
 
 
 async def test_add_profile_starts_with_operator_purpose_instead_of_protocol_terms() -> None:
@@ -72,24 +148,39 @@ async def test_unexpected_recommendation_failure_keeps_advanced_path_and_not_dis
         host_tools=ManagerAppHostTools(
             profile_recommendation_advisor=UnexpectedProfileRecommendationAdvisor()
         ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileRecommendationMarkerCatalog())
+        ),
     )
 
-    async with app.run_test() as pilot:
+    async with app.run_test(size=(100, 60)) as pilot:
         await pilot.click("#dashboard-primary-action")
         await pilot.click("#purpose-general")
         await pilot.pause()
 
         assert app.screen.query_one("#profile-recommendation-error-title", Static).content == (
-            "暂时无法生成协议建议"
+            "目录推荐错误"
         )
         assert app.screen.query_one("#profile-recommendation-error-details", Static).content == (
-            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+            "目录错误详情"
         )
         assert app.screen.query_one("#profile-recommendation-error-safety", Static).content == (
-            "尚未创建或修改任何配置。请返回后重试，或使用“直接选择协议”的高级入口。"
+            "目录错误安全说明"
         )
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private-profile-recommendation-error" not in rendered_text
+        assert (
+            str(app.screen.query_one("#recommendation-error-choose-directly", Button).label)
+            == "目录直接选择"
+        )
+
+        await pilot.click("#recommendation-error-choose-directly")
+        await pilot.click("#protocol-vmess-grpc")
+        await pilot.pause()
+
+        assert app.screen.query_one("#vmess-grpc-form-title", Static).content == (
+            "配置 VMess TLS gRPC"
+        )
 
 
 @pytest.mark.parametrize(
@@ -140,18 +231,25 @@ async def test_recommended_variant_opens_the_existing_guided_profile_form() -> N
 
 
 async def test_advanced_operator_can_still_choose_an_exact_protocol_variant() -> None:
-    app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileRecommendationMarkerCatalog())
+        ),
+    )
 
     async with app.run_test(size=(100, 60)) as pilot:
         await pilot.click("#dashboard-primary-action")
         await pilot.click("#choose-protocol-directly")
 
-        assert app.screen.query_one("#protocol-selection-title", Static).content == ("直接选择协议")
+        assert app.screen.query_one("#protocol-selection-title", Static).content == (
+            "目录直接选择标题"
+        )
         assert app.screen.query_one("#protocol-selection-guidance", Static).content == (
-            "这里不再排序; 请只选择你确认客户端和网络都支持的协议。"
+            "目录直接选择说明"
         )
         assert str(app.screen.query_one("#protocol-vmess-grpc", Button).label) == (
-            "VMess TLS · gRPC 兼容"
+            "目录 VMess gRPC"
         )
 
         await pilot.click("#protocol-vmess-grpc")
