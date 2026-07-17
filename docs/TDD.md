@@ -321,7 +321,9 @@ Release gate adds:
   recovery, non-disclosing unexpected failure retry, and production composition;
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
-  explicit read-only retry, and successful recovery;
+  explicit read-only retry, successful recovery, a persistent no-automatic-
+  mutation scope statement, and catalog-backed titles, probe states, counts,
+  navigation, and reinspection controls;
 - typed dashboard recommendation priority across failed, pending, blocking,
   maintenance, draft, empty, and healthy evidence; stable action identities,
   capability-aware withholding, one visible primary action, and Pilot journeys

@@ -404,9 +404,13 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
 
     async with app.run_test() as pilot:
         empty_title = app.screen.query_one("#empty-state-title", Static)
+        safety = app.screen.query_one("#dashboard-safety", Static)
         primary_action = app.screen.query_one("#dashboard-primary-action", Button)
 
         assert empty_title.content == "尚未创建代理配置"
+        assert safety.content == (
+            "当前页面只读：检查不会修改主机。任何变更都必须先审阅计划并明确确认。"
+        )
         assert str(primary_action.label) == "创建第一个配置"
         assert list(app.screen.query("#create-first-profile")) == []
 

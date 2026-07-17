@@ -17,6 +17,47 @@ class UiText(str, Enum):
     """Stable semantic identities for catalogued operator-facing copy."""
 
     COMMON_RETURN = "common.return"
+    APP_SUBTITLE = "app.subtitle"
+    APP_BINDING_HELP = "app.binding.help"
+    APP_BINDING_ADD_PROFILE = "app.binding.add_profile"
+    APP_BINDING_PROFILES = "app.binding.profiles"
+    APP_BINDING_NETWORK = "app.binding.network"
+    APP_BINDING_DIAGNOSTICS = "app.binding.diagnostics"
+    APP_BINDING_OPERATIONS = "app.binding.operations"
+    APP_BINDING_QUIT = "app.binding.quit"
+    DASHBOARD_TITLE = "dashboard.title"
+    DASHBOARD_EMPTY_TITLE = "dashboard.empty.title"
+    DASHBOARD_SAFETY = "dashboard.safety"
+    DASHBOARD_RUNTIME_CHECKING = "dashboard.runtime.checking"
+    DASHBOARD_RUNTIME_NOT_CONFIGURED = "dashboard.runtime.not_configured"
+    DASHBOARD_RUNTIME_HEALTHY = "dashboard.runtime.healthy"
+    DASHBOARD_RUNTIME_UNHEALTHY = "dashboard.runtime.unhealthy"
+    DASHBOARD_RUNTIME_FAILED = "dashboard.runtime.failed"
+    DASHBOARD_READINESS_CHECKING = "dashboard.readiness.checking"
+    DASHBOARD_READINESS_NOT_CONFIGURED = "dashboard.readiness.not_configured"
+    DASHBOARD_READINESS_READY = "dashboard.readiness.ready"
+    DASHBOARD_READINESS_ACTION_REQUIRED = "dashboard.readiness.action_required"
+    DASHBOARD_READINESS_FAILED = "dashboard.readiness.failed"
+    DASHBOARD_CERTIFICATE_CHECKING = "dashboard.certificate.checking"
+    DASHBOARD_CERTIFICATE_NOT_CONFIGURED = "dashboard.certificate.not_configured"
+    DASHBOARD_CERTIFICATE_ACTION_REQUIRED = "dashboard.certificate.action_required"
+    DASHBOARD_CERTIFICATE_ATTENTION = "dashboard.certificate.attention"
+    DASHBOARD_CERTIFICATE_HEALTHY = "dashboard.certificate.healthy"
+    DASHBOARD_CERTIFICATE_FAILED = "dashboard.certificate.failed"
+    DASHBOARD_PROFILE_SUMMARY = "dashboard.profile_summary"
+    DASHBOARD_RECOMMENDATION = "dashboard.recommendation"
+    DASHBOARD_NO_ACTION = "dashboard.no_action"
+    DASHBOARD_NAV_PROFILES = "dashboard.navigation.profiles"
+    DASHBOARD_NAV_NETWORK = "dashboard.navigation.network"
+    DASHBOARD_NAV_OPERATIONS = "dashboard.navigation.operations"
+    DASHBOARD_OPEN_DIAGNOSTICS = "dashboard.open_diagnostics"
+    DASHBOARD_VIEW_DIAGNOSTICS = "dashboard.view_diagnostics"
+    DASHBOARD_REFRESH_RUNTIME = "dashboard.refresh_runtime"
+    DASHBOARD_VIEW_READINESS = "dashboard.view_readiness"
+    DASHBOARD_REFRESH_READINESS = "dashboard.refresh_readiness"
+    DASHBOARD_REFRESH_CERTIFICATES = "dashboard.refresh_certificates"
+    DASHBOARD_ADOPT_CONFIGURATION = "dashboard.adopt_configuration"
+    DASHBOARD_EMPTY_GUIDANCE = "dashboard.empty.guidance"
     SETTINGS_TITLE = "settings.title"
     SETTINGS_BINDING = "settings.binding"
     SETTINGS_OPEN = "settings.open"
@@ -69,6 +110,9 @@ class UiText(str, Enum):
 _EXPECTED_FIELDS: dict[UiText, frozenset[str]] = {key: frozenset() for key in UiText}
 _EXPECTED_FIELDS.update(
     {
+        UiText.DASHBOARD_READINESS_ACTION_REQUIRED: frozenset({"count"}),
+        UiText.DASHBOARD_PROFILE_SUMMARY: frozenset({"active", "paused", "drafts"}),
+        UiText.DASHBOARD_RECOMMENDATION: frozenset({"summary"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
         UiText.SETTINGS_PERSISTENCE_SAVED: frozenset({"label"}),
@@ -122,6 +166,49 @@ SIMPLIFIED_CHINESE = CopyCatalog(
     UiLocale.SIMPLIFIED_CHINESE,
     {
         UiText.COMMON_RETURN: "返回",
+        UiText.APP_SUBTITLE: "安全地搭建和维护你的代理服务",
+        UiText.APP_BINDING_HELP: "帮助",
+        UiText.APP_BINDING_ADD_PROFILE: "添加配置",
+        UiText.APP_BINDING_PROFILES: "配置",
+        UiText.APP_BINDING_NETWORK: "网络",
+        UiText.APP_BINDING_DIAGNOSTICS: "诊断",
+        UiText.APP_BINDING_OPERATIONS: "运维",
+        UiText.APP_BINDING_QUIT: "退出",
+        UiText.DASHBOARD_TITLE: "服务总览",
+        UiText.DASHBOARD_EMPTY_TITLE: "尚未创建代理配置",
+        UiText.DASHBOARD_SAFETY: (
+            "当前页面只读：检查不会修改主机。任何变更都必须先审阅计划并明确确认。"
+        ),
+        UiText.DASHBOARD_RUNTIME_CHECKING: "服务状态：正在检查…",
+        UiText.DASHBOARD_RUNTIME_NOT_CONFIGURED: "服务状态：未启用主机检查",
+        UiText.DASHBOARD_RUNTIME_HEALTHY: "服务状态：运行正常",
+        UiText.DASHBOARD_RUNTIME_UNHEALTHY: "服务状态：需要检查",
+        UiText.DASHBOARD_RUNTIME_FAILED: "服务状态：无法检查",
+        UiText.DASHBOARD_READINESS_CHECKING: "主机准备度：正在检查…",
+        UiText.DASHBOARD_READINESS_NOT_CONFIGURED: "主机准备度：未启用检查",
+        UiText.DASHBOARD_READINESS_READY: "主机准备度：可以应用配置",
+        UiText.DASHBOARD_READINESS_ACTION_REQUIRED: "主机准备度：需要完成 {count} 项",
+        UiText.DASHBOARD_READINESS_FAILED: "主机准备度：无法检查",
+        UiText.DASHBOARD_CERTIFICATE_CHECKING: "证书维护：正在检查…",
+        UiText.DASHBOARD_CERTIFICATE_NOT_CONFIGURED: "证书维护：未启用检查",
+        UiText.DASHBOARD_CERTIFICATE_ACTION_REQUIRED: "证书维护：需要处理",
+        UiText.DASHBOARD_CERTIFICATE_ATTENTION: "证书维护：建议关注",
+        UiText.DASHBOARD_CERTIFICATE_HEALTHY: "证书维护：状态正常",
+        UiText.DASHBOARD_CERTIFICATE_FAILED: "证书维护：无法检查",
+        UiText.DASHBOARD_PROFILE_SUMMARY: ("配置：{active} 在线 · {paused} 已暂停 · {drafts} 草案"),
+        UiText.DASHBOARD_RECOMMENDATION: "建议：{summary}",
+        UiText.DASHBOARD_NO_ACTION: "暂无可执行建议",
+        UiText.DASHBOARD_NAV_PROFILES: "管理配置",
+        UiText.DASHBOARD_NAV_NETWORK: "查看网络概览",
+        UiText.DASHBOARD_NAV_OPERATIONS: "打开运维中心",
+        UiText.DASHBOARD_OPEN_DIAGNOSTICS: "打开诊断中心",
+        UiText.DASHBOARD_VIEW_DIAGNOSTICS: "查看诊断",
+        UiText.DASHBOARD_REFRESH_RUNTIME: "重新检查服务状态",
+        UiText.DASHBOARD_VIEW_READINESS: "查看准备度",
+        UiText.DASHBOARD_REFRESH_READINESS: "重新检查",
+        UiText.DASHBOARD_REFRESH_CERTIFICATES: "重新检查证书",
+        UiText.DASHBOARD_ADOPT_CONFIGURATION: "检查并接管现有配置",
+        UiText.DASHBOARD_EMPTY_GUIDANCE: ("从一个引导式配置开始。应用前你会看到完整变更计划。"),
         UiText.SETTINGS_TITLE: "设置",
         UiText.SETTINGS_BINDING: "设置",
         UiText.SETTINGS_OPEN: "打开设置",

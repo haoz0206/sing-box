@@ -138,6 +138,15 @@ The dashboard answers five questions without navigation:
 4. Are certificates or artifacts approaching maintenance?
 5. What is the safest next action?
 
+The dashboard always presents one stable scope statement before its evidence:
+background checks are read-only and every mutation still requires a reviewed
+plan plus explicit confirmation. The title, initial and terminal probe states,
+profile counts, navigation, and reinspection controls render through the
+validated interface copy catalog. Application recommendations remain a
+separate typed decision module; their presentation-ready summary and action
+wording migrate in the next catalog slice rather than being partially remapped
+here.
+
 It shows aggregate profile counts, not the complete profile inventory or a row
 of lifecycle buttons per profile. One visible `Manage profiles` action and the
 contextual `p` shortcut open the dedicated profiles workspace. The empty state
@@ -897,9 +906,12 @@ Current implementation status (2026-07-17):
 - validated interface copy: Settings and the complete hash-bound preference
   reset journey render through one immutable simplified-Chinese catalog whose
   construction rejects missing, extra, or placeholder-incompatible entries;
-  the UI discloses that no additional locale is available until all remaining
-  safety journeys have migrated, and neither migrated screen retains locale
-  literals;
+  the Dashboard status shell now uses the same catalog for its application
+  subtitle, contextual bindings, read-only scope, probe states, counts,
+  navigation, and retry controls; the UI discloses that no additional locale is
+  available until all remaining safety journeys and recommendation messages
+  have migrated, and the completely migrated preference screens retain no
+  locale literals;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate

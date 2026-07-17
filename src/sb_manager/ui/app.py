@@ -1042,18 +1042,26 @@ class ManagerApp(App[None]):
     """Guided terminal manager for sing-box."""
 
     TITLE = "Sing-box Manager"
-    SUB_TITLE = "安全地搭建和维护你的代理服务"
+    SUB_TITLE = SIMPLIFIED_CHINESE.text(UiText.APP_SUBTITLE)
 
     CSS_PATH = "theme.tcss"
     BINDINGS: ClassVar[list[BindingType]] = [
-        ("?", "show_keyboard_help", "帮助"),
-        ("a", "add_profile", "添加配置"),
-        ("p", "open_profiles", "配置"),
-        ("n", "open_network", "网络"),
+        ("?", "show_keyboard_help", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_HELP)),
+        (
+            "a",
+            "add_profile",
+            SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_ADD_PROFILE),
+        ),
+        ("p", "open_profiles", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_PROFILES)),
+        ("n", "open_network", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_NETWORK)),
         ("s", "open_settings", SIMPLIFIED_CHINESE.text(UiText.SETTINGS_BINDING)),
-        ("d", "open_diagnostics", "诊断"),
-        ("o", "open_operations", "运维"),
-        ("q", "quit", "退出"),
+        (
+            "d",
+            "open_diagnostics",
+            SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_DIAGNOSTICS),
+        ),
+        ("o", "open_operations", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_OPERATIONS)),
+        ("q", "quit", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_QUIT)),
     ]
 
     def __init__(
@@ -1118,17 +1126,19 @@ class ManagerApp(App[None]):
 
     def _initial_dashboard_statuses(self) -> tuple[str, str, str]:
         runtime = (
-            "服务状态：正在检查…"
+            self.copy_catalog.text(UiText.DASHBOARD_RUNTIME_CHECKING)
             if self.host_diagnostics is not None
-            else "服务状态：未启用主机检查"
+            else self.copy_catalog.text(UiText.DASHBOARD_RUNTIME_NOT_CONFIGURED)
         )
         readiness = (
-            "主机准备度：正在检查…" if self.host_readiness is not None else "主机准备度：未启用检查"
+            self.copy_catalog.text(UiText.DASHBOARD_READINESS_CHECKING)
+            if self.host_readiness is not None
+            else self.copy_catalog.text(UiText.DASHBOARD_READINESS_NOT_CONFIGURED)
         )
         certificate = (
-            "证书维护：正在检查…"
+            self.copy_catalog.text(UiText.DASHBOARD_CERTIFICATE_CHECKING)
             if self.certificate_diagnostics is not None
-            else "证书维护：未启用检查"
+            else self.copy_catalog.text(UiText.DASHBOARD_CERTIFICATE_NOT_CONFIGURED)
         )
         return runtime, readiness, certificate
 
@@ -1150,16 +1160,22 @@ class ManagerApp(App[None]):
         recommendation: DashboardRecommendation,
     ) -> Iterator[Static | Button]:
         yield Static(
-            f"建议：{recommendation.summary}",
+            self.copy_catalog.text(
+                UiText.DASHBOARD_RECOMMENDATION,
+                summary=recommendation.summary,
+            ),
             id="dashboard-next-action",
         )
         yield self._dashboard_primary_action(recommendation)
 
     def _workspace_navigation(self) -> Horizontal:
         return Horizontal(
-            Button("管理配置", id="open-profiles"),
-            Button("查看网络概览", id="open-network"),
-            Button("打开运维中心", id="open-operations"),
+            Button(self.copy_catalog.text(UiText.DASHBOARD_NAV_PROFILES), id="open-profiles"),
+            Button(self.copy_catalog.text(UiText.DASHBOARD_NAV_NETWORK), id="open-network"),
+            Button(
+                self.copy_catalog.text(UiText.DASHBOARD_NAV_OPERATIONS),
+                id="open-operations",
+            ),
             Button(self.copy_catalog.text(UiText.SETTINGS_OPEN), id="open-settings"),
             id="dashboard-workspace-navigation",
         )
@@ -1193,13 +1209,22 @@ class ManagerApp(App[None]):
         self._current_dashboard_recommendation = recommendation
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
-                yield Static("服务总览", id="dashboard-title")
+                yield Static(self.copy_catalog.text(UiText.DASHBOARD_TITLE), id="dashboard-title")
+                yield Static(
+                    self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
+                    id="dashboard-safety",
+                    markup=False,
+                )
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
                 yield Static(certificate_status, id="certificate-maintenance-status")
                 yield Static(
-                    f"配置：{active_profiles} 在线 · {paused_profiles} 已暂停 · "
-                    f"{draft_profiles} 草案",
+                    self.copy_catalog.text(
+                        UiText.DASHBOARD_PROFILE_SUMMARY,
+                        active=active_profiles,
+                        paused=paused_profiles,
+                        drafts=draft_profiles,
+                    ),
                     id="profile-summary",
                 )
                 yield from self._dashboard_recommendation_widgets(recommendation)
@@ -1207,14 +1232,30 @@ class ManagerApp(App[None]):
                 yield self._workspace_navigation()
         else:
             with Vertical(id="dashboard-empty"):
-                yield Static("尚未创建代理配置", id="empty-state-title")
+                yield Static(
+                    self.copy_catalog.text(UiText.DASHBOARD_EMPTY_TITLE),
+                    id="empty-state-title",
+                )
+                yield Static(
+                    self.copy_catalog.text(UiText.DASHBOARD_SAFETY),
+                    id="dashboard-safety",
+                    markup=False,
+                )
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
                 yield Static(certificate_status, id="certificate-maintenance-status")
-                yield Static("配置：0 在线 · 0 已暂停 · 0 草案", id="profile-summary")
+                yield Static(
+                    self.copy_catalog.text(
+                        UiText.DASHBOARD_PROFILE_SUMMARY,
+                        active=0,
+                        paused=0,
+                        drafts=0,
+                    ),
+                    id="profile-summary",
+                )
                 yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
-                yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
+                yield Static(self.copy_catalog.text(UiText.DASHBOARD_EMPTY_GUIDANCE))
                 yield self._workspace_navigation()
         yield Footer()
 
@@ -1264,22 +1305,44 @@ class ManagerApp(App[None]):
 
     def _host_action_buttons(self, installation: ManagedInstallation) -> Iterator[Button]:
         if self.diagnostics_center is not None:
-            yield Button("打开诊断中心", id="open-diagnostics-center")
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_OPEN_DIAGNOSTICS),
+                id="open-diagnostics-center",
+            )
         elif self.host_diagnostics is not None:
-            yield Button("查看诊断", id="view-diagnostics", disabled=True)
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_VIEW_DIAGNOSTICS),
+                id="view-diagnostics",
+                disabled=True,
+            )
         if self.host_diagnostics is not None:
-            yield Button("重新检查服务状态", id="refresh-runtime-status", disabled=True)
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_REFRESH_RUNTIME),
+                id="refresh-runtime-status",
+                disabled=True,
+            )
         if self.host_readiness is not None:
-            yield Button("查看准备度", id="view-readiness", disabled=True)
-            yield Button("重新检查", id="refresh-readiness", disabled=True)
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_VIEW_READINESS),
+                id="view-readiness",
+                disabled=True,
+            )
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_REFRESH_READINESS),
+                id="refresh-readiness",
+                disabled=True,
+            )
         if self.certificate_diagnostics is not None:
             yield Button(
-                "重新检查证书",
+                self.copy_catalog.text(UiText.DASHBOARD_REFRESH_CERTIFICATES),
                 id="refresh-certificate-maintenance",
                 disabled=True,
             )
         if self.config_adopter is not None and installation.expected_config_sha256 is None:
-            yield Button("检查并接管现有配置", id="adopt-existing-config")
+            yield Button(
+                self.copy_catalog.text(UiText.DASHBOARD_ADOPT_CONFIGURATION),
+                id="adopt-existing-config",
+            )
 
     def on_mount(self) -> None:
         if self._dashboard_ready:
@@ -1321,19 +1384,23 @@ class ManagerApp(App[None]):
         self._certificate_diagnostics_failed = False
         self.certificate_diagnostics_report = report
         if report.condition is CertificateDiagnosticCondition.ACTION_REQUIRED:
-            status = "证书维护：需要处理"
+            key = UiText.DASHBOARD_CERTIFICATE_ACTION_REQUIRED
         elif report.condition is CertificateDiagnosticCondition.ATTENTION:
-            status = "证书维护：建议关注"
+            key = UiText.DASHBOARD_CERTIFICATE_ATTENTION
         else:
-            status = "证书维护：状态正常"
-        self.query_one("#certificate-maintenance-status", Static).update(status)
+            key = UiText.DASHBOARD_CERTIFICATE_HEALTHY
+        self.query_one("#certificate-maintenance-status", Static).update(
+            self.copy_catalog.text(key)
+        )
         self.query_one("#refresh-certificate-maintenance", Button).disabled = False
         self._update_dashboard_next_action()
 
     def show_certificate_diagnostics_failure(self) -> None:
         self._certificate_diagnostics_failed = True
         self.certificate_diagnostics_report = None
-        self.query_one("#certificate-maintenance-status", Static).update("证书维护：无法检查")
+        self.query_one("#certificate-maintenance-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_CERTIFICATE_FAILED)
+        )
         self.query_one("#refresh-certificate-maintenance", Button).disabled = False
         self._update_dashboard_next_action()
 
@@ -1369,12 +1436,12 @@ class ManagerApp(App[None]):
     def show_host_diagnostics(self, report: HostDiagnosticsReport) -> None:
         self._host_diagnostics_failed = False
         self.host_diagnostics_report = report
-        status = (
-            "服务状态：运行正常"
+        key = (
+            UiText.DASHBOARD_RUNTIME_HEALTHY
             if report.condition is HostCondition.HEALTHY
-            else "服务状态：需要检查"
+            else UiText.DASHBOARD_RUNTIME_UNHEALTHY
         )
-        self.query_one("#runtime-status", Static).update(status)
+        self.query_one("#runtime-status", Static).update(self.copy_catalog.text(key))
         if self.diagnostics_center is None:
             self.query_one("#view-diagnostics", Button).disabled = False
         self.query_one("#refresh-runtime-status", Button).disabled = False
@@ -1383,7 +1450,9 @@ class ManagerApp(App[None]):
     def show_host_diagnostics_failure(self) -> None:
         self._host_diagnostics_failed = True
         self.host_diagnostics_report = None
-        self.query_one("#runtime-status", Static).update("服务状态：无法检查")
+        self.query_one("#runtime-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_RUNTIME_FAILED)
+        )
         if self.diagnostics_center is None:
             self.query_one("#view-diagnostics", Button).disabled = True
         self.query_one("#refresh-runtime-status", Button).disabled = False
@@ -1404,9 +1473,12 @@ class ManagerApp(App[None]):
         self._host_readiness_failed = False
         self.host_readiness_report = report
         status = (
-            "主机准备度：可以应用配置"
+            self.copy_catalog.text(UiText.DASHBOARD_READINESS_READY)
             if report.ready_for_apply
-            else f"主机准备度：需要完成 {report.action_required_count} 项"
+            else self.copy_catalog.text(
+                UiText.DASHBOARD_READINESS_ACTION_REQUIRED,
+                count=report.action_required_count,
+            )
         )
         self.query_one("#host-readiness-status", Static).update(status)
         self.query_one("#view-readiness", Button).disabled = False
@@ -1416,7 +1488,9 @@ class ManagerApp(App[None]):
     def show_host_readiness_failure(self) -> None:
         self._host_readiness_failed = True
         self.host_readiness_report = None
-        self.query_one("#host-readiness-status", Static).update("主机准备度：无法检查")
+        self.query_one("#host-readiness-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_READINESS_FAILED)
+        )
         self.query_one("#view-readiness", Button).disabled = True
         self.query_one("#refresh-readiness", Button).disabled = False
         self._update_dashboard_next_action()
@@ -1466,13 +1540,15 @@ class ManagerApp(App[None]):
             )
         )
 
-    @staticmethod
     def _dashboard_primary_action(
+        self,
         recommendation: DashboardRecommendation,
     ) -> Button:
         action = recommendation.action
         return Button(
-            action.label if action is not None else "暂无可执行建议",
+            action.label
+            if action is not None
+            else self.copy_catalog.text(UiText.DASHBOARD_NO_ACTION),
             id="dashboard-primary-action",
             classes="" if action is not None else "hidden",
             disabled=action is None,
@@ -1482,7 +1558,12 @@ class ManagerApp(App[None]):
     def _update_dashboard_next_action(self) -> None:
         recommendation = self._dashboard_recommendation(self.manager.get_installation())
         self._current_dashboard_recommendation = recommendation
-        self.query_one("#dashboard-next-action", Static).update(f"建议：{recommendation.summary}")
+        self.query_one("#dashboard-next-action", Static).update(
+            self.copy_catalog.text(
+                UiText.DASHBOARD_RECOMMENDATION,
+                summary=recommendation.summary,
+            )
+        )
         button = self.query_one("#dashboard-primary-action", Button)
         if recommendation.action is None:
             button.disabled = True
