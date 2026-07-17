@@ -157,3 +157,18 @@ existing safe review or planning workflow. Opening the destination never
 confirms or performs the underlying mutation, and the action is unavailable
 when its prerequisite application module is absent or not ready.
 _Avoid_: Shell command button, parsing guidance text, bypassing confirmation
+
+**Apply history**:
+A durable, newest-bounded record of exact configuration-apply attempts. An
+`in-progress` entry means the final host result is unknown and requires
+inspection; it never implies success from desired state alone. Entries retain
+only candidate identity, counts, typed outcome, timestamps, and bounded redacted
+diagnostics.
+_Avoid_: Desired-state revision history, generated configuration backup, raw log
+
+**Contextual shortcut**:
+A keyboard navigation action that is visible and active only when its existing
+destination workflow is currently safe to open. It never bypasses that
+workflow's plan, confirmation, or host-effect policy, and printable keys remain
+available to focused form fields outside the shortcut's context.
+_Avoid_: Global command execution, hidden mutation, shell alias

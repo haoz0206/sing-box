@@ -87,6 +87,7 @@ from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
+from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
 from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
     ProfileAvailabilityPlanScreen,
@@ -923,6 +924,13 @@ class ManagerApp(App[None]):
     SUB_TITLE = "安全地搭建和维护你的代理服务"
 
     CSS_PATH = "theme.tcss"
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("?", "show_keyboard_help", "帮助"),
+        ("a", "add_profile", "添加配置"),
+        ("d", "open_diagnostics", "诊断"),
+        ("c", "manage_core", "核心"),
+        ("q", "quit", "退出"),
+    ]
 
     def __init__(
         self,
@@ -1068,6 +1076,35 @@ class ManagerApp(App[None]):
                 if self.core_updater is not None:
                     yield Button("安装或升级 sing-box 核心", id="manage-core")
         yield Footer()
+
+    def action_show_keyboard_help(self) -> None:
+        self.push_screen(KeyboardHelpScreen())
+
+    def action_add_profile(self) -> None:
+        if self._dashboard_action_available():
+            self.open_protocol_selection()
+
+    def action_open_diagnostics(self) -> None:
+        if self._dashboard_action_available() and self.diagnostics_center is not None:
+            self.open_diagnostics_center()
+
+    def action_manage_core(self) -> None:
+        if self._dashboard_action_available() and self.core_updater is not None:
+            self.open_core_update()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "add_profile":
+            return self._dashboard_action_available()
+        if action == "open_diagnostics":
+            return self._dashboard_action_available() and self.diagnostics_center is not None
+        if action == "manage_core":
+            return self._dashboard_action_available() and self.core_updater is not None
+        if action == "quit":
+            return self._dashboard_action_available()
+        return super().check_action(action, parameters)
+
+    def _dashboard_action_available(self) -> bool:
+        return self._dashboard_ready and len(self.screen_stack) == 1
 
     def _host_action_buttons(self, installation: ManagedInstallation) -> Iterator[Button]:
         if self.diagnostics_center is not None:

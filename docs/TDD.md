@@ -331,6 +331,9 @@ Release gate adds:
   bounded retention, symlink refusal, credential redaction, diagnostics-center
   classification, non-markup Textual drill-down, and shared direct/privileged
   production composition;
+- keyboard-first Textual navigation for discoverable `?` help, dashboard-only
+  add/diagnostics/core/quit actions, destination-capability gating, child-screen
+  suppression, non-mutating navigation, and preservation of normal form input;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

@@ -109,12 +109,20 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help   a Add profile   p Preview plan   Enter Open   q Quit         │
+│ ? Help   a Add profile   d Diagnostics   c Core   Enter Open   q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
 The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
+
+The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
+`d` for the diagnostics center, `c` for the existing core-update form, and `q`
+for exit. `check_action()` hides dashboard-only bindings whenever a child screen
+is active or its destination module is unavailable, so printable letters remain
+form input and no shortcut bypasses an existing plan or confirmation. `?`
+opens one read-only help screen; `Esc`, `Tab`, `Shift+Tab`, and `Enter` retain
+their normal screen and focus semantics.
 
 ### 5.2 Dashboard
 
@@ -618,6 +626,10 @@ the release acceptance criteria. It is not translated function by function.
 
 Current implementation status (2026-07-17):
 
+- keyboard-first contextual navigation: the Footer exposes help and only the
+  dashboard actions currently safe to open; `a`, `d`, `c`, and `q` are gated by
+  screen context and injected capability, while `?` opens a non-mutating help
+  page that explains focus, activation, return, and confirmation safety;
 - secret-free profile templates: profile details can plan a uniquely named
   draft from an existing applied, paused, or draft profile; protocol, public
   address, TLS strategy, and transport intent are reviewably reused while
@@ -791,6 +803,9 @@ Current implementation status (2026-07-17):
 
 ## 13. Release acceptance criteria
 
+- An operator can discover keyboard navigation from `?`; dashboard shortcuts
+  open only existing safe workflows, disappear outside their valid context, and
+  never bypass preview or confirmation.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.
