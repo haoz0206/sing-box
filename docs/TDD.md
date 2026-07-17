@@ -380,6 +380,11 @@ Release gate adds:
   `Esc` context preservation, dashboard refresh after lifecycle success,
   catalog injection for inventory copy, and an always-visible read-only,
   plan-first, explicit-confirmation scope statement;
+- profile-details acceptance for catalog propagation through the nested
+  connection-share panel, a visible read-only lifecycle scope, endpoint intent
+  when no share URI exists, one-page credential reveal/hide, disclosure-safe
+  expected and unexpected read failures, scrollable layout, and unchanged
+  edit/availability/clone/removal plan handoff;
 - read-only Network workspace acceptance for empty and populated desired state,
   lifecycle-aware TCP/UDP listener intent, fixed and apply-time automatic ports,
   public addresses, explicit no-probe/no-firewall policy, contextual `n`

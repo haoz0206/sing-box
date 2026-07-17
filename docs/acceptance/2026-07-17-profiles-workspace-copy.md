@@ -62,4 +62,7 @@ No private method, screen field, or child CSS selector is a test seam.
 
 Continue the Profiles safety journey with the profile-details and lifecycle
 confirmation screens, keeping each plan/confirmation workflow as its own TDD
-slice.
+slice. The subsequent
+[profile-details copy acceptance](2026-07-17-profile-details-copy.md) completes
+the read-only detail and sensitive-disclosure portion; lifecycle confirmation
+screens remain.

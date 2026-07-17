@@ -90,6 +90,36 @@ class UiText(str, Enum):
     PROFILES_VIEW_DETAILS = "profiles.view_details"
     PROFILES_APPLY_DRAFT = "profiles.apply_draft"
     PROFILES_ADD = "profiles.add"
+    PROFILE_DETAILS_TITLE = "profile_details.title"
+    PROFILE_DETAILS_SAFETY = "profile_details.safety"
+    PROFILE_DETAILS_NAME = "profile_details.name"
+    PROFILE_DETAILS_PROTOCOL = "profile_details.protocol"
+    PROFILE_DETAILS_STATUS = "profile_details.status"
+    PROFILE_DETAILS_STATUS_ACTIVE = "profile_details.status.active"
+    PROFILE_DETAILS_STATUS_PAUSED = "profile_details.status.paused"
+    PROFILE_DETAILS_STATUS_DRAFT = "profile_details.status.draft"
+    PROFILE_DETAILS_SERVER_ADDRESS = "profile_details.server_address"
+    PROFILE_DETAILS_SERVER_ADDRESS_UNSET = "profile_details.server_address.unset"
+    PROFILE_DETAILS_LISTEN_PORT = "profile_details.listen_port"
+    PROFILE_DETAILS_LISTEN_PORT_AUTOMATIC = "profile_details.listen_port.automatic"
+    PROFILE_DETAILS_NO_CONNECTION = "profile_details.no_connection"
+    PROFILE_DETAILS_EDIT = "profile_details.edit"
+    PROFILE_DETAILS_CLONE = "profile_details.clone"
+    PROFILE_DETAILS_PAUSE = "profile_details.pause"
+    PROFILE_DETAILS_RESUME = "profile_details.resume"
+    PROFILE_DETAILS_REMOVE = "profile_details.remove"
+    PROFILE_DETAILS_ERROR_TITLE = "profile_details.error.title"
+    PROFILE_DETAILS_ERROR_MESSAGE = "profile_details.error.message"
+    PROFILE_DETAILS_UNEXPECTED_TITLE = "profile_details.unexpected.title"
+    PROFILE_DETAILS_UNEXPECTED_DETAILS = "profile_details.unexpected.details"
+    PROFILE_DETAILS_UNEXPECTED_SAFETY = "profile_details.unexpected.safety"
+    CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
+    CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
+    CONNECTION_SHARE_REVEAL = "connection_share.reveal"
+    CONNECTION_SHARE_WARNING_REVEALED = "connection_share.warning.revealed"
+    CONNECTION_SHARE_HIDE = "connection_share.hide"
+    CONNECTION_SHARE_LABEL = "connection_share.label"
+    CONNECTION_SHARE_WARNING_HIDDEN_AFTER = "connection_share.warning.hidden_after"
     SETTINGS_TITLE = "settings.title"
     SETTINGS_BINDING = "settings.binding"
     SETTINGS_OPEN = "settings.open"
@@ -148,6 +178,12 @@ _EXPECTED_FIELDS.update(
         UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS: frozenset({"count"}),
         UiText.PROFILES_PORT_FIXED: frozenset({"port"}),
         UiText.PROFILES_ROW: frozenset({"name", "protocol", "status", "port"}),
+        UiText.PROFILE_DETAILS_NAME: frozenset({"name"}),
+        UiText.PROFILE_DETAILS_PROTOCOL: frozenset({"protocol"}),
+        UiText.PROFILE_DETAILS_STATUS: frozenset({"status"}),
+        UiText.PROFILE_DETAILS_SERVER_ADDRESS: frozenset({"address"}),
+        UiText.PROFILE_DETAILS_LISTEN_PORT: frozenset({"port"}),
+        UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
         UiText.SETTINGS_PERSISTENCE_SAVED: frozenset({"label"}),
@@ -278,6 +314,50 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILES_VIEW_DETAILS: "查看详情",
         UiText.PROFILES_APPLY_DRAFT: "应用草案",
         UiText.PROFILES_ADD: "添加配置",
+        UiText.PROFILE_DETAILS_TITLE: "配置详情",
+        UiText.PROFILE_DETAILS_SAFETY: (
+            "当前页面只读。生命周期按钮只会打开计划或确认步骤，不会在本页直接变更配置。"
+        ),
+        UiText.PROFILE_DETAILS_NAME: "名称：{name}",
+        UiText.PROFILE_DETAILS_PROTOCOL: "协议：{protocol}",
+        UiText.PROFILE_DETAILS_STATUS: "状态：{status}",
+        UiText.PROFILE_DETAILS_STATUS_ACTIVE: "已应用 · 在线",
+        UiText.PROFILE_DETAILS_STATUS_PAUSED: "已应用 · 已暂停",
+        UiText.PROFILE_DETAILS_STATUS_DRAFT: "草案",
+        UiText.PROFILE_DETAILS_SERVER_ADDRESS: "服务器地址：{address}",
+        UiText.PROFILE_DETAILS_SERVER_ADDRESS_UNSET: "服务器地址：未设置",
+        UiText.PROFILE_DETAILS_LISTEN_PORT: "监听端口：{port}",
+        UiText.PROFILE_DETAILS_LISTEN_PORT_AUTOMATIC: "监听端口：应用时自动选择",
+        UiText.PROFILE_DETAILS_NO_CONNECTION: (
+            "该配置尚无可用连接信息。应用草案并设置服务器地址后生成。"
+        ),
+        UiText.PROFILE_DETAILS_EDIT: "编辑配置",
+        UiText.PROFILE_DETAILS_CLONE: "以此配置为模板",
+        UiText.PROFILE_DETAILS_PAUSE: "暂停配置",
+        UiText.PROFILE_DETAILS_RESUME: "恢复配置",
+        UiText.PROFILE_DETAILS_REMOVE: "移除此配置",
+        UiText.PROFILE_DETAILS_ERROR_TITLE: "无法打开配置详情",
+        UiText.PROFILE_DETAILS_ERROR_MESSAGE: (
+            "配置可能已被另一个会话修改，请返回后重新打开列表。"
+        ),
+        UiText.PROFILE_DETAILS_UNEXPECTED_TITLE: "无法读取配置详情",
+        UiText.PROFILE_DETAILS_UNEXPECTED_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_DETAILS_UNEXPECTED_SAFETY: "尚未修改任何配置。请返回列表后重新读取。",
+        UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
+        UiText.CONNECTION_SHARE_WARNING_HIDDEN: (
+            "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"
+        ),
+        UiText.CONNECTION_SHARE_REVEAL: "显示一次连接链接",
+        UiText.CONNECTION_SHARE_WARNING_REVEALED: (
+            "连接链接仅在本次页面中可见，离开后将重新隐藏。"
+        ),
+        UiText.CONNECTION_SHARE_HIDE: "立即隐藏连接链接",
+        UiText.CONNECTION_SHARE_LABEL: "连接链接 - 本次页面可见",
+        UiText.CONNECTION_SHARE_WARNING_HIDDEN_AFTER: (
+            "连接链接已重新隐藏，本页面不会再次显示。返回详情后可重新选择显示。"
+        ),
         UiText.SETTINGS_TITLE: "设置",
         UiText.SETTINGS_BINDING: "设置",
         UiText.SETTINGS_OPEN: "打开设置",

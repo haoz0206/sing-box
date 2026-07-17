@@ -57,5 +57,7 @@ is a test seam.
 Migrate the Profiles workspace's complete safety journey into the validated
 catalog before considering another locale. The subsequent
 [Profiles workspace copy acceptance](2026-07-17-profiles-workspace-copy.md)
-completes the inventory workspace; its lifecycle confirmation screens remain
-separate migration slices.
+completes the inventory workspace, and the subsequent
+[profile-details copy acceptance](2026-07-17-profile-details-copy.md) completes
+its read-only details and sensitive-disclosure entry. Lifecycle confirmation
+screens remain separate migration slices.

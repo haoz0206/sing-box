@@ -193,6 +193,18 @@ _Avoid_: Full profile rows on the dashboard, cross-screen CSS event routing,
 stale inventory after mutation, inventory buttons presented as immediate host
 effects
 
+**Profile details**:
+The scrollable, read-only view of one stable profile identity, lifecycle state,
+server-address intent, listen-port intent, and optional client connection
+information. A credential-bearing share URI stays hidden until an explicit
+one-page reveal and can be hidden permanently for that page. Capability-aware
+lifecycle buttons only open existing plan or confirmation workflows; they do
+not mutate desired state or the host from the details view. Locale-specific
+details, disclosure, and read-failure copy comes from the validated interface
+copy catalog.
+_Avoid_: Live runtime evidence, always-visible share URI, lifecycle mutation
+performed by the details screen, missing endpoint intent when no URI exists
+
 **Network inventory**:
 A read-only projection of one desired-state revision into profile lifecycle,
 listener transport, selected or pending port, public address intent, and the

@@ -73,6 +73,19 @@ class DashboardRecommendationMarkerCatalog:
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
+class ProfileDetailsMarkerCatalog:
+    """Render markers across the profile-details and nested share journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_details.title": "目录配置详情",
+            "connection_share.reveal": "目录显示连接链接",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
 async def open_direct_protocol_selection(
     app: ManagerApp,
     pilot: Pilot[None],
@@ -363,6 +376,20 @@ class FixedProfileDetailsReader:
                 server_port=4433,
                 share_uri="vless://saved-connection-link",
             ),
+        )
+
+
+class DraftProfileDetailsReader:
+    def get_profile_details(self, profile_id: str) -> ProfileDetails:
+        assert profile_id == "profile-draft"
+        return ProfileDetails(
+            profile_id="profile-draft",
+            profile_name="平板",
+            protocol=ProtocolKind.SHADOWSOCKS,
+            status=ProfileStatus.DRAFT,
+            listen_port=None,
+            server_address="draft.example.com",
+            connection_info=None,
         )
 
 
@@ -1149,6 +1176,103 @@ async def test_operator_explicitly_reveals_a_persisted_profile_share_uri_once() 
         assert len(app.screen.query("#hide-connection-share")) == 0
         assert app.screen.query_one("#connection-share-warning", Static).content == (
             "连接链接已重新隐藏，本页面不会再次显示。返回详情后可重新选择显示。"
+        )
+
+
+async def test_profile_details_copy_comes_from_the_interface_catalog() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-1",
+                profile_name="手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        host_tools=ManagerAppHostTools(profile_details_reader=FixedProfileDetailsReader()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileDetailsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+
+        assert app.screen.query_one("#profile-details-title", Static).content == "目录配置详情"
+        assert str(app.screen.query_one("#reveal-connection-share", Button).label) == (
+            "目录显示连接链接"
+        )
+
+
+async def test_profile_details_explains_its_lifecycle_effect_boundary() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-1",
+                profile_name="手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        host_tools=ManagerAppHostTools(profile_details_reader=FixedProfileDetailsReader()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+
+        assert app.screen.query_one("#profile-details-safety", Static).content == (
+            "当前页面只读。生命周期按钮只会打开计划或确认步骤，不会在本页直接变更配置。"
+        )
+
+
+async def test_profile_details_show_draft_endpoint_intent_without_a_share_uri() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-draft",
+                profile_name="平板",
+                protocol=ProtocolKind.SHADOWSOCKS,
+                listen_port=None,
+                port_selection=PortSelection.AUTOMATIC,
+                status=ProfileStatus.DRAFT,
+                server_address="draft.example.com",
+            ),
+        ),
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        host_tools=ManagerAppHostTools(profile_details_reader=DraftProfileDetailsReader()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+
+        endpoint_intent = (
+            app.screen.query_one("#profile-details-server-address", Static).content,
+            app.screen.query_one("#profile-details-listen-port", Static).content,
+        )
+        assert endpoint_intent == (
+            "服务器地址：draft.example.com",
+            "监听端口：应用时自动选择",
         )
 
 

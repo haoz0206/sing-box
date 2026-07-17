@@ -216,10 +216,16 @@ List columns:
 - applied revision.
 
 Profile detail shows connection information, share actions, generated artifact
-summary, recent apply result, and context-sensitive actions. Removal is always
-planned and confirmed: a draft removal changes desired state only, while an
-applied removal transactionally projects and applies all remaining profiles
-before desired state is committed.
+summary, recent apply result, and context-sensitive actions. The current
+implementation presents it as a scrollable read-only view with an explicit
+effect statement, stable profile identity and lifecycle status, server-address
+and listen-port intent even when no share URI exists, and capability-aware
+buttons that only open existing plan or confirmation workflows. Detail,
+connection-disclosure, stale-read, and unexpected-read copy renders through the
+validated interface copy catalog. Removal is always planned and confirmed: a
+draft removal changes desired state only, while an applied removal
+transactionally projects and applies all remaining profiles before desired
+state is committed.
 
 A connection share URI is a credential, not ordinary profile metadata. Profile
 details and successful first apply show the public endpoint and a disclosure
@@ -919,8 +925,10 @@ Current implementation status (2026-07-17):
   retry controls; the application recommendation module no longer owns
   presentation-ready strings; the Profiles inventory workspace now renders its
   task hierarchy, read-only safety boundary, rows, and capability-aware actions
-  through the catalog as well; the UI discloses that no additional locale is
-  available until all remaining safety journeys have migrated;
+  through the catalog as well; profile details, endpoint intent, credential
+  disclosure, and safe read failures now use the catalog too; the UI discloses
+  that no additional locale is available until all remaining safety journeys
+  have migrated;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate
@@ -1065,7 +1073,9 @@ Current implementation status (2026-07-17):
   than selectors or translated labels; cancellation preserves context and
   lifecycle success refreshes the desired-state snapshot. Opening the inventory
   is explicitly read-only, and configuration changes remain plan-first and
-  confirmation-bound.
+  confirmation-bound. Profile details remain read-only, preserve endpoint
+  intent without a share URI, hide credential-bearing links by default, and
+  route every lifecycle entry through its existing plan or confirmation.
 - The Network workspace separates declared network intent from observed host
   evidence, shows every profile's lifecycle/transport/port/public-address
   meaning, and cannot probe or mutate DNS, sockets, reachability, or firewalls
