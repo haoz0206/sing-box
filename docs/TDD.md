@@ -354,6 +354,11 @@ Release gate adds:
   explicit read-only retry, successful recovery, a persistent no-automatic-
   mutation scope statement, and catalog-backed titles, probe states, counts,
   navigation, and reinspection controls;
+- host-readiness drill-down catalog propagation across actionable and ready
+  aggregate conclusions, condition markers, item-title and next-step framing,
+  missing-detail fallback, reinspection guidance, and the existing trusted-core
+  navigation gate; report observations, diagnostics, command guidance, and
+  bracketed values render literally without Textual markup interpretation;
 - typed dashboard recommendation priority across failed, pending, blocking,
   maintenance, draft, empty, and healthy evidence; stable recommendation and
   action identities, catalog-rendered summaries and labels, capability-aware

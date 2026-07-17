@@ -78,6 +78,16 @@ class UiText(str, Enum):
     HOST_DIAGNOSTICS_RECOVERY_TITLE = "host_diagnostics.recovery.title"
     HOST_DIAGNOSTICS_RECOVERY_STEP = "host_diagnostics.recovery.step"
     HOST_DIAGNOSTICS_RECOVERY_EMPTY = "host_diagnostics.recovery.empty"
+    HOST_READINESS_TITLE = "host_readiness.title"
+    HOST_READINESS_SUMMARY_READY = "host_readiness.summary.ready"
+    HOST_READINESS_SUMMARY_ACTION_REQUIRED = "host_readiness.summary.action_required"
+    HOST_READINESS_RECHECK = "host_readiness.recheck"
+    HOST_READINESS_STATE_READY = "host_readiness.state.ready"
+    HOST_READINESS_STATE_ATTENTION = "host_readiness.state.attention"
+    HOST_READINESS_STATE_ACTION_REQUIRED = "host_readiness.state.action_required"
+    HOST_READINESS_ITEM_TITLE = "host_readiness.item.title"
+    HOST_READINESS_ITEM_GUIDANCE = "host_readiness.item.guidance"
+    HOST_READINESS_DETAILS_UNAVAILABLE = "host_readiness.details.unavailable"
     OPERATIONS_TITLE = "operations.title"
     OPERATIONS_SUMMARY = "operations.summary"
     OPERATIONS_SAFETY = "operations.safety"
@@ -975,6 +985,9 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION: frozenset({"revision"}),
         UiText.PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.HOST_READINESS_SUMMARY_ACTION_REQUIRED: frozenset({"count"}),
+        UiText.HOST_READINESS_ITEM_TITLE: frozenset({"state", "title"}),
+        UiText.HOST_READINESS_ITEM_GUIDANCE: frozenset({"guidance"}),
         UiText.DIAGNOSTICS_CENTER_RECOMMENDATION: frozenset({"summary"}),
         UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE: frozenset({"action_required", "attention"}),
         UiText.DIAGNOSTICS_CENTER_ITEM_TITLE: frozenset({"condition", "title"}),
@@ -1107,6 +1120,16 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.HOST_DIAGNOSTICS_RECOVERY_TITLE: "建议的恢复步骤",
         UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: "{number}. {instruction}",
         UiText.HOST_DIAGNOSTICS_RECOVERY_EMPTY: "当前无需恢复操作。",
+        UiText.HOST_READINESS_TITLE: "主机准备度",
+        UiText.HOST_READINESS_SUMMARY_READY: "应用前置条件已满足",
+        UiText.HOST_READINESS_SUMMARY_ACTION_REQUIRED: "应用前需要完成 {count} 项准备",
+        UiText.HOST_READINESS_RECHECK: "完成主机调整后，返回 dashboard 选择“重新检查”。",
+        UiText.HOST_READINESS_STATE_READY: "[就绪]",
+        UiText.HOST_READINESS_STATE_ATTENTION: "[注意]",
+        UiText.HOST_READINESS_STATE_ACTION_REQUIRED: "[需处理]",
+        UiText.HOST_READINESS_ITEM_TITLE: "{state} {title}",
+        UiText.HOST_READINESS_ITEM_GUIDANCE: "下一步：{guidance}",
+        UiText.HOST_READINESS_DETAILS_UNAVAILABLE: "未提供诊断信息",
         UiText.OPERATIONS_TITLE: "运维中心",
         UiText.OPERATIONS_SUMMARY: "集中管理核心版本，并查看运行与配置变更证据。",
         UiText.OPERATIONS_SAFETY: (

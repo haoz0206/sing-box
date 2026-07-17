@@ -18,11 +18,19 @@ from sb_manager.application.host_readiness import (
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 
+READINESS_STATE_TEXT = {
+    ReadinessState.READY: UiText.HOST_READINESS_STATE_READY,
+    ReadinessState.ATTENTION: UiText.HOST_READINESS_STATE_ATTENTION,
+    ReadinessState.ACTION_REQUIRED: UiText.HOST_READINESS_STATE_ACTION_REQUIRED,
+}
+
 
 class HostReadinessScreen(Screen[None]):
     """Explain every prerequisite and route only currently valid setup actions."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
     def __init__(
         self,
@@ -39,33 +47,60 @@ class HostReadinessScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="host-readiness"):
-            yield Static("主机准备度", id="host-readiness-title")
-            yield Static(self._summary(), id="host-readiness-summary")
+            yield Static(
+                self.copy.text(UiText.HOST_READINESS_TITLE),
+                id="host-readiness-title",
+                markup=False,
+            )
+            yield Static(self._summary(), id="host-readiness-summary", markup=False)
             for item in self.report.items:
                 item_id = item.code.value
                 yield Static(
-                    f"{self._state_marker(item.state)} {item.title}",
+                    self.copy.text(
+                        UiText.HOST_READINESS_ITEM_TITLE,
+                        state=self.copy.text(READINESS_STATE_TEXT[item.state]),
+                        title=item.title,
+                    ),
                     id=f"readiness-{item_id}-title",
+                    markup=False,
                 )
-                yield Static(item.summary, id=f"readiness-{item_id}-summary")
                 yield Static(
-                    item.diagnostics or "未提供诊断信息",
+                    item.summary,
+                    id=f"readiness-{item_id}-summary",
+                    markup=False,
+                )
+                yield Static(
+                    item.diagnostics or self.copy.text(UiText.HOST_READINESS_DETAILS_UNAVAILABLE),
                     id=f"readiness-{item_id}-diagnostics",
+                    markup=False,
                 )
                 if item.guidance:
-                    yield Static(item.guidance, id=f"readiness-{item_id}-guidance")
+                    yield Static(
+                        self.copy.text(
+                            UiText.HOST_READINESS_ITEM_GUIDANCE,
+                            guidance=item.guidance,
+                        ),
+                        id=f"readiness-{item_id}-guidance",
+                        markup=False,
+                    )
             if self._can_install_core():
                 yield Button(
                     self.copy.text(UiText.CORE_UPDATE_OPEN),
                     id="readiness-manage-core",
                     variant="primary",
                 )
-            yield Static("完成主机调整后，返回 dashboard 选择“重新检查”。")
+            yield Static(
+                self.copy.text(UiText.HOST_READINESS_RECHECK),
+                id="host-readiness-recheck",
+                markup=False,
+            )
         yield Footer()
 
     def _summary(self) -> str:
         count = self.report.action_required_count
-        return "应用前置条件已满足" if count == 0 else f"应用前需要完成 {count} 项准备"
+        if count == 0:
+            return self.copy.text(UiText.HOST_READINESS_SUMMARY_READY)
+        return self.copy.text(UiText.HOST_READINESS_SUMMARY_ACTION_REQUIRED, count=count)
 
     def _can_install_core(self) -> bool:
         if self.core_updater is None:
@@ -80,14 +115,6 @@ class HostReadinessScreen(Screen[None]):
             for item in self.report.items
         )
         return helper_ready and core_missing
-
-    @staticmethod
-    def _state_marker(state: ReadinessState) -> str:
-        if state is ReadinessState.READY:
-            return "[就绪]"
-        if state is ReadinessState.ATTENTION:
-            return "[注意]"
-        return "[需处理]"
 
     @on(Button.Pressed, "#readiness-manage-core")
     def open_core_update(self) -> None:

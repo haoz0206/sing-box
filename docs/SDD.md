@@ -1183,7 +1183,11 @@ Current implementation status (2026-07-17):
   configuration target, minimum-privilege helper, and configured core as ready,
   attention, or action-required; the dashboard prioritizes blocking setup work,
   exposes detailed guidance, supports an explicit recheck, and routes to core
-  installation only after the helper is ready;
+  installation only after the helper is ready; the drill-down presentation
+  catalog owns its title, aggregate conclusion, state markers, item framing,
+  missing-detail fallback, next-step label, and recheck instruction, while the
+  typed report's item titles, observations, diagnostics, and guidance remain
+  literal non-markup evidence;
 - managed core continuity: privileged mode uses
   `/opt/sing-box-manager/core/current/sing-box` by default for local material
   generation and readiness checks, matching the core activated by the root
