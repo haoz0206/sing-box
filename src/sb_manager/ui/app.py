@@ -467,12 +467,13 @@ class ProfileDetailsScreen(Screen[None]):
             screen = ProfileCloneScreen(
                 self.capabilities.cloner,
                 source_profile_id=self.details.profile_id,
+                copy_catalog=self.copy,
             )
         except ProfileCloneError:
             self.app.push_screen(ProfileDetailsErrorScreen(self.copy))
             return
         except Exception:
-            self.app.push_screen(ProfileClonePlanningErrorScreen())
+            self.app.push_screen(ProfileClonePlanningErrorScreen(self.copy))
             return
         self.app.push_screen(screen, self.finish_profile_clone)
 

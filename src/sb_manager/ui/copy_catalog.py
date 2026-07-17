@@ -294,6 +294,35 @@ class UiText(str, Enum):
     PROFILE_REMOVAL_PLANNING_TITLE = "profile_removal.planning.title"
     PROFILE_REMOVAL_PLANNING_DETAILS = "profile_removal.planning.details"
     PROFILE_REMOVAL_PLANNING_SAFETY = "profile_removal.planning.safety"
+    PROFILE_CLONE_FORM_TITLE = "profile_clone.form.title"
+    PROFILE_CLONE_FACET_PROTOCOL = "profile_clone.facet.protocol"
+    PROFILE_CLONE_FACET_SERVER_ADDRESS = "profile_clone.facet.server_address"
+    PROFILE_CLONE_FACET_TLS_STRATEGY = "profile_clone.facet.tls_strategy"
+    PROFILE_CLONE_FACET_TRANSPORT = "profile_clone.facet.transport"
+    PROFILE_CLONE_FACET_CREDENTIALS = "profile_clone.facet.credentials"
+    PROFILE_CLONE_FACET_LISTEN_PORT = "profile_clone.facet.listen_port"
+    PROFILE_CLONE_FACET_RUNTIME_STATUS = "profile_clone.facet.runtime_status"
+    PROFILE_CLONE_FACET_SEPARATOR = "profile_clone.facet.separator"
+    PROFILE_CLONE_FACET_CONJUNCTION = "profile_clone.facet.conjunction"
+    PROFILE_CLONE_FORM_SOURCE = "profile_clone.form.source"
+    PROFILE_CLONE_FORM_COPIED = "profile_clone.form.copied"
+    PROFILE_CLONE_FORM_RESET = "profile_clone.form.reset"
+    PROFILE_CLONE_FORM_REVIEW = "profile_clone.form.review"
+    PROFILE_CLONE_FORM_EDIT = "profile_clone.form.edit"
+    PROFILE_CLONE_FORM_CONFIRM = "profile_clone.form.confirm"
+    PROFILE_CLONE_FORM_RETURN_LIST = "profile_clone.form.return_list"
+    PROFILE_CLONE_REVIEW_TITLE = "profile_clone.review.title"
+    PROFILE_CLONE_REVIEW_SUMMARY = "profile_clone.review.summary"
+    PROFILE_CLONE_IN_PROGRESS = "profile_clone.in_progress"
+    PROFILE_CLONE_STALE = "profile_clone.stale"
+    PROFILE_CLONE_RESULT_TITLE = "profile_clone.result.title"
+    PROFILE_CLONE_RESULT_SUMMARY = "profile_clone.result.summary"
+    PROFILE_CLONE_PLANNING_TITLE = "profile_clone.planning.title"
+    PROFILE_CLONE_PLANNING_DETAILS = "profile_clone.planning.details"
+    PROFILE_CLONE_PLANNING_SAFETY = "profile_clone.planning.safety"
+    PROFILE_CLONE_OPERATIONAL_TITLE = "profile_clone.operational.title"
+    PROFILE_CLONE_OPERATIONAL_DETAILS = "profile_clone.operational.details"
+    PROFILE_CLONE_OPERATIONAL_SAFETY = "profile_clone.operational.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -379,6 +408,12 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_REMOVAL_PLAN_REMAINING: frozenset({"profiles", "applied"}),
         UiText.PROFILE_REMOVAL_RESULT_REVISION: frozenset({"revision"}),
         UiText.PROFILE_REMOVAL_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.PROFILE_CLONE_FACET_CONJUNCTION: frozenset({"prefix", "last"}),
+        UiText.PROFILE_CLONE_FORM_SOURCE: frozenset({"name"}),
+        UiText.PROFILE_CLONE_FORM_COPIED: frozenset({"facets"}),
+        UiText.PROFILE_CLONE_FORM_RESET: frozenset({"facets"}),
+        UiText.PROFILE_CLONE_REVIEW_SUMMARY: frozenset({"source", "target"}),
+        UiText.PROFILE_CLONE_RESULT_SUMMARY: frozenset({"name", "revision"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -773,6 +808,46 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.PROFILE_REMOVAL_PLANNING_SAFETY: (
             "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        ),
+        UiText.PROFILE_CLONE_FORM_TITLE: "以现有配置创建新草案",
+        UiText.PROFILE_CLONE_FACET_PROTOCOL: "协议",
+        UiText.PROFILE_CLONE_FACET_SERVER_ADDRESS: "服务器地址",
+        UiText.PROFILE_CLONE_FACET_TLS_STRATEGY: "TLS 方式",
+        UiText.PROFILE_CLONE_FACET_TRANSPORT: "传输方式",
+        UiText.PROFILE_CLONE_FACET_CREDENTIALS: "认证凭据",
+        UiText.PROFILE_CLONE_FACET_LISTEN_PORT: "监听端口",
+        UiText.PROFILE_CLONE_FACET_RUNTIME_STATUS: "运行状态",
+        UiText.PROFILE_CLONE_FACET_SEPARATOR: "、",
+        UiText.PROFILE_CLONE_FACET_CONJUNCTION: "{prefix}和{last}",
+        UiText.PROFILE_CLONE_FORM_SOURCE: "模板：{name}",
+        UiText.PROFILE_CLONE_FORM_COPIED: "将复用：{facets}",
+        UiText.PROFILE_CLONE_FORM_RESET: "将重置：{facets}，新配置保存为未应用草案。",
+        UiText.PROFILE_CLONE_FORM_REVIEW: "审阅草案",
+        UiText.PROFILE_CLONE_FORM_EDIT: "修改名称",
+        UiText.PROFILE_CLONE_FORM_CONFIRM: "确认创建草案",
+        UiText.PROFILE_CLONE_FORM_RETURN_LIST: "返回配置列表",
+        UiText.PROFILE_CLONE_REVIEW_TITLE: "确认模板草案",
+        UiText.PROFILE_CLONE_REVIEW_SUMMARY: "{source} → {target}",
+        UiText.PROFILE_CLONE_IN_PROGRESS: "操作已确认，正在创建新草案。完成前无法返回。",
+        UiText.PROFILE_CLONE_STALE: (
+            "desired state 已变化。请修改名称后重新审阅，或返回配置详情重新开始。"
+        ),
+        UiText.PROFILE_CLONE_RESULT_TITLE: "草案已创建",
+        UiText.PROFILE_CLONE_RESULT_SUMMARY: ("{name} · desired state revision {revision}"),
+        UiText.PROFILE_CLONE_PLANNING_TITLE: "无法准备配置模板",
+        UiText.PROFILE_CLONE_PLANNING_DETAILS: (
+            "读取配置模板计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_CLONE_PLANNING_SAFETY: (
+            "尚未创建草案。请返回配置列表，重新打开详情后再试。"
+        ),
+        UiText.PROFILE_CLONE_OPERATIONAL_TITLE: "无法确认模板草案结果",
+        UiText.PROFILE_CLONE_OPERATIONAL_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_CLONE_OPERATIONAL_SAFETY: (
+            "该流程不修改服务器配置或服务。desired state 是否已创建草案未知。"
+            "请先返回配置列表检查，再决定是否重试。"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (

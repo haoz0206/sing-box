@@ -298,6 +298,11 @@ Release gate adds:
   operational failures, literal non-markup diagnostics, missing-transaction
   uncertainty, precondition and commit failures, rollback success, manual
   recovery instructions, and the complete Textual confirmation/result journey;
+- profile template cloning for semantic copied/reset facet presentation,
+  editable-name review, revision and source-intent conflicts, desired-state-only
+  confirmation, catalog propagation through every form/result/failure state,
+  literal non-markup profile values and diagnostics, unknown desired-state
+  outcomes, dashboard refresh, and secret-free independent drafts;
 - profile edit plans for normalized mutable metadata, no-op and field
   validation, desired-state-only versus live-configuration scope, revision and
   reviewed-content conflicts, transactional failure preservation, every typed

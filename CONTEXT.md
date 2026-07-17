@@ -101,6 +101,16 @@ validated interface copy catalog; typed host diagnostics remain non-markup
 evidence and never select actions.
 _Avoid_: Draft status, profile removal, stopping the whole sing-box service
 
+**Profile template cloning**:
+An operator-confirmed desired-state-only creation of one new draft from the
+non-secret reusable intent of one exact source profile. The plan explicitly
+separates copied protocol/address/TLS/transport facets from reset credentials,
+listen port, and runtime state; confirmation rechecks the reviewed revision and
+source intent under the shared mutation lock. Form, review, progress, success,
+stale-state, and unknown-result guidance come from one validated interface copy
+catalog. Profile names and typed diagnostics remain literal non-markup evidence.
+_Avoid_: Copy profile, duplicate inbound, reuse credentials, clone and apply
+
 **Profile purpose**:
 The operator outcome used only to rank choices at the start of the add-profile
 journey: general setup, low latency, restricted-network connection options, or

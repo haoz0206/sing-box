@@ -291,6 +291,23 @@ failure states that no operation ran, while an unexpected confirmed failure
 claims no host or desired-state result and requires identity, service, and
 apply-history inspection before retry.
 
+Profile template cloning is desired-state-only and never applies or refreshes
+sing-box. Its pure plan names the exact source revision, reusable non-secret
+protocol/address/TLS/transport facets, and intentionally reset credentials,
+listen port, and runtime status. The operator may edit only the proposed name,
+then reviews the normalized source-to-target summary before explicit
+confirmation. Confirmation rechecks the revision and source intent under the
+shared mutation lock and appends one independent draft.
+The profile-details catalog instance flows through the form, localized facet
+list construction, review/edit loop, confirmation progress, stale-state
+guidance, committed result, planning failure, and unknown desired-state result.
+Profile names and typed application diagnostics render with markup disabled.
+Revision conflict invalidates the reviewed confirmation; only returning to edit
+and producing a fresh plan re-enables confirmation.
+An unexpected planning failure states that no draft was created; an unexpected
+confirmed failure states that the host was never modified while requiring the
+operator to inspect Profiles before retrying the uncertain desired-state write.
+
 ### 5.4 Profile wizard
 
 The wizard uses progressive disclosure:
@@ -488,9 +505,9 @@ to screens. Complete migration units now cover Settings and every
 preference-reset outcome, the Dashboard read-only shell and semantic
 recommendation, Profiles inventory, profile details and credential disclosure,
 the complete profile-edit journey, and profile pause/resume. Those migrated
-screen ranges also include the complete profile-removal journey and contain no
-locale-authored text. Settings states that Chinese is fully supported and
-explains why other languages are withheld.
+screen ranges also include the complete profile-removal and profile-template-
+clone journeys and contain no locale-authored text. Settings states that
+Chinese is fully supported and explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
 string has moved into the catalog, so an operator never receives a partially
 translated safety workflow. Additional accessibility preferences require their
