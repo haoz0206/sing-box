@@ -131,6 +131,19 @@ successful address evidence. Resolution proves reachability through local DNS,
 not that an address belongs to the managed host.
 _Avoid_: Public IP ownership proof, ACME certificate status, connectivity test
 
+**Managed certificate condition**:
+The read-only validity state of the public leaf certificate selected by an
+enabled, applied profile's TLS intent. It distinguishes healthy, expiring,
+expired, not-yet-valid, missing, invalid, and unavailable evidence without
+reading or returning private-key material.
+_Avoid_: ACME issuance attempt, TLS reachability, private-key validation
+
+**Listener ownership**:
+Conservative process evidence for the exact TCP or UDP endpoint expected by an
+enabled, applied profile. A listener belongs to sing-box only when every
+observed socket inode has complete ownership evidence.
+_Avoid_: Port availability, service health, listener existence alone
+
 **Live configuration identity**:
 The read-only SHA-256 observation of the configured sing-box target, compared
 with the exact replacement precondition recorded in desired state. It can prove

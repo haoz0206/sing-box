@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
+from sb_manager.application.certificate_diagnostics import CertificateDiagnostics
 from sb_manager.application.host_diagnostics import (
     HostCondition,
     HostDiagnostics,
@@ -52,6 +53,7 @@ class DiagnosticCode(str, Enum):
     LIVE_CONFIGURATION = "live-configuration"
     GENERATED_CONFIGURATION = "generated-configuration"
     DOMAIN_RESOLUTION = "domain-resolution"
+    CERTIFICATE_CONDITION = "certificate-condition"
     LISTENER_OWNERSHIP = "listener-ownership"
     CONFIG_TARGET = "config-target"
     PRIVILEGED_HELPER = "privileged-helper"
@@ -130,6 +132,7 @@ class DiagnosticsCenterInspectors:
 
     generated_configuration: GeneratedConfigurationInspector | None = None
     domain_resolution: DomainResolutionInspector | None = None
+    certificate_diagnostics: CertificateDiagnostics | None = None
     listener_diagnostics: ListenerDiagnostics | None = None
 
 
@@ -152,6 +155,7 @@ class DiagnosticsCenterService:
         self._config_inspector = config_inspector
         self._generated_configuration_inspector = inspectors.generated_configuration
         self._domain_resolution_inspector = inspectors.domain_resolution
+        self._certificate_diagnostics = inspectors.certificate_diagnostics
         self._listener_diagnostics = inspectors.listener_diagnostics
         self._host_readiness = host_readiness
         self._host_diagnostics = host_diagnostics
@@ -231,6 +235,18 @@ class DiagnosticsCenterService:
             items.append(generated_configuration_item)
         if self._domain_resolution_inspector is not None and installation is not None:
             items.append(self._inspect_domain_resolution(installation))
+        if self._certificate_diagnostics is not None and installation is not None:
+            certificate = self._certificate_diagnostics.inspect(installation)
+            items.append(
+                DiagnosticItem(
+                    code=DiagnosticCode.CERTIFICATE_CONDITION,
+                    condition=DiagnosticCondition(certificate.condition.value),
+                    title="托管证书有效期",
+                    summary=certificate.summary,
+                    diagnostics=certificate.diagnostics,
+                    guidance=certificate.guidance,
+                )
+            )
         if self._listener_diagnostics is not None and installation is not None:
             listener = self._listener_diagnostics.inspect(installation)
             items.append(

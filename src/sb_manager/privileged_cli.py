@@ -6,7 +6,9 @@ import sys
 from pathlib import Path
 
 from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
+from sb_manager.adapters.filesystem_certificates import FilesystemCertificateSource
 from sb_manager.artifacts.installation import CoreInstallError
+from sb_manager.host_certificate_policy import MANAGED_CERTIFICATE_ROOTS
 from sb_manager.privileged.config_apply import (
     ApplyConfigRequest,
     PrivilegedConfigApplyPolicy,
@@ -83,6 +85,7 @@ def main() -> None:
             config_inspector=FileConfigurationTargetInspector(
                 config_path=HOST_CONFIG_POLICY.config_path
             ),
+            certificate_source=FilesystemCertificateSource(trusted_roots=MANAGED_CERTIFICATE_ROOTS),
         )
     except PrivilegedProtocolError as error:
         _write_error(error="invalid-request", message=str(error))

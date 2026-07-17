@@ -1,7 +1,7 @@
 # Privileged helper deployment
 
 Status: pre-release operator contract  
-Last updated: 2026-07-16
+Last updated: 2026-07-17
 
 `sb-manager-privileged` is a single-shot root helper. It accepts one JSON request
 on standard input, performs one allowlisted operation, writes one JSON result,
@@ -137,6 +137,8 @@ group/other access to a private key.
 | Managed configuration | `/etc/sing-box/config.json` |
 | Installed validation core | `/opt/sing-box-manager/core/current/sing-box` |
 | Configuration apply lock | `/run/lock/sing-box-manager-apply.lock` |
+| Operator public certificates and private keys | `/etc/sing-box-manager/tls` |
+| CertMagic ACME data | `/var/lib/sing-box-manager/acme` |
 
 The incoming directory may permit a dedicated manager account to create files,
 but its parent and the other paths must remain root-controlled. The helper
@@ -221,6 +223,32 @@ The read-only adoption workflow uses a separate request:
 Its response contains only `exists` and `sha256`; configuration content and
 secrets never cross the helper protocol. The TUI re-runs this inspection during
 confirmation before recording the replacement precondition.
+
+Managed certificate diagnostics use a separate read-only request. Every target
+is derived from desired state, must use an absolute path, and may contain only
+the public certificate kind, declared server name, and location:
+
+```json
+{
+  "schema_version": 1,
+  "operation": "inspect-certificates",
+  "targets": [
+    {
+      "kind": "operator-file",
+      "server_name": "proxy.example.com",
+      "location": "/etc/sing-box-manager/tls/proxy.crt"
+    }
+  ]
+}
+```
+
+The helper accepts at most 64 targets, rejects duplicates, relative locations,
+unknown fields, and any private-key field. Operator files must remain below
+`/etc/sing-box-manager/tls`; CertMagic targets use the fixed
+`/var/lib/sing-box-manager/acme` data root. The response contains one ordered
+observation per requested target: typed state, source label, bounded
+diagnostics, public DNS names, and ISO 8601 validity timestamps. Certificate
+PEM, configuration content, and private-key bytes never cross the protocol.
 
 The unprivileged TUI client is available through:
 

@@ -8,6 +8,7 @@ from sb_manager.adapters.anytls_material import SecureAnyTlsMaterialSource
 from sb_manager.adapters.domain_resolution import BoundedSocketDomainResolutionInspector
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.file_config_target import FileConfigurationTargetInspector
+from sb_manager.adapters.filesystem_certificates import FilesystemCertificateSource
 from sb_manager.adapters.generated_configuration import (
     ProjectedGeneratedConfigurationInspector,
 )
@@ -17,6 +18,7 @@ from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.json_state_recovery import JsonStateRecoverySource
 from sb_manager.adapters.openrc_logs import OpenRCLogSource
 from sb_manager.adapters.openrc_runtime import OpenRCRuntime
+from sb_manager.adapters.privileged_certificates import PrivilegedCertificateSource
 from sb_manager.adapters.privileged_config_applier import PrivilegedConfigurationApplier
 from sb_manager.adapters.privileged_config_target import (
     PrivilegedConfigurationTargetInspector,
@@ -36,6 +38,7 @@ from sb_manager.adapters.tuic_material import SecureTuicMaterialSource
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.adapters.vless_material import SecureVlessMaterialSource
 from sb_manager.adapters.vmess_material import SecureVmessMaterialSource
+from sb_manager.application.certificate_diagnostics import CertificateDiagnosticsService
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.core_update import CoreUpdateService
@@ -58,6 +61,7 @@ from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
 from sb_manager.application.service_logs import ServiceLogService
 from sb_manager.application.state_recovery import StateRecoveryService
+from sb_manager.host_certificate_policy import MANAGED_CERTIFICATE_ROOTS
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
     Hysteria2Handler,
@@ -69,6 +73,7 @@ from sb_manager.protocols.catalog import (
     VlessTlsHandler,
     VmessTlsHandler,
 )
+from sb_manager.seams.certificate_source import CertificateSource
 from sb_manager.seams.config_target import ConfigurationTargetInspector
 from sb_manager.seams.configuration_applier import ConfigurationApplier
 from sb_manager.seams.runtime import Runtime, RuntimeKind
@@ -277,18 +282,21 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
     )
     applier: ConfigurationApplier
     config_inspector: ConfigurationTargetInspector
+    certificate_source: CertificateSource
     config_validator = SingBoxConfigValidator(binary=sing_box_binary)
     privileged_config_inspector = PrivilegedConfigurationTargetInspector(
         helper_command=privileged_helper_command
     )
     if access_mode is HostAccessMode.PRIVILEGED:
         config_inspector = privileged_config_inspector
+        certificate_source = PrivilegedCertificateSource(helper_command=privileged_helper_command)
         applier = PrivilegedConfigurationApplier(
             incoming_directory=arguments.privileged_incoming_dir,
             helper_command=privileged_helper_command,
         )
     else:
         config_inspector = FileConfigurationTargetInspector(config_path=arguments.config_file)
+        certificate_source = FilesystemCertificateSource(trusted_roots=MANAGED_CERTIFICATE_ROOTS)
         applier = ApplyCoordinator(
             config_path=arguments.config_file,
             stager=ConfigurationStager(parent=arguments.staging_dir),
@@ -335,6 +343,9 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
                         validator=config_validator,
                     ),
                     domain_resolution=BoundedSocketDomainResolutionInspector(timeout_seconds=5),
+                    certificate_diagnostics=CertificateDiagnosticsService(
+                        source=certificate_source
+                    ),
                     listener_diagnostics=ListenerDiagnosticsService(source=ProcListenerSource()),
                 ),
                 host_readiness=host_readiness,

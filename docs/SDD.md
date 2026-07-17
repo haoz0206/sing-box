@@ -256,8 +256,8 @@ boundary reapplies the line bound, removes control sequences, caps line length,
 redacts persisted protocol material plus common credential forms, and returns
 typed available, empty, or unavailable results. Textual loads and refreshes the
 default 200-line view in a worker with markup disabled; it never parses commands,
-follows logs, escalates privileges, or changes the service. Certificate expiry,
-and apply history remain later complete checks. The listener-ownership slice
+follows logs, escalates privileges, or changes the service. Apply history
+remains a later complete check. The listener-ownership slice
 derives transport-specific expectations only from enabled, applied profiles,
 then reads Linux TCP/UDP socket tables and visible process descriptors through
 a dedicated read-only seam. Missing listeners and fully observed foreign owners
@@ -266,6 +266,18 @@ scan limits remain attention. A listener is attributed to sing-box only when
 every observed inode has complete ownership evidence. Draft and paused profiles
 do not imply runtime listeners, and Textual renders all dynamic diagnostic
 content with markup disabled.
+
+The managed-certificate slice derives deduplicated public-certificate targets
+only from enabled, applied profiles. Operator-file targets stay below
+`/etc/sing-box-manager/tls`; CertMagic ACME discovery stays below
+`/var/lib/sing-box-manager/acme/certificates` and selects the latest matching
+public leaf. Direct mode reads those fixed roots locally, while privileged mode
+uses an exact helper request that cannot include a private-key path. Both paths
+return only validity timestamps, DNS names, typed material state, and bounded
+diagnostics. Expired, not-yet-valid, invalid, missing, or seven-day expiry
+evidence requires action; thirty-day expiry and unavailable evidence require
+attention. Independent targets remain visible even when one determines the
+overall priority.
 
 Actionable findings may carry one typed navigation action. The report exposes
 only the action belonging to its highest-priority finding, and the Textual
@@ -680,6 +692,13 @@ Current implementation status (2026-07-17):
   logs remain typed, while one application policy removes terminal controls,
   caps lines, and redacts both persisted and pattern-recognized credentials
   before Textual renders non-markup content;
+- managed certificate diagnostics: enabled, applied TLS profiles produce
+  deduplicated operator-file or CertMagic ACME public-certificate targets;
+  direct and fixed-helper adapters expose only DNS names and timezone-aware
+  validity metadata, enforce trusted roots and bounded reads, classify
+  missing/invalid/expired/not-yet-valid/seven-day expiry as action-required,
+  thirty-day expiry or unavailable evidence as attention, and preserve every
+  target's evidence without reading private keys;
 - listener ownership diagnostics: enabled, applied profiles produce exact TCP
   and UDP endpoint expectations; a dependency-free Linux `/proc` adapter joins
   IPv4/IPv6 socket inodes to visible process descriptors under hard scan limits,

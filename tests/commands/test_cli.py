@@ -489,13 +489,15 @@ def test_cli_composes_read_only_prioritized_diagnostics_center(tmp_path: Path) -
         DiagnosticCode.CORE,
         DiagnosticCode.GENERATED_CONFIGURATION,
         DiagnosticCode.DOMAIN_RESOLUTION,
+        DiagnosticCode.CERTIFICATE_CONDITION,
         DiagnosticCode.LISTENER_OWNERSHIP,
         DiagnosticCode.RUNTIME,
     )
     assert report.items[0].condition is DiagnosticCondition.HEALTHY
-    assert report.items[-3].condition is DiagnosticCondition.HEALTHY
-    assert report.items[-4].diagnostics == "sing-box check completed successfully"
-    assert report.items[-3].summary == "当前没有需要 DNS 解析的公开域名"
+    assert report.items[-4].condition is DiagnosticCondition.HEALTHY
+    assert report.items[-5].diagnostics == "sing-box check completed successfully"
+    assert report.items[-4].summary == "当前没有需要 DNS 解析的公开域名"
+    assert report.items[-3].summary == "当前没有需要检查的托管 X.509 证书"
     assert report.items[-2].summary == "当前没有启用且已应用的监听端口"
     assert report.items[-1].condition is DiagnosticCondition.HEALTHY
 

@@ -1,4 +1,8 @@
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.certificate_diagnostics import (
+    CertificateDiagnosticCondition,
+    CertificateDiagnosticsReport,
+)
 from sb_manager.application.diagnostics_center import (
     DiagnosticAction,
     DiagnosticCode,
@@ -87,6 +91,14 @@ class FixedListenerDiagnostics:
         return self.report
 
 
+class FixedCertificateDiagnostics:
+    def __init__(self, report: CertificateDiagnosticsReport) -> None:
+        self.report = report
+
+    def inspect(self, installation: ManagedInstallation) -> CertificateDiagnosticsReport:
+        return self.report
+
+
 class FixedHostReadiness:
     def __init__(self, report: HostReadinessReport) -> None:
         self.report = report
@@ -168,6 +180,42 @@ def test_listener_ownership_evidence_is_preserved_as_a_typed_diagnostic_item() -
     assert listener.title == "监听端口与进程归属"
     assert listener.summary == "1 个监听端点的进程归属无法确认"
     assert listener.diagnostics == "TCP 4433：归属未知"
+
+
+def test_certificate_validity_is_preserved_as_a_typed_diagnostic_item() -> None:
+    center = DiagnosticsCenterService(
+        state_store=MemoryStateStore(),
+        config_inspector=empty_config_inspector(),
+        inspectors=DiagnosticsCenterInspectors(
+            certificate_diagnostics=FixedCertificateDiagnostics(
+                CertificateDiagnosticsReport(
+                    condition=CertificateDiagnosticCondition.ATTENTION,
+                    summary="1 个托管证书将在 30 天内过期",
+                    diagnostics="TLS：proxy.example.com，有效至 2026-08-01 (剩余 15 天)",
+                    guidance="检查 ACME 自动续期并在 7 天阈值前复检。",
+                )
+            )
+        ),
+        host_readiness=FixedHostReadiness(HostReadinessReport(items=())),
+        host_diagnostics=FixedHostDiagnostics(
+            HostDiagnosticsReport(
+                condition=HostCondition.HEALTHY,
+                summary="sing-box 服务运行正常",
+                diagnostics="active",
+                recovery_instructions=(),
+            )
+        ),
+    )
+
+    report = center.inspect()
+
+    certificate = next(
+        item for item in report.items if item.code is DiagnosticCode.CERTIFICATE_CONDITION
+    )
+    assert certificate.condition is DiagnosticCondition.ATTENTION
+    assert certificate.title == "托管证书有效期"
+    assert certificate.summary == "1 个托管证书将在 30 天内过期"
+    assert "proxy.example.com" in certificate.diagnostics
 
 
 def test_unresolved_public_domain_is_actionable_attention_without_hiding_runtime() -> None:

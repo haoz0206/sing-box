@@ -320,6 +320,12 @@ Release gate adds:
   unavailable `/proc`, IPv4/IPv6 inode merging, UDP socket state, owner process
   resolution, PID/descriptor scan limits, control-character cleaning,
   non-markup Textual presentation, and production composition;
+- managed certificate diagnostics for applied/enabled filtering, shared-target
+  deduplication, healthy/30-day/7-day/expired/not-yet-valid/material-state
+  policy, mixed-evidence preservation, operator-file and CertMagic cache
+  contracts, trusted-root and symlink containment, exact privileged request and
+  response schemas, private-key-field rejection, non-markup Textual
+  presentation, and direct/privileged production composition;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

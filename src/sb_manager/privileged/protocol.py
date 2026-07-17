@@ -2,11 +2,18 @@
 
 import json
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Protocol
 
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.privileged.config_apply import ApplyConfigRequest
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
+from sb_manager.seams.certificate_source import (
+    CertificateInspection,
+    CertificateSource,
+    CertificateTarget,
+    CertificateTargetKind,
+)
 from sb_manager.seams.config_target import (
     ConfigurationTargetInspector,
     LiveConfigObservation,
@@ -31,6 +38,9 @@ APPLY_CONFIG_FIELDS = {
     "expected_config_sha256",
 }
 INSPECT_CONFIG_FIELDS = {"schema_version", "operation"}
+INSPECT_CERTIFICATES_FIELDS = {"schema_version", "operation", "targets"}
+CERTIFICATE_TARGET_FIELDS = {"kind", "server_name", "location"}
+MAX_CERTIFICATE_TARGETS = 64
 
 
 class PrivilegeRequiredError(PermissionError):
@@ -49,13 +59,14 @@ class ConfigApplier(Protocol):
     def apply_config(self, request: ApplyConfigRequest) -> ApplyTransactionResult: ...
 
 
-def execute_privileged_request(
+def execute_privileged_request(  # noqa: PLR0912, PLR0913 - allowlisted operation dispatcher
     request_text: str,
     *,
     effective_user_id: int,
     core_activator: CoreActivator,
     config_applier: ConfigApplier | None = None,
     config_inspector: ConfigurationTargetInspector | None = None,
+    certificate_source: CertificateSource | None = None,
 ) -> str:
     """Authorize, parse, execute, and serialize one privileged operation."""
     if effective_user_id != 0:
@@ -75,6 +86,7 @@ def execute_privileged_request(
             "activate-core": ACTIVATE_CORE_FIELDS,
             "apply-config": APPLY_CONFIG_FIELDS,
             "inspect-config": INSPECT_CONFIG_FIELDS,
+            "inspect-certificates": INSPECT_CERTIFICATES_FIELDS,
         }.get(operation)
         if isinstance(operation, str)
         else None
@@ -94,6 +106,11 @@ def execute_privileged_request(
         if config_inspector is None:
             raise PrivilegedProtocolError("inspect-config operation is not available")
         return _serialize_config_observation(config_inspector.inspect())
+    if operation == "inspect-certificates":
+        if certificate_source is None:
+            raise PrivilegedProtocolError("inspect-certificates operation is not available")
+        targets = _certificate_targets(raw_request["targets"])
+        return _serialize_certificate_inspection(certificate_source.inspect(targets))
 
     sha256 = _required_sha256(raw_request)
     if operation == "apply-config":
@@ -181,6 +198,47 @@ def _optional_sha256(request: dict[str, object], field: str) -> str | None:
     return value
 
 
+def _certificate_targets(value: object) -> tuple[CertificateTarget, ...]:
+    if not isinstance(value, list):
+        raise PrivilegedProtocolError("Request field targets must be a list")
+    if not value or len(value) > MAX_CERTIFICATE_TARGETS:
+        raise PrivilegedProtocolError(
+            f"Request field targets must contain 1 to {MAX_CERTIFICATE_TARGETS} items"
+        )
+    targets = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict) or not all(isinstance(key, str) for key in item):
+            raise PrivilegedProtocolError(f"Certificate target {index} must be an object")
+        if set(item) != CERTIFICATE_TARGET_FIELDS:
+            raise PrivilegedProtocolError(
+                f"Certificate target fields must be exactly {sorted(CERTIFICATE_TARGET_FIELDS)}"
+            )
+        kind_value = item["kind"]
+        server_name = item["server_name"]
+        location_value = item["location"]
+        if not isinstance(kind_value, str):
+            raise PrivilegedProtocolError("Certificate target kind must be a string")
+        if not isinstance(server_name, str) or not server_name:
+            raise PrivilegedProtocolError(
+                "Certificate target server_name must be a non-empty string"
+            )
+        if not isinstance(location_value, str):
+            raise PrivilegedProtocolError("Certificate target location must be a string")
+        location = Path(location_value)
+        if not location.is_absolute():
+            raise PrivilegedProtocolError("Certificate target location must be absolute")
+        try:
+            kind = CertificateTargetKind(kind_value)
+        except ValueError as error:
+            raise PrivilegedProtocolError(
+                f"Unsupported certificate target kind: {kind_value!r}"
+            ) from error
+        targets.append(CertificateTarget(kind=kind, server_name=server_name, location=location))
+    if len(set(targets)) != len(targets):
+        raise PrivilegedProtocolError("Certificate targets must not contain duplicates")
+    return tuple(targets)
+
+
 def _serialize_config_result(result: ApplyTransactionResult) -> str:
     return json.dumps(
         {
@@ -240,6 +298,40 @@ def _serialize_config_observation(observation: LiveConfigObservation) -> str:
                 "exists": observation.exists,
                 "sha256": observation.sha256,
             },
+        },
+        sort_keys=True,
+    )
+
+
+def _serialize_certificate_inspection(inspection: CertificateInspection) -> str:
+    return json.dumps(
+        {
+            "schema_version": REQUEST_SCHEMA_VERSION,
+            "status": "observed",
+            "observations": [
+                {
+                    "target": {
+                        "kind": observation.target.kind.value,
+                        "server_name": observation.target.server_name,
+                        "location": str(observation.target.location),
+                    },
+                    "state": observation.state.value,
+                    "source_label": observation.source_label,
+                    "diagnostics": observation.diagnostics,
+                    "not_valid_before": (
+                        observation.not_valid_before.isoformat()
+                        if observation.not_valid_before is not None
+                        else None
+                    ),
+                    "not_valid_after": (
+                        observation.not_valid_after.isoformat()
+                        if observation.not_valid_after is not None
+                        else None
+                    ),
+                    "dns_names": list(observation.dns_names),
+                }
+                for observation in inspection.observations
+            ],
         },
         sort_keys=True,
     )

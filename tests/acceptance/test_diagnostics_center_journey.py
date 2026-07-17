@@ -223,6 +223,23 @@ def unknown_listener_owner_report() -> DiagnosticsCenterReport:
     )
 
 
+def expiring_certificate_report() -> DiagnosticsCenterReport:
+    return DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.CERTIFICATE_CONDITION,
+                condition=DiagnosticCondition.ATTENTION,
+                title="托管证书有效期",
+                summary="1 个托管证书将在 30 天内过期",
+                diagnostics=(
+                    "TLS [red]production[/red]：proxy.example.com，有效至 2026-08-01 (剩余 15 天)"
+                ),
+                guidance="检查 ACME 自动续期并在 7 天阈值前复检。",
+            ),
+        )
+    )
+
+
 async def test_operator_sees_generated_configuration_failure_and_recovery_guidance() -> None:
     app = ManagerApp(
         host_tools=ManagerAppHostTools(
@@ -294,6 +311,32 @@ async def test_operator_sees_unknown_listener_owner_without_a_false_healthy_clai
         assert (
             app.screen.query_one("#diagnostic-listener-ownership-details", Static).render().plain
             == "TCP 4433：[red]归属未知[/red]"
+        )
+
+
+async def test_operator_sees_expiring_certificate_as_literal_actionable_evidence() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(expiring_certificate_report())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert (
+            app.screen.query_one("#diagnostic-certificate-condition-title", Static).content
+            == "[注意] 托管证书有效期"
+        )
+        details = app.screen.query_one("#diagnostic-certificate-condition-details", Static)
+        assert details.content == (
+            "TLS [red]production[/red]：proxy.example.com，有效至 2026-08-01 (剩余 15 天)"
+        )
+        assert details.render().plain == details.content
+        assert (
+            app.screen.query_one("#diagnostic-certificate-condition-guidance", Static).content
+            == "下一步：检查 ACME 自动续期并在 7 天阈值前复检。"
         )
 
 

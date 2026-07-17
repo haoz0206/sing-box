@@ -1,4 +1,6 @@
 import json
+from collections.abc import Collection
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,13 @@ from sb_manager.privileged.protocol import (
     execute_privileged_request,
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.certificate_source import (
+    CertificateInspection,
+    CertificateMaterialState,
+    CertificateObservation,
+    CertificateTarget,
+    CertificateTargetKind,
+)
 from sb_manager.seams.config_target import LiveConfigObservation
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.core_activator import CoreActivationRequest
@@ -62,6 +71,28 @@ class RecordingConfigInspector:
     def inspect(self) -> LiveConfigObservation:
         self.inspections += 1
         return LiveConfigObservation(exists=True, sha256="c" * 64)
+
+
+class RecordingCertificateSource:
+    def __init__(self) -> None:
+        self.targets: tuple[CertificateTarget, ...] = ()
+
+    def inspect(self, targets: Collection[CertificateTarget]) -> CertificateInspection:
+        self.targets = tuple(targets)
+        target = self.targets[0]
+        return CertificateInspection(
+            observations=(
+                CertificateObservation(
+                    target=target,
+                    state=CertificateMaterialState.AVAILABLE,
+                    source_label="operator file",
+                    diagnostics="Leaf public certificate decoded",
+                    not_valid_before=datetime(2026, 7, 1, tzinfo=timezone.utc),
+                    not_valid_after=datetime(2026, 10, 1, tzinfo=timezone.utc),
+                    dns_names=("proxy.example.com",),
+                ),
+            )
+        )
 
 
 def valid_request_json() -> str:
@@ -167,6 +198,94 @@ def test_inspect_config_returns_only_existence_and_fingerprint() -> None:
         "status": "observed",
         "config": {"exists": True, "sha256": "c" * 64},
     }
+
+
+def test_inspect_certificates_returns_only_public_validity_evidence() -> None:
+    source = RecordingCertificateSource()
+
+    result = execute_privileged_request(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "operation": "inspect-certificates",
+                "targets": [
+                    {
+                        "kind": "operator-file",
+                        "server_name": "proxy.example.com",
+                        "location": "/etc/sing-box-manager/tls/proxy.crt",
+                    }
+                ],
+            }
+        ),
+        effective_user_id=0,
+        core_activator=RecordingCoreActivator(),
+        certificate_source=source,
+    )
+
+    assert source.targets == (
+        CertificateTarget(
+            kind=CertificateTargetKind.OPERATOR_FILE,
+            server_name="proxy.example.com",
+            location=Path("/etc/sing-box-manager/tls/proxy.crt"),
+        ),
+    )
+    assert json.loads(result) == {
+        "schema_version": 1,
+        "status": "observed",
+        "observations": [
+            {
+                "target": {
+                    "kind": "operator-file",
+                    "server_name": "proxy.example.com",
+                    "location": "/etc/sing-box-manager/tls/proxy.crt",
+                },
+                "state": "available",
+                "source_label": "operator file",
+                "diagnostics": "Leaf public certificate decoded",
+                "not_valid_before": "2026-07-01T00:00:00+00:00",
+                "not_valid_after": "2026-10-01T00:00:00+00:00",
+                "dns_names": ["proxy.example.com"],
+            }
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "target",
+    (
+        {
+            "kind": "operator-file",
+            "server_name": "proxy.example.com",
+            "location": "relative/proxy.crt",
+        },
+        {
+            "kind": "operator-file",
+            "server_name": "proxy.example.com",
+            "location": "/etc/sing-box-manager/tls/proxy.crt",
+            "key_path": "/etc/sing-box-manager/tls/proxy.key",
+        },
+    ),
+)
+def test_inspect_certificates_rejects_relative_locations_and_private_key_fields(
+    target: dict[str, object],
+) -> None:
+    source = RecordingCertificateSource()
+
+    with pytest.raises(PrivilegedProtocolError):
+        execute_privileged_request(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "operation": "inspect-certificates",
+                    "targets": [target],
+                }
+            ),
+            effective_user_id=0,
+            core_activator=RecordingCoreActivator(),
+            certificate_source=source,
+        )
+
+    assert source.targets == ()
 
 
 @pytest.mark.parametrize(
