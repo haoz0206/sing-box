@@ -18,6 +18,7 @@ from sb_manager.application.interface_preferences import (
     PreferencePersistence,
 )
 from sb_manager.seams.runtime import RuntimeKind
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,24 +47,37 @@ class PreferenceResetReviewRequested(Message):
 class SettingsScreen(Screen[None]):
     """Present safe interface settings without changing host configuration."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
     def __init__(
         self,
         color_scheme: ColorScheme,
         effective_settings: EffectiveSettings,
         preference_persistence: PreferencePersistence,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.color_scheme = color_scheme
         self.effective_settings = effective_settings
         self.preference_persistence = preference_persistence
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="settings-workspace"):
-            yield Static("设置", id="settings-title", markup=False)
-            yield Static("界面语言：简体中文", id="settings-language", markup=False)
+            yield Static(self.copy.text(UiText.SETTINGS_TITLE), id="settings-title", markup=False)
+            yield Static(
+                self.copy.text(UiText.SETTINGS_LANGUAGE),
+                id="settings-language",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.SETTINGS_LANGUAGE_POLICY),
+                id="settings-language-policy",
+                markup=False,
+            )
             yield Static(
                 self._appearance_label(),
                 id="settings-appearance",
@@ -76,7 +90,7 @@ class SettingsScreen(Screen[None]):
                 markup=False,
             )
             yield Button(
-                "审查并重置界面偏好",
+                self.copy.text(UiText.SETTINGS_REVIEW_RESET),
                 id="review-preference-reset",
                 classes=(
                     ""
@@ -92,7 +106,7 @@ class SettingsScreen(Screen[None]):
                 markup=False,
             )
             yield Static(
-                "核心更新：手动指定确切版本 · 不自动更新",
+                self.copy.text(UiText.SETTINGS_UPDATE_POLICY),
                 id="settings-update-policy",
                 markup=False,
             )
@@ -107,12 +121,18 @@ class SettingsScreen(Screen[None]):
                 markup=False,
             )
             yield Static(
-                self._path_label("desired state", self.effective_settings.state_file),
+                self._path_label(
+                    self.copy.text(UiText.SETTINGS_ROLE_STATE),
+                    self.effective_settings.state_file,
+                ),
                 id="settings-state-file",
                 markup=False,
             )
             yield Static(
-                self._path_label("界面偏好", self.effective_settings.preferences_file),
+                self._path_label(
+                    self.copy.text(UiText.SETTINGS_ROLE_PREFERENCES),
+                    self.effective_settings.preferences_file,
+                ),
                 id="settings-preferences-file",
                 markup=False,
             )
@@ -123,7 +143,7 @@ class SettingsScreen(Screen[None]):
             )
             yield Static(
                 self._path_label(
-                    "事务提交目录",
+                    self.copy.text(UiText.SETTINGS_ROLE_TRANSACTION),
                     self.effective_settings.transaction_directory,
                 ),
                 id="settings-transaction-directory",
@@ -169,55 +189,73 @@ class SettingsScreen(Screen[None]):
         self.show_preference_persistence(PreferencePersistence.RESET)
 
     def _appearance_label(self) -> str:
-        label = "深色" if self.color_scheme is ColorScheme.DARK else "浅色"
-        return f"界面外观：{label}"
+        return self.copy.text(UiText.SETTINGS_APPEARANCE, label=self._color_label())
 
     def _toggle_label(self) -> str:
-        target = "浅色" if self.color_scheme is ColorScheme.DARK else "深色"
-        return f"切换为{target}"
+        target = (
+            self.copy.text(UiText.SETTINGS_COLOR_LIGHT)
+            if self.color_scheme is ColorScheme.DARK
+            else self.copy.text(UiText.SETTINGS_COLOR_DARK)
+        )
+        return self.copy.text(UiText.SETTINGS_TOGGLE_APPEARANCE, target=target)
+
+    def _color_label(self) -> str:
+        key = (
+            UiText.SETTINGS_COLOR_DARK
+            if self.color_scheme is ColorScheme.DARK
+            else UiText.SETTINGS_COLOR_LIGHT
+        )
+        return self.copy.text(key)
 
     def _persistence_label(self) -> str:
         if self.preference_persistence is PreferencePersistence.SAVED:
-            label = "浅色" if self.color_scheme is ColorScheme.LIGHT else "深色"
-            return f"外观保存：已保存，下次启动将继续使用{label}"
-        labels = {
-            PreferencePersistence.LOADED: "外观保存：已从偏好文件载入",
-            PreferencePersistence.LOAD_FAILED: "外观保存：无法读取偏好文件，本次使用默认深色",
-            PreferencePersistence.SAVE_FAILED: (
-                "外观保存：本次已应用，但未能保存。下次启动可能恢复默认值"
-            ),
-            PreferencePersistence.RESET: "外观保存：已重置为深色，原文件已按 SHA-256 归档",
-            PreferencePersistence.READY: "外观保存：已启用，切换后会保留到下次启动",
-            PreferencePersistence.SESSION_ONLY: "外观保存：仅本次会话",
+            return self.copy.text(
+                UiText.SETTINGS_PERSISTENCE_SAVED,
+                label=self._color_label(),
+            )
+        keys = {
+            PreferencePersistence.LOADED: UiText.SETTINGS_PERSISTENCE_LOADED,
+            PreferencePersistence.LOAD_FAILED: UiText.SETTINGS_PERSISTENCE_LOAD_FAILED,
+            PreferencePersistence.SAVE_FAILED: UiText.SETTINGS_PERSISTENCE_SAVE_FAILED,
+            PreferencePersistence.RESET: UiText.SETTINGS_PERSISTENCE_RESET,
+            PreferencePersistence.READY: UiText.SETTINGS_PERSISTENCE_READY,
+            PreferencePersistence.SESSION_ONLY: UiText.SETTINGS_PERSISTENCE_SESSION_ONLY,
         }
-        return labels[self.preference_persistence]
+        return self.copy.text(keys[self.preference_persistence])
 
     def _safety_label(self) -> str:
         if self.preference_persistence is PreferencePersistence.SESSION_ONLY:
-            return "外观变更仅影响本次 TUI 会话，不会修改主机或 desired state。"
-        return "外观偏好只写入当前用户的本地偏好文件，不会修改主机或 desired state。"
+            return self.copy.text(UiText.SETTINGS_SAFETY_SESSION)
+        return self.copy.text(UiText.SETTINGS_SAFETY_PERSISTED)
 
     def _host_access_label(self) -> str:
         mode = self.effective_settings.host_access_mode
-        if mode is HostAccessMode.PRIVILEGED:
-            return "主机变更：最小权限 helper"
-        if mode is HostAccessMode.DIRECT:
-            return "主机变更：直接模式"
-        return "主机变更：当前启动方式未提供"
+        keys: dict[HostAccessMode | None, UiText] = {
+            HostAccessMode.PRIVILEGED: UiText.SETTINGS_HOST_ACCESS_PRIVILEGED,
+            HostAccessMode.DIRECT: UiText.SETTINGS_HOST_ACCESS_DIRECT,
+            None: UiText.SETTINGS_HOST_ACCESS_UNAVAILABLE,
+        }
+        return self.copy.text(keys[mode])
 
     def _runtime_label(self) -> str:
         runtime = self.effective_settings.runtime_kind
-        if runtime is RuntimeKind.SYSTEMD:
-            return "服务管理：systemd"
-        if runtime is RuntimeKind.OPENRC:
-            return "服务管理：OpenRC"
-        return "服务管理：当前启动方式未提供"
+        keys: dict[RuntimeKind | None, UiText] = {
+            RuntimeKind.SYSTEMD: UiText.SETTINGS_RUNTIME_SYSTEMD,
+            RuntimeKind.OPENRC: UiText.SETTINGS_RUNTIME_OPENRC,
+            None: UiText.SETTINGS_RUNTIME_UNAVAILABLE,
+        }
+        return self.copy.text(keys[runtime])
 
     def _config_file_label(self) -> str:
         if self.effective_settings.host_access_mode is HostAccessMode.PRIVILEGED:
-            return "live configuration：由最小权限 helper 的固定策略管理"
-        return self._path_label("live configuration", self.effective_settings.config_file)
+            return self.copy.text(UiText.SETTINGS_CONFIG_PRIVILEGED)
+        return self._path_label(
+            self.copy.text(UiText.SETTINGS_ROLE_CONFIG),
+            self.effective_settings.config_file,
+        )
 
-    @staticmethod
-    def _path_label(role: str, path: Path | None) -> str:
-        return f"{role}：{path if path is not None else '当前启动方式未提供'}"
+    def _path_label(self, role: str, path: Path | None) -> str:
+        rendered_path = (
+            str(path) if path is not None else self.copy.text(UiText.SETTINGS_PATH_UNAVAILABLE)
+        )
+        return self.copy.text(UiText.SETTINGS_PATH, role=role, path=rendered_path)

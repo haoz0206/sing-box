@@ -213,6 +213,14 @@ confirmation rechecks the bytes, preserves them in a hash-named private
 archive, and never changes desired state or the managed host.
 _Avoid_: Automatic repair, deleting unknown preferences, schema downgrade
 
+**Interface copy catalog**:
+The immutable, locale-specific set of semantic text identities and templates
+used by one completely migrated TUI journey. A catalog must cover every
+declared identity with the exact required placeholders before construction;
+an additional locale is not offered until every user-visible safety journey is
+catalogued.
+_Avoid_: Screen-local translation dictionary, partial locale, translated domain key
+
 **Effective settings**:
 The disclosure-safe startup choices actually used by the running manager,
 including host-access mode, init system, desired-state path, live-config policy,

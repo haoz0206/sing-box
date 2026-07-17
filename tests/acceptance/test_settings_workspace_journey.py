@@ -39,7 +39,12 @@ async def test_operator_changes_appearance_for_the_current_session() -> None:
         await pilot.click("#open-settings")
 
         assert app.screen.query_one("#settings-title", Static).content == "设置"
-        assert app.screen.query_one("#settings-language", Static).content == "界面语言：简体中文"
+        assert app.screen.query_one("#settings-language", Static).content == (
+            "界面语言：简体中文 · 当前版本完整支持"
+        )
+        assert app.screen.query_one("#settings-language-policy", Static).content == (
+            "语言范围：完整文案目录覆盖所有安全流程前，不开放其他语言。"
+        )
         assert app.screen.query_one("#settings-appearance", Static).content == "界面外观：深色"
         assert app.screen.query_one("#settings-safety", Static).content == (
             "外观变更仅影响本次 TUI 会话，不会修改主机或 desired state。"

@@ -436,11 +436,16 @@ that core versions are chosen manually and automatic updates are disabled.
 These values are evidence, not editable copies of command arguments;
 unsupported mutation controls are absent.
 
-Chinese is the only offered UI language in this slice. Additional locale
-choices must not appear until all user-visible strings have moved into a
-complete catalog, so an operator never receives a partially translated safety
-workflow. Additional accessibility preferences require their own accepted
-behavior before extending the complete preference document.
+Chinese is the only offered UI language. The immutable interface copy catalog
+uses semantic text identities, validates complete key coverage and exact
+template placeholders at construction, and exposes only one rendering method
+to screens. The first complete migration unit covers Settings and every
+preference-reset outcome; those screens contain no locale text. Settings states
+that Chinese is fully supported and explains why other languages are withheld.
+Additional locale choices must not appear until every remaining user-visible
+string has moved into the catalog, so an operator never receives a partially
+translated safety workflow. Additional accessibility preferences require their
+own accepted behavior before extending the complete preference document.
 
 ## 6. Domain model
 
@@ -889,6 +894,12 @@ Current implementation status (2026-07-17):
   effective direct/helper, init-system, update-policy, preference, and host
   paths are disclosed from production composition without becoming editable
   host or desired-state controls;
+- validated interface copy: Settings and the complete hash-bound preference
+  reset journey render through one immutable simplified-Chinese catalog whose
+  construction rejects missing, extra, or placeholder-incompatible entries;
+  the UI discloses that no additional locale is available until all remaining
+  safety journeys have migrated, and neither migrated screen retains locale
+  literals;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate

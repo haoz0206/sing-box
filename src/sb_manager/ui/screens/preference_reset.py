@@ -17,6 +17,7 @@ from sb_manager.application.interface_preferences import (
     PreferenceStoreError,
 )
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 
 class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceResetResult | None]):
@@ -26,34 +27,42 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
         self,
         preference_service: InterfacePreferenceService,
         plan: PreferenceResetPlan,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.preference_service = preference_service
         self.plan = plan
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="preference-reset-confirmation"):
-            yield Static("确认重置界面偏好", id="preference-reset-title", markup=False)
             yield Static(
-                f"待替换文件 SHA-256：{self.plan.expected_sha256}",
+                self.copy.text(UiText.PREFERENCE_RESET_TITLE),
+                id="preference-reset-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PREFERENCE_RESET_FINGERPRINT,
+                    sha256=self.plan.expected_sha256,
+                ),
                 id="preference-reset-fingerprint",
                 markup=False,
             )
             yield Static(
-                "重置结果：schema v1 · 深色外观",
+                self.copy.text(UiText.PREFERENCE_RESET_DEFAULT),
                 id="preference-reset-default",
                 markup=False,
             )
             yield Static(
-                "确认后会先归档原字节，再只替换当前用户的界面偏好。"
-                "不会修改 desired state、live configuration 或主机。",
+                self.copy.text(UiText.PREFERENCE_RESET_SAFETY),
                 id="preference-reset-safety",
                 markup=False,
             )
             yield Static("", id="preference-reset-error", classes="hidden", markup=False)
             yield Button(
-                "确认并重置",
+                self.copy.text(UiText.PREFERENCE_RESET_CONFIRM),
                 id="confirm-preference-reset",
                 variant="warning",
             )
@@ -65,7 +74,7 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
             return
         self.query_one("#confirm-preference-reset", Button).disabled = True
         self.query_one("#preference-reset-safety", Static).update(
-            "操作已确认，正在归档并重置界面偏好。完成前无法返回。"
+            self.copy.text(UiText.PREFERENCE_RESET_IN_PROGRESS)
         )
         self.execute_reset()
 
@@ -82,7 +91,7 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
         except Exception:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                PreferenceResetOperationalErrorScreen(),
+                PreferenceResetOperationalErrorScreen(self.copy),
             )
             return
         self.app.call_from_thread(self.finish_reset, result)
@@ -94,13 +103,13 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
     def show_conflict(self) -> None:
         self.finish_confirmed_operation()
         error = self.query_one("#preference-reset-error", Static)
-        error.update("偏好文件在审阅后已变化，未覆盖任何内容。请返回设置重新审查。")
+        error.update(self.copy.text(UiText.PREFERENCE_RESET_CONFLICT))
         error.remove_class("hidden")
 
     def show_error(self) -> None:
         self.finish_confirmed_operation()
         error = self.query_one("#preference-reset-error", Static)
-        error.update("无法安全归档或写入偏好文件。请检查路径和权限后重新审查。")
+        error.update(self.copy.text(UiText.PREFERENCE_RESET_ERROR))
         error.remove_class("hidden")
         self.query_one("#confirm-preference-reset", Button).disabled = False
 
@@ -108,19 +117,28 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
 class PreferenceResetPlanningErrorScreen(Screen[None]):
     """Keep an unexpected or unsafe reset candidate non-disclosing."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="preference-reset-planning-error"):
-            yield Static("无法准备界面偏好重置", id="preference-reset-planning-error-title")
             yield Static(
-                "偏好文件无法安全读取或不是普通文件，底层错误和文件内容均未显示。",
+                self.copy.text(UiText.PREFERENCE_RESET_PLANNING_TITLE),
+                id="preference-reset-planning-error-title",
+            )
+            yield Static(
+                self.copy.text(UiText.PREFERENCE_RESET_PLANNING_DETAILS),
                 id="preference-reset-planning-error-details",
                 markup=False,
             )
             yield Static(
-                "尚未替换或删除任何内容。请检查偏好路径、权限或符号链接后重新打开设置。",
+                self.copy.text(UiText.PREFERENCE_RESET_PLANNING_SAFETY),
                 id="preference-reset-planning-error-safety",
                 markup=False,
             )
@@ -130,19 +148,28 @@ class PreferenceResetPlanningErrorScreen(Screen[None]):
 class PreferenceResetOperationalErrorScreen(Screen[None]):
     """Report an unknown local preference-reset result without disclosure."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="preference-reset-operational-error"):
-            yield Static("无法确认界面偏好重置结果", id="preference-reset-operational-title")
             yield Static(
-                "发生意外错误，底层错误和偏好文件内容均未显示。",
+                self.copy.text(UiText.PREFERENCE_RESET_OPERATIONAL_TITLE),
+                id="preference-reset-operational-title",
+            )
+            yield Static(
+                self.copy.text(UiText.PREFERENCE_RESET_OPERATIONAL_DETAILS),
                 id="preference-reset-operational-details",
                 markup=False,
             )
             yield Static(
-                "当前偏好文件或归档可能已经写入。请重新启动 manager 只读检查后再决定是否重试。",
+                self.copy.text(UiText.PREFERENCE_RESET_OPERATIONAL_SAFETY),
                 id="preference-reset-operational-safety",
                 markup=False,
             )

@@ -392,9 +392,11 @@ Release gate adds:
   confirmation, archive-before-replace semantics, mode-`0600` original-byte
   preservation, confirmation-time fingerprint conflict, non-disclosing typed
   and unknown failures, immediate default-theme restoration, cross-process
-  reload, effective direct/helper and init-system labels, helper-fixed versus
-  direct config targeting, transaction paths, manual-exact-version update
-  policy, contextual `s` suppression, and production CLI composition;
+  reload, complete simplified-Chinese language support plus an explicit
+  no-partial-locale policy, catalog-backed Settings/reset copy, effective
+  direct/helper and init-system labels, helper-fixed versus direct config
+  targeting, transaction paths, manual-exact-version update policy, contextual
+  `s` suppression, and production CLI composition;
 - confirmed-operation navigation for pre-confirmation cancellation, disabled
   return while a worker is in flight, duplicate-confirmation suppression,
   terminal-result delivery to the originating screen, and guard release before

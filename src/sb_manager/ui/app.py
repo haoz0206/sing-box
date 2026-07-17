@@ -107,6 +107,7 @@ from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.connection_share import ConnectionSharePanel
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.labels import PROTOCOL_LABELS
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
@@ -1034,6 +1035,7 @@ class ManagerAppInterfaceTools:
 
     effective_settings: EffectiveSettings = field(default_factory=EffectiveSettings)
     preference_service: InterfacePreferenceService | None = None
+    copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE
 
 
 class ManagerApp(App[None]):
@@ -1048,7 +1050,7 @@ class ManagerApp(App[None]):
         ("a", "add_profile", "添加配置"),
         ("p", "open_profiles", "配置"),
         ("n", "open_network", "网络"),
-        ("s", "open_settings", "设置"),
+        ("s", "open_settings", SIMPLIFIED_CHINESE.text(UiText.SETTINGS_BINDING)),
         ("d", "open_diagnostics", "诊断"),
         ("o", "open_operations", "运维"),
         ("q", "quit", "退出"),
@@ -1087,6 +1089,7 @@ class ManagerApp(App[None]):
         self.apply_history_reader = tools.apply_history_reader
         self.effective_settings = interface.effective_settings
         self.preference_service = interface.preference_service
+        self.copy_catalog = interface.copy_catalog
         preference_snapshot = (
             interface.preference_service.load()
             if interface.preference_service is not None
@@ -1152,13 +1155,12 @@ class ManagerApp(App[None]):
         )
         yield self._dashboard_primary_action(recommendation)
 
-    @staticmethod
-    def _workspace_navigation() -> Horizontal:
+    def _workspace_navigation(self) -> Horizontal:
         return Horizontal(
             Button("管理配置", id="open-profiles"),
             Button("查看网络概览", id="open-network"),
             Button("打开运维中心", id="open-operations"),
-            Button("打开设置", id="open-settings"),
+            Button(self.copy_catalog.text(UiText.SETTINGS_OPEN), id="open-settings"),
             id="dashboard-workspace-navigation",
         )
 
@@ -1577,6 +1579,7 @@ class ManagerApp(App[None]):
                 color_scheme,
                 self.effective_settings,
                 self._preference_persistence,
+                self.copy_catalog,
             )
         )
 
@@ -1596,10 +1599,14 @@ class ManagerApp(App[None]):
         try:
             plan = self.preference_service.plan_reset()
         except Exception:
-            self.push_screen(PreferenceResetPlanningErrorScreen())
+            self.push_screen(PreferenceResetPlanningErrorScreen(self.copy_catalog))
             return
         self.push_screen(
-            PreferenceResetConfirmationScreen(self.preference_service, plan),
+            PreferenceResetConfirmationScreen(
+                self.preference_service,
+                plan,
+                self.copy_catalog,
+            ),
             self.finish_preference_reset,
         )
 
