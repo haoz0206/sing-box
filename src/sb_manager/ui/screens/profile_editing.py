@@ -196,10 +196,9 @@ class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
         plan: ProfileEditPlan,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.profile_editor = profile_editor
         self.plan = plan
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         changes: list[str] = []

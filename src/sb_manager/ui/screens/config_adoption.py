@@ -176,9 +176,8 @@ class ConfigAdoptionScreen(ConfirmedOperationScreen[None]):
         config_adopter: ConfigAdopter,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.config_adopter = config_adopter
-        self.copy = copy_catalog
         self.plan: ConfigAdoptionPlan | None = None
 
     def compose(self) -> ComposeResult:

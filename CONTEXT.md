@@ -326,6 +326,8 @@ _Avoid_: Automatic repair, deleting unknown preferences, schema downgrade
 The immutable, locale-specific set of semantic text identities and templates
 used by one completely migrated TUI journey. A catalog must cover every
 declared identity with the exact required placeholders before construction;
+shared confirmation navigation receives the same catalog and renders its
+pre-confirmation cancellation label through one common semantic identity;
 an additional locale is not offered until every user-visible safety journey is
 catalogued.
 _Avoid_: Screen-local translation dictionary, partial locale, translated domain key

@@ -34,10 +34,9 @@ class ProfileRemovalScreen(ConfirmedOperationScreen[None]):
         profile_id: str,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.profile_remover = profile_remover
         self.plan: ProfileRemovalPlan = profile_remover.plan_removal(profile_id)
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         draft_only = self.plan.scope is ProfileRemovalScope.DESIRED_STATE_ONLY

@@ -17,6 +17,7 @@ class UiText(str, Enum):
     """Stable semantic identities for catalogued operator-facing copy."""
 
     COMMON_RETURN = "common.return"
+    COMMON_CANCEL = "common.cancel"
     APP_SUBTITLE = "app.subtitle"
     APP_BINDING_HELP = "app.binding.help"
     APP_BINDING_ADD_PROFILE = "app.binding.add_profile"
@@ -1064,6 +1065,7 @@ SIMPLIFIED_CHINESE = CopyCatalog(
     UiLocale.SIMPLIFIED_CHINESE,
     {
         UiText.COMMON_RETURN: "返回",
+        UiText.COMMON_CANCEL: "取消",
         UiText.APP_SUBTITLE: "安全地搭建和维护你的代理服务",
         UiText.APP_BINDING_HELP: "帮助",
         UiText.APP_BINDING_ADD_PROFILE: "添加配置",

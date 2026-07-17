@@ -1,9 +1,12 @@
 """Shared navigation guard for explicitly confirmed background operations."""
 
+from dataclasses import replace
 from typing import ClassVar, Generic, TypeVar
 
-from textual.binding import BindingType
+from textual.binding import ActiveBinding, BindingType
 from textual.screen import Screen
+
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 ScreenResult = TypeVar("ScreenResult")
 
@@ -11,9 +14,37 @@ ScreenResult = TypeVar("ScreenResult")
 class ConfirmedOperationScreen(Screen[ScreenResult], Generic[ScreenResult]):
     """Keep a confirmed operation visible until it reaches a terminal state."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "return_from_confirmation", "取消")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        (
+            "escape",
+            "return_from_confirmation",
+            SIMPLIFIED_CHINESE.text(UiText.COMMON_CANCEL),
+        )
+    ]
 
     _confirmed_operation_running = False
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
+
+    @property
+    def active_bindings(self) -> dict[str, ActiveBinding]:
+        """Render the shared cancellation action through this screen's catalog."""
+
+        bindings = super().active_bindings
+        active_escape = bindings.get("escape")
+        if active_escape is not None and active_escape.binding.action == "return_from_confirmation":
+            bindings["escape"] = ActiveBinding(
+                active_escape.node,
+                replace(
+                    active_escape.binding,
+                    description=self.copy.text(UiText.COMMON_CANCEL),
+                ),
+                active_escape.enabled,
+                active_escape.tooltip,
+            )
+        return bindings
 
     @property
     def navigation_locked(self) -> bool:

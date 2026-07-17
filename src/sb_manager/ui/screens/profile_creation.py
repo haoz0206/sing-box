@@ -433,10 +433,9 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
         profile_id: str,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.installation = installation
         self.profile_applier = profile_applier
-        self.copy = copy_catalog
         try:
             self.profile = next(
                 profile for profile in installation.profiles if profile.profile_id == profile_id

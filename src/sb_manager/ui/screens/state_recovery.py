@@ -160,10 +160,9 @@ class StateRecoveryConfirmationScreen(ConfirmedOperationScreen[None]):
         plan: StateRecoveryPlan,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.recovery_manager = recovery_manager
         self.plan = plan
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()

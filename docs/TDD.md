@@ -275,6 +275,10 @@ Release gate adds:
   results; stable application validation identities; literal non-markup dynamic
   evidence; duplicate-confirmation suppression; and terminal button/`Esc`
   navigation to a freshly recomposed dashboard;
+- shared confirmed-operation traversal through the Textual Pilot seam: the
+  journey catalog supplies the visible `common.cancel` Footer description,
+  pre-confirmation `Esc` returns to the intact parent form, and in-flight
+  navigation remains visible but disabled until a typed terminal state;
 - purpose-first recommendation examples for general, low-latency,
   restricted-network, and compatibility outcomes; exact protocol/transport
   variant and rationale identity, catalog-rendered reasons and tradeoffs,

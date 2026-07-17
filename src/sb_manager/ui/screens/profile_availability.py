@@ -36,10 +36,9 @@ class ProfileAvailabilityPlanScreen(ConfirmedOperationScreen[None]):
         plan: ProfileAvailabilityPlan,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.manager = manager
         self.plan = plan
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         pausing = self.plan.target is ProfileAvailability.PAUSED

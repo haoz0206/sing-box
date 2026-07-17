@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import cast
 
 from textual.pilot import Pilot
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Footer, Input, Static
 
 from sb_manager.application.core_update import (
     CorePrereleaseConsentRequiredError,
@@ -25,6 +25,7 @@ class CoreUpdateMarkerCatalog:
 
     def text(self, key: UiText, /, **values: object) -> str:
         markers = {
+            "common.cancel": "目录取消确认",
             "core_update.open": "目录打开核心更新",
             "core_update.form.title": "目录核心更新",
             "core_update.form.guidance": "目录核心更新说明",
@@ -210,6 +211,26 @@ async def test_core_update_copy_catalog_renders_semantic_plan_warning() -> None:
             "目录计划安全说明"
         )
         assert str(app.screen.query_one("#confirm-core-update", Button).label) == ("目录确认激活")
+
+
+async def test_core_update_cancel_binding_comes_from_the_interface_catalog() -> None:
+    updater = RecordingCoreUpdater()
+    app = ManagerApp(
+        core_updater=updater,
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, CoreUpdateMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await open_core_plan(app, updater, pilot)
+
+        footer = app.screen.query_one(Footer)
+        rendered_footer = " ".join(str(widget.render()) for widget in footer.query("*"))
+        assert "目录取消确认" in rendered_footer
+
+        await pilot.press("escape")
+        assert app.screen.query_one("#core-version", Input).value == VERSION
 
 
 async def test_operator_can_preview_an_exact_core_update_without_mutation() -> None:

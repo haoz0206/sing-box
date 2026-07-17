@@ -180,10 +180,9 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
         plan: CoreUpdatePlan,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.core_updater = core_updater
         self.plan = plan
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()

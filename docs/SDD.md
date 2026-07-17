@@ -712,7 +712,11 @@ thread, the originating screen remains mounted, its return binding is visibly
 disabled, and progress text states that the operation cannot be left. Releasing
 the guard is part of presenting every terminal path, including retryable
 errors, unknown-result screens, same-screen success, and dismissed typed
-results. Escape never implies cancellation of host or desired-state work.
+results. The shared confirmation screen receives the journey's validated copy
+catalog and renders the visible pre-confirmation Escape label through the
+`common.cancel` identity, so all confirmed workflows expose one localized
+navigation contract. Escape never implies cancellation of host or desired-state
+work.
 
 ### 7.2 Application module
 

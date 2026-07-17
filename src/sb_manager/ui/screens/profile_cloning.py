@@ -119,13 +119,12 @@ class ProfileCloneScreen(ConfirmedOperationScreen[ProfileCloneResult | None]):
         source_profile_id: str,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.profile_cloner = profile_cloner
         self.plan = profile_cloner.plan(
             PlanProfileCloneRequest(source_profile_id=source_profile_id)
         )
         self.result: ProfileCloneResult | None = None
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()

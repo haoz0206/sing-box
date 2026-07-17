@@ -29,10 +29,9 @@ class PreferenceResetConfirmationScreen(ConfirmedOperationScreen[PreferenceReset
         plan: PreferenceResetPlan,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
-        super().__init__()
+        super().__init__(copy_catalog)
         self.preference_service = preference_service
         self.plan = plan
-        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
