@@ -127,6 +127,12 @@ from sb_manager.ui.screens.profiles import (
     ProfileWorkspaceActionKind,
     ProfileWorkspaceActionRequested,
 )
+from sb_manager.ui.screens.settings import (
+    ColorScheme,
+    ColorSchemeChangeRequested,
+    EffectiveSettings,
+    SettingsScreen,
+)
 from sb_manager.ui.screens.state_recovery import (
     StateRecoveryConfirmationScreen,
     StateRecoveryInspectionErrorPanel,
@@ -1022,6 +1028,7 @@ class ManagerApp(App[None]):
         ("a", "add_profile", "添加配置"),
         ("p", "open_profiles", "配置"),
         ("n", "open_network", "网络"),
+        ("s", "open_settings", "设置"),
         ("d", "open_diagnostics", "诊断"),
         ("o", "open_operations", "运维"),
         ("q", "quit", "退出"),
@@ -1033,6 +1040,7 @@ class ManagerApp(App[None]):
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
         host_tools: ManagerAppHostTools | None = None,
+        effective_settings: EffectiveSettings | None = None,
     ) -> None:
         super().__init__()
         tools = host_tools or ManagerAppHostTools()
@@ -1056,6 +1064,7 @@ class ManagerApp(App[None]):
         self.state_recovery_manager = tools.state_recovery_manager
         self.service_log_reader = tools.service_log_reader
         self.apply_history_reader = tools.apply_history_reader
+        self.effective_settings = effective_settings or EffectiveSettings()
         self._current_dashboard_recommendation: DashboardRecommendation | None = None
         self._dashboard_ready = False
         self._host_diagnostics_failed = False
@@ -1117,6 +1126,7 @@ class ManagerApp(App[None]):
             Button("管理配置", id="open-profiles"),
             Button("查看网络概览", id="open-network"),
             Button("打开运维中心", id="open-operations"),
+            Button("打开设置", id="open-settings"),
             id="dashboard-workspace-navigation",
         )
 
@@ -1189,6 +1199,10 @@ class ManagerApp(App[None]):
         if self._dashboard_action_available():
             self.open_network_workspace()
 
+    def action_open_settings(self) -> None:
+        if self._dashboard_action_available():
+            self.open_settings_workspace()
+
     def action_open_diagnostics(self) -> None:
         if self._dashboard_action_available() and self.diagnostics_center is not None:
             self.open_diagnostics_center()
@@ -1202,6 +1216,7 @@ class ManagerApp(App[None]):
             "add_profile",
             "open_profiles",
             "open_network",
+            "open_settings",
             "open_operations",
             "quit",
         }:
@@ -1521,6 +1536,15 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, "#open-network")
     def open_network_workspace(self) -> None:
         self.push_screen(NetworkScreen(build_network_inventory(self.manager.get_installation())))
+
+    @on(Button.Pressed, "#open-settings")
+    def open_settings_workspace(self) -> None:
+        color_scheme = ColorScheme.DARK if self.current_theme.dark else ColorScheme.LIGHT
+        self.push_screen(SettingsScreen(color_scheme, self.effective_settings))
+
+    @on(ColorSchemeChangeRequested)
+    def change_color_scheme(self, event: ColorSchemeChangeRequested) -> None:
+        self.theme = event.color_scheme.textual_theme
 
     @on(ProfileWorkspaceActionRequested)
     def handle_profile_workspace_action(

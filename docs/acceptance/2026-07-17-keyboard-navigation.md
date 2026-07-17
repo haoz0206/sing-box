@@ -13,6 +13,8 @@ the dashboard context.
 - `a` starts the purpose-first profile journey from the root dashboard.
 - `p` opens the complete profiles workspace from the root dashboard.
 - `n` opens the read-only network-intent workspace from the root dashboard.
+- `s` opens Settings from the root dashboard and remains ordinary input on
+  child screens.
 - `d` opens the diagnostics center only when that capability is configured.
 - `o` opens the capability-aware operations workspace; core planning remains an
   explicit selection inside it.

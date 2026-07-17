@@ -88,6 +88,7 @@ from sb_manager.transactions.apply import ApplyCoordinator
 from sb_manager.transactions.staging import ConfigurationStager
 from sb_manager.transports.catalog import TransportCatalog
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.screens.settings import EffectiveSettings
 
 MANAGED_CORE_BINARY = Path("/opt/sing-box-manager/core/current/sing-box")
 
@@ -346,6 +347,17 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
+        effective_settings=EffectiveSettings(
+            host_access_mode=access_mode,
+            runtime_kind=runtime_kind,
+            state_file=arguments.state_file,
+            config_file=(arguments.config_file if access_mode is HostAccessMode.DIRECT else None),
+            transaction_directory=(
+                arguments.staging_dir
+                if access_mode is HostAccessMode.DIRECT
+                else arguments.privileged_incoming_dir
+            ),
+        ),
         host_tools=ManagerAppHostTools(
             host_diagnostics=host_diagnostics,
             certificate_diagnostics=certificate_diagnostics,

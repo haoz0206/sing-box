@@ -109,7 +109,7 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help   a Add   p Profiles   n Network   d Diagnostics   o Operations   q Quit │
+│ ? Help  a Add  p Profiles  n Network  s Settings  d Diagnostics  o Operations  q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,8 +117,9 @@ The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
 
 The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
-`p` for the profiles workspace, `n` for the read-only network workspace, `d`
-for the diagnostics center, `o` for the operations workspace, and `q` for exit.
+`p` for the profiles workspace, `n` for the read-only network workspace, `s`
+for Settings, `d` for the diagnostics center, `o` for the operations workspace,
+and `q` for exit.
 Core lifecycle is not a direct root shortcut: the operations workspace
 first explains available capabilities and safety, then opens the existing plan
 workflow only after an explicit selection. `check_action()` hides dashboard-only
@@ -395,8 +396,28 @@ retains its own plan and explicit confirmation.
 ### 5.8 Settings
 
 Owns language, color/accessibility preferences, update channel, paths, and
-advanced behavior. Chinese is the initial UI language; user-visible strings are
-centralized so another locale does not require changing screens.
+advanced behavior.
+
+The first Settings slice exposes one safe session preference and one read-only
+effective-settings snapshot. The dashboard and contextual `s` shortcut open the
+workspace. Dark/light appearance changes use Textual's built-in themes, apply
+to the complete running application, and remain explicit as session-only: they
+do not write a preference file, desired state, live configuration, or host
+setting. A typed screen message carries the selected scheme to the root
+application, which owns global theme state.
+
+The same page displays the startup choices actually used by production
+composition: direct versus minimum-privilege helper access, systemd versus
+OpenRC, desired-state path, direct live-config path or helper-fixed policy, and
+the active transaction directory. It also states that core versions are chosen
+manually and automatic updates are disabled. These values are evidence, not
+editable copies of command arguments; unsupported mutation controls are absent.
+
+Chinese is the only offered UI language in this slice. Additional locale
+choices must not appear until all user-visible strings have moved into a
+complete catalog, so an operator never receives a partially translated safety
+workflow. Persisted appearance or accessibility preferences likewise require a
+separately accepted store interface and adapter contract.
 
 ## 6. Domain model
 
@@ -741,7 +762,7 @@ the release acceptance criteria. It is not translated function by function.
 Current implementation status (2026-07-17):
 
 - keyboard-first contextual navigation: the Footer exposes help and only the
-  dashboard actions currently safe to open; `a`, `p`, `n`, `d`, `o`, and `q` are gated by
+  dashboard actions currently safe to open; `a`, `p`, `n`, `s`, `d`, `o`, and `q` are gated by
   screen context and injected capability, while `?` opens a non-mutating help
   page that explains focus, activation, return, and confirmation safety;
 - secret-free profile templates: profile details can plan a uniquely named
@@ -822,6 +843,11 @@ Current implementation status (2026-07-17):
   TCP/UDP plus fixed/automatic ports and public addresses, performs no probe or
   firewall mutation, and shares one protocol-to-endpoint projection with
   listener diagnostics;
+- session Settings: the dashboard and `s` open a dedicated workspace where
+  dark/light appearance changes apply application-wide for the current process
+  only; effective direct/helper, init-system, update-policy, and path choices
+  are disclosed from production composition without becoming editable host or
+  desired-state controls;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate
@@ -970,6 +996,11 @@ Current implementation status (2026-07-17):
   meaning, and cannot probe or mutate DNS, sockets, reachability, or firewalls
   merely by opening it. Listener diagnostics consume the same endpoint
   projection rather than maintaining a second protocol map.
+- Settings makes session-only appearance scope explicit, applies the selected
+  built-in theme across the running application, and discloses effective
+  startup mode and paths without editing CLI, helper, desired-state, or host
+  policy. No additional language is offered until a complete string catalog
+  can preserve every safety workflow.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.

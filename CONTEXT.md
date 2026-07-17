@@ -198,6 +198,20 @@ evidence seams.
 _Avoid_: Runtime listener observation, port availability result, firewall rule,
 network scan
 
+**Session appearance**:
+The active Textual color scheme selected for the current process only. Changing
+it is immediate and application-wide, but does not persist, change desired
+state, or modify the managed host. Persistence requires a separately accepted
+preference-store seam.
+_Avoid_: Host setting, persisted preference, terminal theme detection
+
+**Effective settings**:
+The disclosure-safe startup choices actually used by the running manager,
+including host-access mode, init system, desired-state path, live-config policy,
+and transaction directory. They are read-only evidence, not editable copies of
+CLI arguments.
+_Avoid_: Proposed setting, raw argv, mutable desired state, helper policy editor
+
 **Dashboard recommendation**:
 The single safest next step selected from desired state and independent runtime,
 readiness, and certificate evidence. It carries a stable action identity when

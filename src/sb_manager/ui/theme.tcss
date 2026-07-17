@@ -42,6 +42,7 @@ Footer {
 #operations,
 #profiles-workspace,
 #network-workspace,
+#settings-workspace,
 #keyboard-help,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
@@ -73,6 +74,7 @@ Footer {
 #operations-title,
 #profiles-workspace-title,
 #network-workspace-title,
+#settings-title,
 #keyboard-help-title,
 #config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;

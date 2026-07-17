@@ -37,7 +37,7 @@ class KeyboardHelpScreen(Screen[None]):
                 markup=False,
             )
             yield Static(
-                "a  添加配置\np  管理配置\nn  查看网络概览\n"
+                "a  添加配置\np  管理配置\nn  查看网络概览\ns  打开设置\n"
                 "d  打开诊断中心\no  打开运维中心\nq  退出",
                 id="keyboard-help-dashboard",
                 markup=False,

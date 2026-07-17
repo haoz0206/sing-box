@@ -368,7 +368,7 @@ Release gate adds:
   classification, non-markup Textual drill-down, non-disclosing unexpected
   failure retry, and shared direct/privileged production composition;
 - keyboard-first Textual navigation for discoverable `?` help, dashboard-only
-  add/profiles/network/diagnostics/operations/quit actions, child-screen suppression,
+  add/profiles/network/settings/diagnostics/operations/quit actions, child-screen suppression,
   non-mutating navigation, and preservation of normal form input; the
   operations workspace must prove capability-aware available/unavailable
   presentation plus on-demand core, service-log, and apply-history handoff; the
@@ -380,6 +380,12 @@ Release gate adds:
   public addresses, explicit no-probe/no-firewall policy, contextual `n`
   navigation, and preservation of existing listener-diagnostics behavior
   through the shared endpoint projection;
+- Settings workspace acceptance for a visible/default-terminal entry,
+  application-wide dark/light switching, session-only scope disclosure,
+  reopening within the same process, effective direct/helper and init-system
+  labels, helper-fixed versus direct config targeting, transaction paths,
+  manual-exact-version update policy, contextual `s` suppression, and
+  production CLI composition;
 - confirmed-operation navigation for pre-confirmation cancellation, disabled
   return while a worker is in flight, duplicate-confirmation suppression,
   terminal-result delivery to the originating screen, and guard release before
