@@ -39,6 +39,10 @@ class ColorSchemeChangeRequested(Message):
     color_scheme: ColorScheme
 
 
+class PreferenceResetReviewRequested(Message):
+    """Request a review-only plan for replacing unreadable preferences."""
+
+
 class SettingsScreen(Screen[None]):
     """Present safe interface settings without changing host configuration."""
 
@@ -70,6 +74,17 @@ class SettingsScreen(Screen[None]):
                 self._persistence_label(),
                 id="settings-persistence",
                 markup=False,
+            )
+            yield Button(
+                "审查并重置界面偏好",
+                id="review-preference-reset",
+                classes=(
+                    ""
+                    if self.preference_persistence
+                    in {PreferencePersistence.LOAD_FAILED, PreferencePersistence.SAVE_FAILED}
+                    else "hidden"
+                ),
+                variant="warning",
             )
             yield Static(
                 self._safety_label(),
@@ -126,11 +141,32 @@ class SettingsScreen(Screen[None]):
         event.button.label = self._toggle_label()
         self.post_message(ColorSchemeChangeRequested(self.color_scheme))
 
+    @on(Button.Pressed, "#review-preference-reset")
+    def review_preference_reset(self, event: Button.Pressed) -> None:
+        event.stop()
+        self.post_message(PreferenceResetReviewRequested())
+
     def show_preference_persistence(self, persistence: PreferencePersistence) -> None:
         """Present the latest disclosure-safe persistence result."""
 
         self.preference_persistence = persistence
         self.query_one("#settings-persistence", Static).update(self._persistence_label())
+        reset = self.query_one("#review-preference-reset", Button)
+        if persistence in {
+            PreferencePersistence.LOAD_FAILED,
+            PreferencePersistence.SAVE_FAILED,
+        }:
+            reset.remove_class("hidden")
+        else:
+            reset.add_class("hidden")
+
+    def show_preference_reset(self) -> None:
+        """Apply the restored defaults after one confirmed reset."""
+
+        self.color_scheme = ColorScheme.DARK
+        self.query_one("#settings-appearance", Static).update(self._appearance_label())
+        self.query_one("#toggle-color-scheme", Button).label = self._toggle_label()
+        self.show_preference_persistence(PreferencePersistence.RESET)
 
     def _appearance_label(self) -> str:
         label = "深色" if self.color_scheme is ColorScheme.DARK else "浅色"
@@ -141,18 +177,20 @@ class SettingsScreen(Screen[None]):
         return f"切换为{target}"
 
     def _persistence_label(self) -> str:
-        if self.preference_persistence is PreferencePersistence.LOADED:
-            return "外观保存：已从偏好文件载入"
         if self.preference_persistence is PreferencePersistence.SAVED:
             label = "浅色" if self.color_scheme is ColorScheme.LIGHT else "深色"
             return f"外观保存：已保存，下次启动将继续使用{label}"
-        if self.preference_persistence is PreferencePersistence.LOAD_FAILED:
-            return "外观保存：无法读取偏好文件，本次使用默认深色"
-        if self.preference_persistence is PreferencePersistence.SAVE_FAILED:
-            return "外观保存：本次已应用，但未能保存。下次启动可能恢复默认值"
-        if self.preference_persistence is PreferencePersistence.READY:
-            return "外观保存：已启用，切换后会保留到下次启动"
-        return "外观保存：仅本次会话"
+        labels = {
+            PreferencePersistence.LOADED: "外观保存：已从偏好文件载入",
+            PreferencePersistence.LOAD_FAILED: "外观保存：无法读取偏好文件，本次使用默认深色",
+            PreferencePersistence.SAVE_FAILED: (
+                "外观保存：本次已应用，但未能保存。下次启动可能恢复默认值"
+            ),
+            PreferencePersistence.RESET: "外观保存：已重置为深色，原文件已按 SHA-256 归档",
+            PreferencePersistence.READY: "外观保存：已启用，切换后会保留到下次启动",
+            PreferencePersistence.SESSION_ONLY: "外观保存：仅本次会话",
+        }
+        return labels[self.preference_persistence]
 
     def _safety_label(self) -> str:
         if self.preference_persistence is PreferencePersistence.SESSION_ONLY:

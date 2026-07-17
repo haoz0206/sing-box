@@ -22,7 +22,8 @@ choices that explain how the manager will act.
   are rejected without overwriting their bytes.
 - A failed load defaults to a usable dark session and never renders the raw
   document or exception. A requested color change still applies to the current
-  process, while Settings accurately reports that it could not be saved.
+  process, while Settings accurately reports that it could not be saved. A
+  later hash-bound reset workflow is recorded separately.
 - Appearance changes do not write desired state, live configuration, helper
   policy, or host settings. The preference file belongs only to the current
   Unix operator.

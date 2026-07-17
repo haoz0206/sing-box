@@ -39,6 +39,7 @@ from sb_manager.application.interface_preferences import (
     InterfacePreferenceService,
     InterfacePreferenceSnapshot,
     PreferencePersistence,
+    PreferenceResetResult,
 )
 from sb_manager.application.manager import (
     AcmeTlsRequest,
@@ -114,6 +115,10 @@ from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
 from sb_manager.ui.screens.network import NetworkScreen
 from sb_manager.ui.screens.operations import OperationsScreen
+from sb_manager.ui.screens.preference_reset import (
+    PreferenceResetConfirmationScreen,
+    PreferenceResetPlanningErrorScreen,
+)
 from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
     ProfileAvailabilityPlanningErrorScreen,
@@ -137,6 +142,7 @@ from sb_manager.ui.screens.profiles import (
 from sb_manager.ui.screens.settings import (
     ColorSchemeChangeRequested,
     EffectiveSettings,
+    PreferenceResetReviewRequested,
     SettingsScreen,
 )
 from sb_manager.ui.screens.state_recovery import (
@@ -1582,6 +1588,28 @@ class ManagerApp(App[None]):
             self._preference_persistence = snapshot.persistence
             if isinstance(self.screen, SettingsScreen):
                 self.screen.show_preference_persistence(snapshot.persistence)
+
+    @on(PreferenceResetReviewRequested)
+    def open_preference_reset(self) -> None:
+        if self.preference_service is None:
+            return
+        try:
+            plan = self.preference_service.plan_reset()
+        except Exception:
+            self.push_screen(PreferenceResetPlanningErrorScreen())
+            return
+        self.push_screen(
+            PreferenceResetConfirmationScreen(self.preference_service, plan),
+            self.finish_preference_reset,
+        )
+
+    def finish_preference_reset(self, result: PreferenceResetResult | None) -> None:
+        if result is None:
+            return
+        self._preference_persistence = result.snapshot.persistence
+        self.theme = self._textual_theme(result.snapshot.preferences.color_scheme)
+        if isinstance(self.screen, SettingsScreen):
+            self.screen.show_preference_reset()
 
     @staticmethod
     def _textual_theme(color_scheme: ColorScheme) -> str:

@@ -206,6 +206,13 @@ or future-schema storage is preserved and degrades to a usable session without
 changing desired state or the managed host.
 _Avoid_: Host setting, desired state, live configuration, automatic repair
 
+**Interface preference reset**:
+An operator-confirmed replacement of one exact unreadable, regular preference
+document with schema-v1 defaults. Review exposes only SHA-256 and effects;
+confirmation rechecks the bytes, preserves them in a hash-named private
+archive, and never changes desired state or the managed host.
+_Avoid_: Automatic repair, deleting unknown preferences, schema downgrade
+
 **Effective settings**:
 The disclosure-safe startup choices actually used by the running manager,
 including host-access mode, init system, desired-state path, live-config policy,

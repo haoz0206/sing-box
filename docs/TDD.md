@@ -385,8 +385,14 @@ Release gate adds:
   restoration in a new process, per-user/no-host-effect scope disclosure,
   exact effective preference path, default/loaded/saved/unavailable visible
   states, non-disclosing malformed-storage fallback, preservation of future
-  schemas, strict schema-v1 JSON, mode-`0600` atomic writes, symbolic-link
-  refusal, effective direct/helper and init-system labels, helper-fixed versus
+  schemas, bounded 64 KiB document reads, strict schema-v1 JSON, mode-`0600`
+  atomic writes, symbolic-link refusal, reset visibility only for unavailable
+  persistence, review-only
+  SHA-256/default/scope presentation, cancellation without writes, explicit
+  confirmation, archive-before-replace semantics, mode-`0600` original-byte
+  preservation, confirmation-time fingerprint conflict, non-disclosing typed
+  and unknown failures, immediate default-theme restoration, cross-process
+  reload, effective direct/helper and init-system labels, helper-fixed versus
   direct config targeting, transaction paths, manual-exact-version update
   policy, contextual `s` suppression, and production CLI composition;
 - confirmed-operation navigation for pre-confirmation cancellation, disabled

@@ -410,12 +410,23 @@ configuration, helper policy, and every host-managed path.
 The JSON adapter writes schema v1 in the current user's XDG configuration
 directory (`$XDG_CONFIG_HOME` when absolute, otherwise `~/.config`) or an
 explicit `--preferences-file`. It uses same-directory atomic replacement,
-mode `0600`, and strict whole-document validation. Missing storage means the
-default dark appearance and remains writable. Invalid JSON, unsafe targets,
-unknown fields, and future schemas produce a non-disclosing default-dark
-session; a manual color change still applies immediately but must not overwrite
-the unreadable bytes. Settings shows whether persistence is ready, loaded,
-saved, session-only, or unavailable without rendering the underlying error.
+mode `0600`, a 64 KiB read bound, and strict whole-document validation. Missing
+storage means the default dark appearance and remains writable. Invalid JSON,
+oversized documents, unsafe targets, unknown fields, and future schemas produce
+a non-disclosing default-dark session; a manual color change still applies
+immediately but must not overwrite the unreadable bytes. Settings shows whether
+persistence is ready, loaded, saved, session-only, or unavailable without
+rendering the underlying error.
+
+For an unreadable regular file, Settings offers an explicit recovery path
+instead of leaving the operator at a dead end. Opening it is read-only and
+shows only the reviewed SHA-256, schema-v1 dark default, and effect scope.
+Cancellation changes nothing. Confirmation runs off the UI thread, rechecks the
+complete file identity, preserves the original bytes in a mode-`0600`,
+hash-named archive, and only then atomically writes defaults. A changed file,
+symbolic link, unsafe target, archive conflict, or I/O failure is never
+overwritten. Unexpected post-confirmation failure is reported as an unknown
+local preference result without exposing content or implying host impact.
 
 The same page displays the startup choices actually used by production
 composition: direct versus minimum-privilege helper access, systemd versus
@@ -633,7 +644,11 @@ The application preference module owns defaults, valid values, and
 non-disclosing load/save outcomes behind one small interface. The production
 JSON adapter and acceptance-test memory adapter make the storage seam real.
 Textual knows only the typed snapshot and never parses JSON or filesystem
-exceptions. Preference failure cannot disable host inspection or management.
+exceptions. The same interface owns hash-bound reset planning and explicit
+confirmation, while the adapter owns byte identity, private archival, and
+atomic replacement. Candidate inspection and confirmation-time revalidation
+share the same 64 KiB document bound. Preference failure cannot disable host
+inspection or management.
 
 ## 8. Python project layout
 
@@ -868,6 +883,9 @@ Current implementation status (2026-07-17):
   restored from one strict per-user schema-v1 JSON document; missing storage
   uses a writable default, while malformed, symbolic-link, and future-schema
   targets remain untouched and degrade to a non-disclosing session result;
+  an explicit reset review shows only the exact fingerprint and defaults,
+  rechecks bytes after confirmation, archives the original privately, rejects
+  stale plans, and returns the running application to persisted dark mode;
   effective direct/helper, init-system, update-policy, preference, and host
   paths are disclosed from production composition without becoming editable
   host or desired-state controls;
@@ -1023,6 +1041,9 @@ Current implementation status (2026-07-17):
   restores it from one strict per-user preference document, and reports
   session-only or unavailable persistence honestly. It discloses effective
   startup mode and paths without editing helper, desired-state, or host policy.
+  Unreadable regular files have a hash-bound, archive-before-replace reset plan
+  with explicit confirmation and stale-file rejection; unsafe targets remain
+  manual recovery cases.
   No additional language is offered until a complete string catalog can
   preserve every safety workflow.
 - An operator can use an existing profile as a template while the review makes

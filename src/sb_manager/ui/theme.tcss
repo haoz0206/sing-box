@@ -43,6 +43,9 @@ Footer {
 #profiles-workspace,
 #network-workspace,
 #settings-workspace,
+#preference-reset-confirmation,
+#preference-reset-planning-error,
+#preference-reset-operational-error,
 #keyboard-help,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
