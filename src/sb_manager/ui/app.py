@@ -100,10 +100,10 @@ from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.connection_share import ConnectionSharePanel
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
-from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
+from sb_manager.ui.screens.operations import OperationsScreen
 from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
     ProfileAvailabilityPlanningErrorScreen,
@@ -1023,7 +1023,7 @@ class ManagerApp(App[None]):
         ("?", "show_keyboard_help", "帮助"),
         ("a", "add_profile", "添加配置"),
         ("d", "open_diagnostics", "诊断"),
-        ("c", "manage_core", "核心"),
+        ("o", "open_operations", "运维"),
         ("q", "quit", "退出"),
     ]
 
@@ -1192,8 +1192,7 @@ class ManagerApp(App[None]):
                     id="add-profile",
                     classes="add-profile-action",
                 )
-                if self.core_updater is not None:
-                    yield Button("安装或升级 sing-box 核心", id="manage-core")
+                yield Button("打开运维中心", id="open-operations")
         else:
             with Vertical(id="dashboard-empty"):
                 yield Static("尚未创建代理配置", id="empty-state-title")
@@ -1209,8 +1208,7 @@ class ManagerApp(App[None]):
                     id="create-first-profile",
                     classes="add-profile-action",
                 )
-                if self.core_updater is not None:
-                    yield Button("安装或升级 sing-box 核心", id="manage-core")
+                yield Button("打开运维中心", id="open-operations")
         yield Footer()
 
     def action_show_keyboard_help(self) -> None:
@@ -1224,17 +1222,17 @@ class ManagerApp(App[None]):
         if self._dashboard_action_available() and self.diagnostics_center is not None:
             self.open_diagnostics_center()
 
-    def action_manage_core(self) -> None:
-        if self._dashboard_action_available() and self.core_updater is not None:
-            self.open_core_update()
+    def action_open_operations(self) -> None:
+        if self._dashboard_action_available():
+            self.open_operations_center()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "add_profile":
             return self._dashboard_action_available()
         if action == "open_diagnostics":
             return self._dashboard_action_available() and self.diagnostics_center is not None
-        if action == "manage_core":
-            return self._dashboard_action_available() and self.core_updater is not None
+        if action == "open_operations":
+            return self._dashboard_action_available()
         if action == "quit":
             return self._dashboard_action_available()
         return super().check_action(action, parameters)
@@ -1525,6 +1523,16 @@ class ManagerApp(App[None]):
                 )
             )
 
+    @on(Button.Pressed, "#open-operations")
+    def open_operations_center(self) -> None:
+        self.push_screen(
+            OperationsScreen(
+                core_updater=self.core_updater,
+                service_log_reader=self.service_log_reader,
+                apply_history_reader=self.apply_history_reader,
+            )
+        )
+
     @on(Button.Pressed, "#view-readiness")
     def open_host_readiness(self) -> None:
         if self.host_readiness_report is not None:
@@ -1622,11 +1630,6 @@ class ManagerApp(App[None]):
                 profile_cloner=self.profile_cloner,
             )
         )
-
-    @on(Button.Pressed, "#manage-core")
-    def open_core_update(self) -> None:
-        if self.core_updater is not None:
-            self.push_screen(CoreUpdateFormScreen(self.core_updater))
 
     @on(Button.Pressed, "#adopt-existing-config")
     def open_config_adoption(self) -> None:

@@ -173,6 +173,13 @@ workflow's plan, confirmation, or host-effect policy, and printable keys remain
 available to focused form fields outside the shortcut's context.
 _Avoid_: Global command execution, hidden mutation, shell alias
 
+**Operations workspace**:
+A capability-aware navigation space for core lifecycle planning and read-only
+runtime evidence. Opening it performs no probe or mutation; each available tool
+starts only after an explicit selection, while unavailable tools remain visible
+as explanations rather than dead controls.
+_Avoid_: Dashboard miscellaneous buttons, direct mutation shortcut, empty menu
+
 **Dashboard recommendation**:
 The single safest next step selected from desired state and independent runtime,
 readiness, and certificate evidence. It carries a stable action identity when

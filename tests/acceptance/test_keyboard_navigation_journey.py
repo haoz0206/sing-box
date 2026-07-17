@@ -36,6 +36,9 @@ async def test_operator_opens_keyboard_help_and_returns_to_the_dashboard() -> No
         assert app.screen.query_one("#keyboard-help-safety", Static).content == (
             "快捷键只负责导航。应用配置、移除和升级仍需预览与明确确认。"
         )
+        assert app.screen.query_one("#keyboard-help-dashboard", Static).content == (
+            "a  添加配置\nd  打开诊断中心\no  打开运维中心\nq  退出"
+        )
 
         await pilot.press("escape")
 
@@ -66,15 +69,13 @@ async def test_dashboard_shortcuts_navigate_only_when_their_context_is_available
         assert diagnostics.calls == 1
 
 
-async def test_core_shortcut_opens_the_existing_non_mutating_form() -> None:
+async def test_operations_shortcut_opens_the_non_mutating_workspace() -> None:
     app = ManagerApp(core_updater=NeverCalledCoreUpdater())
 
     async with app.run_test() as pilot:
-        await pilot.press("c")
+        await pilot.press("o")
 
-        assert app.screen.query_one("#core-update-form-title", Static).content == (
-            "安装或升级 sing-box 核心"
-        )
+        assert app.screen.query_one("#operations-title", Static).content == "运维中心"
 
 
 async def test_quit_shortcut_is_reserved_for_the_root_dashboard() -> None:

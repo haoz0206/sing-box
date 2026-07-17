@@ -37,7 +37,7 @@ class KeyboardHelpScreen(Screen[None]):
                 markup=False,
             )
             yield Static(
-                "a  添加配置\nd  打开诊断中心\nc  安装或升级核心\nq  退出",
+                "a  添加配置\nd  打开诊断中心\no  打开运维中心\nq  退出",
                 id="keyboard-help-dashboard",
                 markup=False,
             )

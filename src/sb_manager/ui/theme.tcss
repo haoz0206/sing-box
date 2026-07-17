@@ -30,6 +30,7 @@ Footer {
 #profile-availability-plan, #profile-availability-result, #profile-availability-error,
 #profile-purpose, #profile-recommendation,
 #core-update-form, #core-update-plan, #core-update-result, #core-update-error,
+#operations,
 #keyboard-help,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
@@ -58,6 +59,7 @@ Footer {
 #profile-availability-plan-title, #profile-availability-result-title,
 #profile-availability-error-title,
 #profile-purpose-title, #profile-recommendation-title,
+#operations-title,
 #keyboard-help-title,
 #config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;
@@ -67,6 +69,16 @@ Footer {
 #keyboard-help-navigation-title, #keyboard-help-dashboard-title {
     margin-top: 1;
     text-style: bold;
+}
+
+.section-title {
+    margin-top: 1;
+    text-style: bold;
+}
+
+#operations-safety {
+    margin-top: 1;
+    color: $text-muted;
 }
 
 #keyboard-help-context, #keyboard-help-safety {

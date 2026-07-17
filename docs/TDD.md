@@ -368,8 +368,10 @@ Release gate adds:
   classification, non-markup Textual drill-down, non-disclosing unexpected
   failure retry, and shared direct/privileged production composition;
 - keyboard-first Textual navigation for discoverable `?` help, dashboard-only
-  add/diagnostics/core/quit actions, destination-capability gating, child-screen
-  suppression, non-mutating navigation, and preservation of normal form input;
+  add/diagnostics/operations/quit actions, child-screen suppression,
+  non-mutating navigation, and preservation of normal form input; the
+  operations workspace must prove capability-aware available/unavailable
+  presentation plus on-demand core, service-log, and apply-history handoff;
 - confirmed-operation navigation for pre-confirmation cancellation, disabled
   return while a worker is in flight, duplicate-confirmation suppression,
   terminal-result delivery to the originating screen, and guard release before

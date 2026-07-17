@@ -65,12 +65,17 @@ class UnexpectedPlanningCoreUpdater(RecordingCoreUpdater):
         raise RuntimeError("token=private-core-update-planning-error")
 
 
+async def open_core_form(pilot: Pilot[None]) -> None:
+    await pilot.click("#open-operations")
+    await pilot.click("#manage-core")
+
+
 async def open_core_plan(
     app: ManagerApp,
     updater: RecordingCoreUpdater,
     pilot: Pilot[None],
 ) -> None:
-    await pilot.click("#manage-core")
+    await open_core_form(pilot)
     await pilot.click("#core-version")
     await pilot.press(*VERSION)
     await pilot.click("#allow-prerelease")
@@ -89,6 +94,7 @@ async def test_operator_can_preview_an_exact_core_update_without_mutation() -> N
     app = ManagerApp(core_updater=updater)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-operations")
         assert str(app.screen.query_one("#manage-core", Button).label) == (
             "安装或升级 sing-box 核心"
         )
@@ -117,7 +123,7 @@ async def test_unexpected_core_update_planning_failure_is_safe_and_not_disclosed
     app = ManagerApp(core_updater=UnexpectedPlanningCoreUpdater())
 
     async with app.run_test() as pilot:
-        await pilot.click("#manage-core")
+        await open_core_form(pilot)
         await pilot.click("#core-version")
         await pilot.press(*VERSION)
         await pilot.click("#allow-prerelease")

@@ -109,7 +109,7 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help   a Add profile   d Diagnostics   c Core   Enter Open   q Quit │
+│ ? Help   a Add profile   d Diagnostics   o Operations   Enter Open   q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,12 +117,14 @@ The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
 
 The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
-`d` for the diagnostics center, `c` for the existing core-update form, and `q`
-for exit. `check_action()` hides dashboard-only bindings whenever a child screen
-is active or its destination module is unavailable, so printable letters remain
-form input and no shortcut bypasses an existing plan or confirmation. `?`
-opens one read-only help screen; `Esc`, `Tab`, `Shift+Tab`, and `Enter` retain
-their normal screen and focus semantics.
+`d` for the diagnostics center, `o` for the operations workspace, and `q` for
+exit. Core lifecycle is not a direct root shortcut: the operations workspace
+first explains available capabilities and safety, then opens the existing plan
+workflow only after an explicit selection. `check_action()` hides dashboard-only
+bindings whenever a child screen is active, so printable letters remain form
+input and no shortcut bypasses an existing plan or confirmation. `?` opens one
+read-only help screen; `Esc`, `Tab`, `Shift+Tab`, and `Enter` retain their normal
+screen and focus semantics.
 
 ### 5.2 Dashboard
 
@@ -263,6 +265,16 @@ design are accepted.
 
 Owns core/Caddy versions, update plans, backup history, restore, start/stop,
 restart/reload, and maintenance state.
+
+The first operations-workspace slice is a capability-aware navigation module.
+The dashboard and `o` shortcut open one non-mutating page rather than jumping
+directly into a core update form. The page groups trusted core lifecycle from
+read-only runtime evidence, and reuses the existing core-update, bounded service
+log, and configuration-apply-history workflows. Merely opening the workspace
+does not plan, probe, download, activate, or read logs/history. Each dependency
+is invoked only after the operator selects its task. A capability absent from
+the current startup mode is represented by an explanation and no clickable
+control, so the page never advertises an action that cannot work.
 
 ### 5.7 Diagnostics
 
@@ -907,7 +919,9 @@ Current implementation status (2026-07-17):
 
 - An operator can discover keyboard navigation from `?`; dashboard shortcuts
   open only existing safe workflows, disappear outside their valid context, and
-  never bypass preview or confirmation.
+  never bypass preview or confirmation. Operations navigation groups core
+  planning and read-only evidence without reading or mutating the host eagerly,
+  and explains capabilities missing from the current startup mode.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.
