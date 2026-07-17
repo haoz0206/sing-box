@@ -37,7 +37,7 @@ async def test_operator_opens_keyboard_help_and_returns_to_the_dashboard() -> No
             "快捷键只负责导航。应用配置、移除和升级仍需预览与明确确认。"
         )
         assert app.screen.query_one("#keyboard-help-dashboard", Static).content == (
-            "a  添加配置\np  管理配置\nd  打开诊断中心\no  打开运维中心\nq  退出"
+            "a  添加配置\np  管理配置\nn  查看网络概览\nd  打开诊断中心\no  打开运维中心\nq  退出"
         )
 
         await pilot.press("escape")
@@ -60,6 +60,10 @@ async def test_dashboard_shortcuts_navigate_only_when_their_context_is_available
 
         assert app.screen.query_one("#profile-purpose-title", Static).content == "你主要想优化什么?"
         assert diagnostics.calls == 0
+
+        await pilot.press("n")
+
+        assert app.screen.query_one("#profile-purpose-title", Static).content == "你主要想优化什么?"
 
         await pilot.press("escape")
         await pilot.press("d")

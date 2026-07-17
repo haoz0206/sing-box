@@ -6,7 +6,7 @@ from typing import ClassVar
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import BindingType
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, Select, Static
 
@@ -46,6 +46,7 @@ from sb_manager.application.manager import (
     TransportRequest,
     WebSocketTransportRequest,
 )
+from sb_manager.application.network_inventory import build_network_inventory
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
@@ -104,6 +105,7 @@ from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
+from sb_manager.ui.screens.network import NetworkScreen
 from sb_manager.ui.screens.operations import OperationsScreen
 from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
@@ -1019,6 +1021,7 @@ class ManagerApp(App[None]):
         ("?", "show_keyboard_help", "帮助"),
         ("a", "add_profile", "添加配置"),
         ("p", "open_profiles", "配置"),
+        ("n", "open_network", "网络"),
         ("d", "open_diagnostics", "诊断"),
         ("o", "open_operations", "运维"),
         ("q", "quit", "退出"),
@@ -1108,6 +1111,15 @@ class ManagerApp(App[None]):
         )
         yield self._dashboard_primary_action(recommendation)
 
+    @staticmethod
+    def _workspace_navigation() -> Horizontal:
+        return Horizontal(
+            Button("管理配置", id="open-profiles"),
+            Button("查看网络概览", id="open-network"),
+            Button("打开运维中心", id="open-operations"),
+            id="dashboard-workspace-navigation",
+        )
+
     def compose(self) -> ComposeResult:
         yield Header()
         recovery_state = self._inspect_state_recovery()
@@ -1148,8 +1160,7 @@ class ManagerApp(App[None]):
                 )
                 yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
-                yield Button("管理配置", id="open-profiles")
-                yield Button("打开运维中心", id="open-operations")
+                yield self._workspace_navigation()
         else:
             with Vertical(id="dashboard-empty"):
                 yield Static("尚未创建代理配置", id="empty-state-title")
@@ -1160,8 +1171,7 @@ class ManagerApp(App[None]):
                 yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
-                yield Button("管理配置", id="open-profiles")
-                yield Button("打开运维中心", id="open-operations")
+                yield self._workspace_navigation()
         yield Footer()
 
     def action_show_keyboard_help(self) -> None:
@@ -1175,6 +1185,10 @@ class ManagerApp(App[None]):
         if self._dashboard_action_available():
             self.open_profiles_workspace()
 
+    def action_open_network(self) -> None:
+        if self._dashboard_action_available():
+            self.open_network_workspace()
+
     def action_open_diagnostics(self) -> None:
         if self._dashboard_action_available() and self.diagnostics_center is not None:
             self.open_diagnostics_center()
@@ -1184,16 +1198,16 @@ class ManagerApp(App[None]):
             self.open_operations_center()
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
-        if action == "add_profile":
-            return self._dashboard_action_available()
-        if action == "open_profiles":
+        if action in {
+            "add_profile",
+            "open_profiles",
+            "open_network",
+            "open_operations",
+            "quit",
+        }:
             return self._dashboard_action_available()
         if action == "open_diagnostics":
             return self._dashboard_action_available() and self.diagnostics_center is not None
-        if action == "open_operations":
-            return self._dashboard_action_available()
-        if action == "quit":
-            return self._dashboard_action_available()
         return super().check_action(action, parameters)
 
     def _dashboard_action_available(self) -> bool:
@@ -1503,6 +1517,10 @@ class ManagerApp(App[None]):
                 apply_available=self.profile_applier is not None,
             )
         )
+
+    @on(Button.Pressed, "#open-network")
+    def open_network_workspace(self) -> None:
+        self.push_screen(NetworkScreen(build_network_inventory(self.manager.get_installation())))
 
     @on(ProfileWorkspaceActionRequested)
     def handle_profile_workspace_action(

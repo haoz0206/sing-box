@@ -4,18 +4,14 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-from sb_manager.domain.installation import (
-    ManagedInstallation,
-    ProfileStatus,
-    ProtocolKind,
-)
+from sb_manager.application.network_inventory import build_network_inventory
+from sb_manager.domain.installation import ManagedInstallation
 from sb_manager.seams.listener_source import (
     ListenerEndpoint,
     ListenerInspectionError,
     ListenerObservation,
     ListenerOwner,
     ListenerSource,
-    ListenerTransport,
 )
 
 
@@ -43,24 +39,6 @@ class ListenerDiagnostics(Protocol):
     def inspect(self, installation: ManagedInstallation) -> ListenerDiagnosticsReport: ...
 
 
-_TCP_PROTOCOLS = frozenset(
-    {
-        ProtocolKind.VLESS_REALITY,
-        ProtocolKind.SHADOWSOCKS,
-        ProtocolKind.TROJAN,
-        ProtocolKind.ANYTLS,
-        ProtocolKind.VLESS_TLS,
-        ProtocolKind.VMESS_TLS,
-    }
-)
-_UDP_PROTOCOLS = frozenset(
-    {
-        ProtocolKind.HYSTERIA2,
-        ProtocolKind.TUIC,
-    }
-)
-
-
 class ListenerDiagnosticsService:
     """Compare desired listener shape with conservative Linux process evidence."""
 
@@ -68,7 +46,7 @@ class ListenerDiagnosticsService:
         self._source = source
 
     def inspect(self, installation: ManagedInstallation) -> ListenerDiagnosticsReport:
-        endpoints = _expected_endpoints(installation)
+        endpoints = build_network_inventory(installation).active_listener_endpoints
         if not endpoints:
             return ListenerDiagnosticsReport(
                 condition=ListenerDiagnosticCondition.HEALTHY,
@@ -135,26 +113,6 @@ class ListenerDiagnosticsService:
             diagnostics=diagnostics,
             guidance="",
         )
-
-
-def _expected_endpoints(installation: ManagedInstallation) -> tuple[ListenerEndpoint, ...]:
-    endpoints: set[ListenerEndpoint] = set()
-    for profile in installation.profiles:
-        if (
-            profile.status is not ProfileStatus.APPLIED
-            or not profile.enabled
-            or profile.listen_port is None
-        ):
-            continue
-        if profile.protocol in _TCP_PROTOCOLS:
-            endpoints.add(
-                ListenerEndpoint(port=profile.listen_port, transport=ListenerTransport.TCP)
-            )
-        if profile.protocol in _UDP_PROTOCOLS:
-            endpoints.add(
-                ListenerEndpoint(port=profile.listen_port, transport=ListenerTransport.UDP)
-            )
-    return tuple(sorted(endpoints, key=lambda item: (item.port, item.transport.value)))
 
 
 def _has_confirmed_foreign_owner(observation: ListenerObservation) -> bool:

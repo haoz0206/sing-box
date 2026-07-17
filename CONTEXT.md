@@ -189,6 +189,15 @@ refreshes the snapshot through the dashboard.
 _Avoid_: Full profile rows on the dashboard, cross-screen CSS event routing,
 stale inventory after mutation
 
+**Network inventory**:
+A read-only projection of one desired-state revision into profile lifecycle,
+listener transport, selected or pending port, public address intent, and the
+deduplicated listener endpoints expected to be active. It performs no DNS,
+socket, reachability, public-IP, or firewall observation; those remain separate
+evidence seams.
+_Avoid_: Runtime listener observation, port availability result, firewall rule,
+network scan
+
 **Dashboard recommendation**:
 The single safest next step selected from desired state and independent runtime,
 readiness, and certificate evidence. It carries a stable action identity when

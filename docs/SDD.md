@@ -109,7 +109,7 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help   a Add profile   p Profiles   d Diagnostics   o Operations   q Quit │
+│ ? Help   a Add   p Profiles   n Network   d Diagnostics   o Operations   q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,9 +117,9 @@ The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
 
 The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
-`p` for the profiles workspace, `d` for the diagnostics center, `o` for the
-operations workspace, and `q` for exit. Core lifecycle is not a direct root
-shortcut: the operations workspace
+`p` for the profiles workspace, `n` for the read-only network workspace, `d`
+for the diagnostics center, `o` for the operations workspace, and `q` for exit.
+Core lifecycle is not a direct root shortcut: the operations workspace
 first explains available capabilities and safety, then opens the existing plan
 workflow only after an explicit selection. `check_action()` hides dashboard-only
 bindings whenever a child screen is active, so printable letters remain form
@@ -276,6 +276,21 @@ truth.
 Owns DNS policy, listening addresses, public address discovery, port inventory,
 and firewall intent. Firewall mutation is deferred until an adapter and recovery
 design are accepted.
+
+The first network-workspace slice is a desired-state view, not a network probe.
+The dashboard and contextual `n` shortcut open one snapshot showing each
+profile's TCP/UDP listener transport, fixed or apply-time automatic port,
+lifecycle state, and public address intent. One application-level network
+inventory module owns protocol-to-transport mapping and also supplies the
+deduplicated active endpoints consumed by listener diagnostics. This prevents
+the UI and runtime diagnostics from drifting when protocols are added. Draft
+and paused profiles remain visible as intent but never become expected active
+listeners. Empty state and missing public addresses are explicit.
+
+Opening the workspace performs no DNS lookup, socket inspection, reachability
+test, public-IP discovery, or firewall read/write. The page contains no firewall
+mutation control and states that limitation directly. Runtime evidence remains
+in Diagnostics so desired state is never presented as proof of host state.
 
 ### 5.6 Operations
 
@@ -726,7 +741,7 @@ the release acceptance criteria. It is not translated function by function.
 Current implementation status (2026-07-17):
 
 - keyboard-first contextual navigation: the Footer exposes help and only the
-  dashboard actions currently safe to open; `a`, `p`, `d`, `o`, and `q` are gated by
+  dashboard actions currently safe to open; `a`, `p`, `n`, `d`, `o`, and `q` are gated by
   screen context and injected capability, while `?` opens a non-mutating help
   page that explains focus, activation, return, and confirmation safety;
 - secret-free profile templates: profile details can plan a uniquely named
@@ -802,6 +817,11 @@ Current implementation status (2026-07-17):
   subprocess output in the UI, and converts unexpected runtime/readiness probe
   exceptions into non-disclosing, conservative states with explicit read-only
   retry actions;
+- read-only network inventory: the dashboard and `n` open a dedicated workspace
+  that distinguishes enabled, paused, and draft listener intent, explains
+  TCP/UDP plus fixed/automatic ports and public addresses, performs no probe or
+  firewall mutation, and shares one protocol-to-endpoint projection with
+  listener diagnostics;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate
@@ -945,6 +965,11 @@ Current implementation status (2026-07-17):
   lifecycle entries. Cross-screen navigation uses typed action identity rather
   than selectors or translated labels; cancellation preserves context and
   lifecycle success refreshes the desired-state snapshot.
+- The Network workspace separates declared network intent from observed host
+  evidence, shows every profile's lifecycle/transport/port/public-address
+  meaning, and cannot probe or mutate DNS, sockets, reachability, or firewalls
+  merely by opening it. Listener diagnostics consume the same endpoint
+  projection rather than maintaining a second protocol map.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.

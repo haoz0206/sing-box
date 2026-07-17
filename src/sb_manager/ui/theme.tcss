@@ -10,6 +10,15 @@ Footer {
     dock: bottom;
 }
 
+#dashboard-workspace-navigation {
+    height: 3;
+}
+
+#dashboard-workspace-navigation Button {
+    width: 1fr;
+    min-width: 0;
+}
+
 #dashboard-empty, #dashboard-profiles, #protocol-selection, #reality-form,
 #shadowsocks-form,
 #hysteria2-form,
@@ -32,6 +41,7 @@ Footer {
 #core-update-form, #core-update-plan, #core-update-result, #core-update-error,
 #operations,
 #profiles-workspace,
+#network-workspace,
 #keyboard-help,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
@@ -62,6 +72,7 @@ Footer {
 #profile-purpose-title, #profile-recommendation-title,
 #operations-title,
 #profiles-workspace-title,
+#network-workspace-title,
 #keyboard-help-title,
 #config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;
