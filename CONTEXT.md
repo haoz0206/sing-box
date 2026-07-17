@@ -26,7 +26,11 @@ _Avoid_: Legacy configuration, foreign configuration
 **Adoption**:
 An operator-approved transition that authorizes replacement of one specifically
 observed unmanaged configuration. Adoption does not import profiles or mutate
-the live configuration.
+the live configuration. Loading, exact-fingerprint review, confirmation,
+non-returning progress, classified rejection, terminal evidence, and unknown
+result guidance come from one validated interface copy catalog. SHA-256,
+revision, and typed diagnostics remain literal non-markup evidence. Success
+explicitly returns to a freshly recomposed dashboard rather than a stale plan.
 _Avoid_: Import, automatic migration
 
 **Import**:

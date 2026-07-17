@@ -14,6 +14,7 @@ from sb_manager.application.certificate_diagnostics import (
 from sb_manager.application.config_adoption import (
     ConfigAdoptionPlan,
     ConfigAdoptionResult,
+    NoLiveConfigurationError,
 )
 from sb_manager.application.host_diagnostics import (
     HostCondition,
@@ -83,6 +84,37 @@ class ProfileDetailsMarkerCatalog:
         }
         if marker := markers.get(key.value):
             return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
+class ConfigAdoptionMarkerCatalog:
+    """Render markers across the exact-fingerprint adoption journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "config_adoption.plan.loading": "目录接管检查",
+            "config_adoption.plan.title": "目录接管计划",
+            "config_adoption.plan.safety": "目录接管安全说明",
+            "config_adoption.plan.confirm": "目录确认接管",
+            "config_adoption.plan.progress": "目录正在记录指纹",
+            "config_adoption.result.title": "目录接管成功",
+            "config_adoption.result.safety": "目录接管结果安全说明",
+            "config_adoption.result.return_dashboard": "目录返回仪表盘",
+            "config_adoption.planning_error.title": "目录接管计划错误",
+            "config_adoption.planning_error.details": "目录接管计划错误详情",
+            "config_adoption.planning_error.safety": "目录接管计划安全说明",
+            "config_adoption.unknown.title": "目录接管结果未知",
+            "config_adoption.unknown.details": "目录接管未知详情",
+            "config_adoption.unknown.safety": "目录接管未知安全说明",
+            "config_adoption.error.title": "目录接管拒绝",
+            "config_adoption.error.safety": "目录接管拒绝安全说明",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        if key.value == "config_adoption.plan.fingerprint":
+            return f"目录指纹 {values['sha256']}"
+        if key.value == "config_adoption.result.revision":
+            return f"目录 revision {values['revision']}"
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
@@ -430,6 +462,22 @@ class UnexpectedPlanningConfigAdopter(RecordingConfigAdopter):
         raise RuntimeError("token=private-config-adoption-planning-error")
 
 
+class RejectedPlanningConfigAdopter(RecordingConfigAdopter):
+    def plan(self) -> ConfigAdoptionPlan:
+        raise NoLiveConfigurationError("typed=no-live-configuration")
+
+
+class SlowConfigAdopter(RecordingConfigAdopter):
+    def adopt(
+        self,
+        plan: ConfigAdoptionPlan,
+        *,
+        confirmed: bool,
+    ) -> ConfigAdoptionResult:
+        time.sleep(0.2)
+        return super().adopt(plan, confirmed=confirmed)
+
+
 class UnexpectedConfigAdopter(RecordingConfigAdopter):
     def adopt(
         self,
@@ -482,7 +530,12 @@ async def test_dashboard_recommendation_copy_comes_from_the_interface_catalog() 
 
 async def test_operator_can_review_and_confirm_existing_config_adoption() -> None:
     adopter = RecordingConfigAdopter()
-    app = ManagerApp(host_tools=ManagerAppHostTools(config_adopter=adopter))
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(config_adopter=adopter),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ConfigAdoptionMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         assert str(app.screen.query_one("#adopt-existing-config", Button).label) == (
@@ -492,14 +545,15 @@ async def test_operator_can_review_and_confirm_existing_config_adoption() -> Non
         await pilot.click("#adopt-existing-config")
         await pilot.pause()
 
-        assert app.screen.query_one("#config-adoption-title", Static).content == (
-            "确认现有配置接管计划"
-        )
+        assert app.screen.query_one("#config-adoption-title", Static).content == ("目录接管计划")
         assert app.screen.query_one("#config-adoption-fingerprint", Static).content == (
-            f"当前配置 SHA-256：{'a' * 64}"
+            f"目录指纹 {'a' * 64}"
         )
         assert app.screen.query_one("#config-adoption-safety", Static).content == (
-            "接管不会修改服务器，也不会把现有 JSON 导入为 profile。"
+            "目录接管安全说明"
+        )
+        assert str(app.screen.query_one("#confirm-config-adoption", Button).label) == (
+            "目录确认接管"
         )
 
         await pilot.click("#confirm-config-adoption")
@@ -509,16 +563,33 @@ async def test_operator_can_review_and_confirm_existing_config_adoption() -> Non
             (ConfigAdoptionPlan(base_revision=0, config_sha256="a" * 64), True)
         ]
         assert app.screen.query_one("#config-adoption-result-title", Static).content == (
-            "现有配置已被记录为替换前置条件"
+            "目录接管成功"
         )
         assert app.screen.query_one("#config-adoption-result-revision", Static).content == (
-            "desired state revision 1"
+            "目录 revision 1"
+        )
+        assert app.screen.query_one("#config-adoption-result-safety", Static).content == (
+            "目录接管结果安全说明"
+        )
+        assert (
+            str(app.screen.query_one("#config-adoption-return-dashboard", Button).label)
+            == "目录返回仪表盘"
+        )
+
+        await pilot.click("#config-adoption-return-dashboard")
+        await pilot.pause()
+
+        assert app.screen.query_one("#dashboard-safety", Static).content == (
+            "当前页面只读：检查不会修改主机。任何变更都必须先审阅计划并明确确认。"
         )
 
 
 async def test_unexpected_config_adoption_planning_failure_is_safe_and_not_disclosed() -> None:
     app = ManagerApp(
-        host_tools=ManagerAppHostTools(config_adopter=UnexpectedPlanningConfigAdopter())
+        host_tools=ManagerAppHostTools(config_adopter=UnexpectedPlanningConfigAdopter()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ConfigAdoptionMarkerCatalog())
+        ),
     )
 
     async with app.run_test() as pilot:
@@ -526,20 +597,75 @@ async def test_unexpected_config_adoption_planning_failure_is_safe_and_not_discl
         await pilot.pause()
 
         assert app.screen.query_one("#config-adoption-planning-error-title", Static).content == (
-            "无法检查现有配置"
+            "目录接管计划错误"
         )
         assert app.screen.query_one("#config-adoption-planning-error-details", Static).content == (
-            "读取配置接管计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+            "目录接管计划错误详情"
         )
         assert app.screen.query_one("#config-adoption-planning-error-safety", Static).content == (
-            "尚未记录 replacement precondition，也未修改服务器配置。请重新打开诊断或仪表盘后再试。"
+            "目录接管计划安全说明"
         )
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private-config-adoption-planning-error" not in rendered_text
 
 
+async def test_classified_config_adoption_rejection_preserves_literal_evidence() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(config_adopter=RejectedPlanningConfigAdopter()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ConfigAdoptionMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#adopt-existing-config")
+        await pilot.pause()
+
+        assert app.screen.query_one("#config-adoption-error-title", Static).content == (
+            "目录接管拒绝"
+        )
+        assert app.screen.query_one("#config-adoption-error-details", Static).content == (
+            "typed=no-live-configuration"
+        )
+        assert app.screen.query_one("#config-adoption-error-safety", Static).content == (
+            "目录接管拒绝安全说明"
+        )
+
+
+async def test_confirmed_config_adoption_exposes_non_returning_progress() -> None:
+    adopter = SlowConfigAdopter()
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(config_adopter=adopter),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ConfigAdoptionMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#adopt-existing-config")
+        await pilot.pause()
+        await pilot.click("#confirm-config-adoption")
+        await pilot.pause(0.05)
+
+        assert app.screen.query_one("#config-adoption-safety", Static).content == (
+            "目录正在记录指纹"
+        )
+        assert app.screen.query_one("#confirm-config-adoption", Button).disabled is True
+        await pilot.press("escape")
+        assert app.screen.query_one("#config-adoption-safety", Static).content == (
+            "目录正在记录指纹"
+        )
+
+        await pilot.pause(0.25)
+
+
 async def test_unexpected_config_adoption_failure_is_unknown_and_not_disclosed() -> None:
-    app = ManagerApp(host_tools=ManagerAppHostTools(config_adopter=UnexpectedConfigAdopter()))
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(config_adopter=UnexpectedConfigAdopter()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ConfigAdoptionMarkerCatalog())
+        ),
+    )
 
     async with app.run_test() as pilot:
         await pilot.click("#adopt-existing-config")
@@ -548,14 +674,13 @@ async def test_unexpected_config_adoption_failure_is_unknown_and_not_disclosed()
         await pilot.pause()
 
         assert app.screen.query_one("#config-adoption-unknown-title", Static).content == (
-            "无法确认配置接管结果"
+            "目录接管结果未知"
         )
         assert app.screen.query_one("#config-adoption-unknown-details", Static).content == (
-            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+            "目录接管未知详情"
         )
         assert app.screen.query_one("#config-adoption-unknown-safety", Static).content == (
-            "此流程没有修改服务器配置。desired state 是否已记录 replacement precondition 未知。"
-            "请先通过诊断中心重新检查 live configuration identity，再决定是否重试。"
+            "目录接管未知安全说明"
         )
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private-config-adoption-worker-error" not in rendered_text

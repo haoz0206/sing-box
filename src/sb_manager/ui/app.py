@@ -1977,4 +1977,4 @@ class ManagerApp(App[None]):
     @on(Button.Pressed, "#adopt-existing-config")
     def open_config_adoption(self) -> None:
         if self.config_adopter is not None:
-            self.push_screen(ConfigAdoptionScreen(self.config_adopter))
+            self.push_screen(ConfigAdoptionScreen(self.config_adopter, self.copy_catalog))

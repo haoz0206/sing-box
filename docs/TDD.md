@@ -296,6 +296,9 @@ Release gate adds:
   non-disclosing unclassified exceptions, complete scope-specific unknown-result
   wording, absence of unsafe state inference or automatic retry, and
   preservation of existing typed failure evidence;
+- exact-fingerprint adoption catalog propagation through review, confirmation,
+  guarded progress, classified rejection, success, unexpected planning failure,
+  unknown confirmed result, and explicit fresh-dashboard return;
 - profile removal plans for draft and applied scopes, revision conflicts,
   desired-state-only deletion, transactional live projection, failed-host state
   preservation, final-profile zero-inbound validation against the privileged

@@ -188,7 +188,7 @@ class DiagnosticsCenterScreen(Screen[None]):
             and self.report.recommended_action_kind is DiagnosticAction.REVIEW_CONFIG_ADOPTION
             and self.config_adopter is not None
         ):
-            self.app.push_screen(ConfigAdoptionScreen(self.config_adopter))
+            self.app.push_screen(ConfigAdoptionScreen(self.config_adopter, self.copy))
         elif (
             self.report is not None
             and self.report.recommended_action_kind is DiagnosticAction.MANAGE_CORE

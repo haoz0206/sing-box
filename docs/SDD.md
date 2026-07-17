@@ -511,7 +511,8 @@ the complete profile-edit journey, and profile pause/resume. Those migrated
 screen ranges also include the complete profile-removal and profile-template-
 clone journeys plus the purpose-first recommendation, recommendation-failure,
 advanced direct-selection journey, and the complete trusted core-update
-journey, and contain no locale-authored text.
+journey plus exact-fingerprint configuration adoption, and contain no
+locale-authored text.
 Settings states that
 Chinese is fully supported and explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
@@ -1074,9 +1075,13 @@ Current implementation status (2026-07-17):
   parsed or silently replaced; the TUI reviews and confirms its exact
   fingerprint, desired state records that replacement precondition without host
   mutation, and direct/privileged apply rechecks it immediately before commit;
-  unclassified planning failures state that no adoption occurred, while an
-  unclassified confirmed result preserves the no-host-mutation guarantee but
-  treats the desired-state replacement precondition as unknown;
+  loading, review, non-returning progress, typed rejection, result, and recovery
+  copy comes from the validated interface catalog while fingerprints, revisions,
+  and typed diagnostics remain literal non-markup evidence; unclassified
+  planning failures state that no adoption occurred, an unclassified confirmed
+  result preserves the no-host-mutation guarantee but treats the desired-state
+  replacement precondition as unknown, and success clears the workflow stack
+  before recomposing the dashboard;
 - first-run readiness: one read-only application module classifies the
   configuration target, minimum-privilege helper, and configured core as ready,
   attention, or action-required; the dashboard prioritizes blocking setup work,

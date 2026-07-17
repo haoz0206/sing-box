@@ -496,6 +496,24 @@ class UiText(str, Enum):
     CORE_UPDATE_ERROR_UNKNOWN_SAFETY = "core_update.error.unknown.safety"
     CORE_UPDATE_ERROR_ACQUISITION_SAFETY = "core_update.error.acquisition.safety"
     CORE_UPDATE_ERROR_UNEXPECTED_DETAILS = "core_update.error.unexpected_details"
+    CONFIG_ADOPTION_PLAN_LOADING = "config_adoption.plan.loading"
+    CONFIG_ADOPTION_PLAN_TITLE = "config_adoption.plan.title"
+    CONFIG_ADOPTION_PLAN_FINGERPRINT = "config_adoption.plan.fingerprint"
+    CONFIG_ADOPTION_PLAN_SAFETY = "config_adoption.plan.safety"
+    CONFIG_ADOPTION_PLAN_CONFIRM = "config_adoption.plan.confirm"
+    CONFIG_ADOPTION_PLAN_PROGRESS = "config_adoption.plan.progress"
+    CONFIG_ADOPTION_RESULT_TITLE = "config_adoption.result.title"
+    CONFIG_ADOPTION_RESULT_REVISION = "config_adoption.result.revision"
+    CONFIG_ADOPTION_RESULT_SAFETY = "config_adoption.result.safety"
+    CONFIG_ADOPTION_RESULT_RETURN_DASHBOARD = "config_adoption.result.return_dashboard"
+    CONFIG_ADOPTION_PLANNING_ERROR_TITLE = "config_adoption.planning_error.title"
+    CONFIG_ADOPTION_PLANNING_ERROR_DETAILS = "config_adoption.planning_error.details"
+    CONFIG_ADOPTION_PLANNING_ERROR_SAFETY = "config_adoption.planning_error.safety"
+    CONFIG_ADOPTION_UNKNOWN_TITLE = "config_adoption.unknown.title"
+    CONFIG_ADOPTION_UNKNOWN_DETAILS = "config_adoption.unknown.details"
+    CONFIG_ADOPTION_UNKNOWN_SAFETY = "config_adoption.unknown.safety"
+    CONFIG_ADOPTION_ERROR_TITLE = "config_adoption.error.title"
+    CONFIG_ADOPTION_ERROR_SAFETY = "config_adoption.error.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -602,6 +620,8 @@ _EXPECTED_FIELDS.update(
         UiText.CORE_UPDATE_RESULT_BINARY: frozenset({"path"}),
         UiText.CORE_UPDATE_RESULT_TARGET: frozenset({"target"}),
         UiText.CORE_UPDATE_RESULT_PREVIOUS: frozenset({"target"}),
+        UiText.CONFIG_ADOPTION_PLAN_FINGERPRINT: frozenset({"sha256"}),
+        UiText.CONFIG_ADOPTION_RESULT_REVISION: frozenset({"revision"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1203,6 +1223,41 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CORE_UPDATE_ERROR_ACQUISITION_SAFETY: ("尚未请求特权激活，当前核心保持不变。"),
         UiText.CORE_UPDATE_ERROR_UNEXPECTED_DETAILS: (
             "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.CONFIG_ADOPTION_PLAN_LOADING: "正在检查现有配置…",
+        UiText.CONFIG_ADOPTION_PLAN_TITLE: "确认现有配置接管计划",
+        UiText.CONFIG_ADOPTION_PLAN_FINGERPRINT: "当前配置 SHA-256：{sha256}",
+        UiText.CONFIG_ADOPTION_PLAN_SAFETY: (
+            "接管不会修改服务器，也不会把现有 JSON 导入为 profile。"
+        ),
+        UiText.CONFIG_ADOPTION_PLAN_CONFIRM: "确认接管此配置",
+        UiText.CONFIG_ADOPTION_PLAN_PROGRESS: (
+            "操作已确认，正在重新核对并记录配置指纹。完成前无法返回。"
+        ),
+        UiText.CONFIG_ADOPTION_RESULT_TITLE: "现有配置已被记录为替换前置条件",
+        UiText.CONFIG_ADOPTION_RESULT_REVISION: "desired state revision {revision}",
+        UiText.CONFIG_ADOPTION_RESULT_SAFETY: (
+            "服务器配置没有改变。下一次应用会先核对已记录指纹。"
+        ),
+        UiText.CONFIG_ADOPTION_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.CONFIG_ADOPTION_PLANNING_ERROR_TITLE: "无法检查现有配置",
+        UiText.CONFIG_ADOPTION_PLANNING_ERROR_DETAILS: (
+            "读取配置接管计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.CONFIG_ADOPTION_PLANNING_ERROR_SAFETY: (
+            "尚未记录 replacement precondition，也未修改服务器配置。请重新打开诊断或仪表盘后再试。"
+        ),
+        UiText.CONFIG_ADOPTION_UNKNOWN_TITLE: "无法确认配置接管结果",
+        UiText.CONFIG_ADOPTION_UNKNOWN_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.CONFIG_ADOPTION_UNKNOWN_SAFETY: (
+            "此流程没有修改服务器配置。desired state 是否已记录 replacement precondition 未知。"
+            "请先通过诊断中心重新检查 live configuration identity，再决定是否重试。"
+        ),
+        UiText.CONFIG_ADOPTION_ERROR_TITLE: "无法接管现有配置",
+        UiText.CONFIG_ADOPTION_ERROR_SAFETY: (
+            "服务器配置和 desired state 均未改变。请重新检查后再试。"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (
