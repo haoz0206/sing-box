@@ -38,6 +38,47 @@ def _join_labels(facets: tuple[ProfileCloneFacet, ...]) -> str:
     return f"{'、'.join(labels[:-1])}和{labels[-1]}"
 
 
+class ProfileClonePlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only clone-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-clone-planning-error"):
+            yield Static("无法准备配置模板", id="profile-clone-planning-error-title")
+            yield Static(
+                "读取配置模板计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-clone-planning-error-details",
+            )
+            yield Static(
+                "尚未创建草案。请返回配置列表，重新打开详情后再试。",
+                id="profile-clone-planning-error-safety",
+            )
+        yield Footer()
+
+
+class ProfileCloneOperationalErrorScreen(Screen[None]):
+    """Report an unknown desired-state clone result without disclosing errors."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-clone-operational-error"):
+            yield Static("无法确认模板草案结果", id="profile-clone-error-title")
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-clone-error-details",
+            )
+            yield Static(
+                "该流程不修改服务器配置或服务。desired state 是否已创建草案未知。"
+                "请先返回配置列表检查，再决定是否重试。",
+                id="profile-clone-error-safety",
+            )
+        yield Footer()
+
+
 class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
     """Edit a name, review reset semantics, then create one desired-state draft."""
 
@@ -99,6 +140,9 @@ class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
         except ProfileCloneError as error:
             self.show_error(str(error))
             return
+        except Exception:
+            self.app.push_screen(ProfileClonePlanningErrorScreen())
+            return
         self.plan = plan
         self.query_one("#profile-clone-title", Static).update("确认模板草案")
         name_input = self.query_one("#profile-clone-name", Input)
@@ -140,6 +184,12 @@ class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
             return
         except ProfileCloneError as error:
             self.app.call_from_thread(self.show_error, str(error))
+            return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                ProfileCloneOperationalErrorScreen(),
+            )
             return
         self.app.call_from_thread(self.show_success, result)
 

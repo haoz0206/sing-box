@@ -464,6 +464,13 @@ runtime, artifacts, rollback, or desired state are unchanged, and directs the
 operator to read-only identity, health, and history evidence before deciding
 whether to retry. No automatic retry is offered.
 
+Profile action planning remains read-only. If edit, removal, pause/resume, or
+template planning raises an unclassified exception before a typed plan exists,
+Textual discards the exception text, states that no operation was executed, and
+directs the operator back through a fresh list/detail read before retrying.
+Typed validation, stale-selection, and port-unavailable evidence retains its
+existing actionable presentation.
+
 ### 7.5 Runtime adapters
 
 The runtime seam owns install/remove definitions, enable/disable, start/stop,
@@ -657,7 +664,10 @@ Current implementation status (2026-07-17):
   authentication material, listen port, and runtime status are always reset;
   explicit confirmation rechecks the desired-state revision under the shared
   mutation lock, commits desired state only, and returns to a recomposed
-  dashboard without invoking host or material adapters;
+  dashboard without invoking host or material adapters; unclassified initial
+  or review-plan failures are non-disclosing and safe to retry from a fresh
+  detail read, while an unclassified confirmed worker failure reports the
+  desired-state result as unknown without implying host effects;
 - desired-state startup recovery: exact primary/backup byte snapshots are
   classified behind a storage seam; only a corrupt primary plus a
   current-schema readable backup produces a reviewable plan, explicit
@@ -699,7 +709,7 @@ Current implementation status (2026-07-17):
   mode-`0600` JSON, sends a SHA-256-only request through a non-interactive
   runner, strictly restores the typed transaction, and surfaces unknown host
   results without committing desired state; the Textual apply, edit, removal,
-  pause/resume, and core-update workers also convert unclassified
+  pause/resume, template-clone, and core-update workers also convert unclassified
   post-confirmation exceptions into non-disclosing unknown-result guidance
   rather than crashing or implying a rollback;
 - privileged installation: a root-only command installs fixed directories and

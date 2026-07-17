@@ -157,6 +157,11 @@ class UnexpectedProfileRemover(RecordingProfileRemover):
         raise RuntimeError("token=private-profile-removal-worker-error")
 
 
+class UnexpectedPlanningProfileRemover(RecordingProfileRemover):
+    def plan_removal(self, profile_id: str) -> ProfileRemovalPlan:
+        raise RuntimeError("token=private-profile-removal-planning-error")
+
+
 class StateMutatingProfileRemover(RecordingProfileRemover):
     def __init__(self, state_store: MemoryStateStore) -> None:
         super().__init__()
@@ -324,6 +329,27 @@ async def test_unknown_profile_removal_host_result_requires_operator_diagnostics
         assert app.screen.query_one("#profile-removal-error-safety", Static).content == (
             "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
         )
+
+
+async def test_unexpected_profile_removal_planning_failure_is_safe_and_not_disclosed() -> None:
+    app = app_for(UnexpectedPlanningProfileRemover())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-removal-planning-error-title", Static).content == (
+            "无法准备配置移除"
+        )
+        assert app.screen.query_one("#profile-removal-planning-error-details", Static).content == (
+            "读取配置移除计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-removal-planning-error-safety", Static).content == (
+            "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-removal-planning-error" not in rendered_text
 
 
 async def test_unexpected_profile_removal_failure_is_unknown_and_not_disclosed() -> None:

@@ -129,6 +129,19 @@ class UnexpectedProfileAvailabilityManager:
         raise RuntimeError("token=private-profile-availability-worker-error")
 
 
+class UnexpectedPlanningProfileAvailabilityManager:
+    def plan_change(self, request: object) -> ProfileAvailabilityPlan:
+        raise RuntimeError("token=private-profile-availability-planning-error")
+
+    def apply_change(
+        self,
+        plan: ProfileAvailabilityPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileAvailabilityResult:
+        raise AssertionError("a failed availability plan must not be confirmed")
+
+
 async def test_operator_pauses_applied_profile_without_deleting_intent() -> None:
     profile = ManagedProfile(
         profile_id="profile-1",
@@ -325,6 +338,46 @@ async def test_unavailable_resume_port_has_actionable_planning_guidance() -> Non
         assert app.screen.query_one("#profile-availability-error-safety", Static).content == (
             "desired state 未提交。请重新打开配置详情并检查当前服务状态。"
         )
+
+
+async def test_unexpected_availability_planning_failure_is_safe_and_not_disclosed() -> None:
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=5, profiles=(paused,))
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=PausedProfileDetailsReader(),
+            profile_availability_manager=UnexpectedPlanningProfileAvailabilityManager(),
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#change-profile-availability")
+        await pilot.pause()
+
+        assert app.screen.query_one(
+            "#profile-availability-planning-error-title", Static
+        ).content == ("无法准备配置状态变更")
+        assert app.screen.query_one(
+            "#profile-availability-planning-error-details", Static
+        ).content == ("读取暂停/恢复计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。")
+        assert (
+            app.screen.query_one("#profile-availability-planning-error-safety", Static).content
+            == "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-availability-planning-error" not in rendered_text
 
 
 async def test_unexpected_availability_failure_is_unknown_and_not_disclosed() -> None:

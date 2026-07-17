@@ -188,6 +188,14 @@ class UnexpectedProfileEditor(RecordingProfileEditor):
         raise RuntimeError("token=private-profile-edit-worker-error")
 
 
+class UnexpectedPlanningProfileEditor(RecordingProfileEditor):
+    def __init__(self) -> None:
+        super().__init__(status=ProfileStatus.APPLIED)
+
+    def plan_edit(self, request: PlanProfileEditRequest) -> ProfileEditPlan:
+        raise RuntimeError("token=private-profile-edit-planning-error")
+
+
 class StaleProfileEditor(RecordingProfileEditor):
     def apply_edit(
         self,
@@ -559,6 +567,29 @@ async def test_unknown_profile_edit_host_result_requires_operator_diagnostics() 
         assert app.screen.query_one("#profile-edit-error-safety", Static).content == (
             "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
         )
+
+
+async def test_unexpected_profile_edit_planning_failure_is_safe_and_not_disclosed() -> None:
+    app = app_for(UnexpectedPlanningProfileEditor())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#edit-profile")
+        app.screen.query_one("#profile-edit-name", Input).value = "平板"
+        await pilot.click("#preview-profile-edit")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-edit-planning-error-title", Static).content == (
+            "无法准备配置编辑"
+        )
+        assert app.screen.query_one("#profile-edit-planning-error-details", Static).content == (
+            "读取配置编辑计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-edit-planning-error-safety", Static).content == (
+            "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-edit-planning-error" not in rendered_text
 
 
 async def test_unexpected_profile_edit_failure_is_unknown_and_not_disclosed() -> None:

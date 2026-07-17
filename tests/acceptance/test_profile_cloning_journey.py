@@ -5,7 +5,13 @@ from textual.widgets import Button, Input, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import Manager
-from sb_manager.application.profile_cloning import ProfileCloningService
+from sb_manager.application.profile_cloning import (
+    PlanProfileCloneRequest,
+    ProfileClonePlan,
+    ProfileCloner,
+    ProfileCloneResult,
+    ProfileCloningService,
+)
 from sb_manager.application.profile_details import ProfileDetails
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -38,6 +44,49 @@ class FixedProfileDetailsReader:
             server_address="vpn.example.com",
             connection_info=None,
         )
+
+
+class UnexpectedPlanningProfileCloner:
+    def plan(self, request: object) -> object:
+        raise RuntimeError("token=private-profile-clone-planning-error")
+
+    def clone(self, plan: object, *, confirmed: bool) -> object:
+        raise AssertionError("a failed clone plan must not be confirmed")
+
+
+class UnexpectedReviewProfileCloner:
+    def __init__(self, delegate: ProfileCloner) -> None:
+        self.delegate = delegate
+
+    def plan(self, request: PlanProfileCloneRequest) -> ProfileClonePlan:
+        if request.profile_name is not None:
+            raise RuntimeError("token=private-profile-clone-review-error")
+        return self.delegate.plan(request)
+
+    def clone(
+        self,
+        plan: ProfileClonePlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileCloneResult:
+        return self.delegate.clone(plan, confirmed=confirmed)
+
+
+class UnexpectedProfileCloner:
+    def __init__(self, delegate: ProfileCloner) -> None:
+        self.delegate = delegate
+
+    def plan(self, request: PlanProfileCloneRequest) -> ProfileClonePlan:
+        return self.delegate.plan(request)
+
+    def clone(
+        self,
+        plan: ProfileClonePlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileCloneResult:
+        assert confirmed
+        raise RuntimeError("token=private-profile-clone-worker-error")
 
 
 def source_profile() -> ManagedProfile:
@@ -137,6 +186,128 @@ async def test_duplicate_clone_name_stays_in_review_without_mutating_state() -> 
         )
         assert app.screen.query_one("#confirm-profile-clone", Button).has_class("hidden")
         assert state_store.load().revision == SOURCE_REVISION
+
+
+async def test_unexpected_clone_planning_failure_is_safe_and_not_disclosed() -> None:
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=SOURCE_REVISION,
+            profiles=(source_profile(),),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=FixedProfileDetailsReader(),
+            profile_cloner=UnexpectedPlanningProfileCloner(),
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#clone-profile")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-clone-planning-error-title", Static).content == (
+            "无法准备配置模板"
+        )
+        assert app.screen.query_one("#profile-clone-planning-error-details", Static).content == (
+            "读取配置模板计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-clone-planning-error-safety", Static).content == (
+            "尚未创建草案。请返回配置列表，重新打开详情后再试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-clone-planning-error" not in rendered_text
+        assert state_store.load().revision == SOURCE_REVISION
+
+
+async def test_unexpected_clone_review_failure_is_safe_and_not_disclosed() -> None:
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=SOURCE_REVISION,
+            profiles=(source_profile(),),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    cloner = UnexpectedReviewProfileCloner(
+        ProfileCloningService(
+            state_store=state_store,
+            mutation_lock=ImmediateApplyLock(),
+        )
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=FixedProfileDetailsReader(),
+            profile_cloner=cloner,
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#clone-profile")
+        app.screen.query_one("#profile-clone-name", Input).value = "平板"
+        await pilot.click("#review-profile-clone")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-clone-planning-error-title", Static).content == (
+            "无法准备配置模板"
+        )
+        assert app.screen.query_one("#profile-clone-planning-error-details", Static).content == (
+            "读取配置模板计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-clone-review-error" not in rendered_text
+        assert state_store.load().revision == SOURCE_REVISION
+
+
+async def test_unexpected_clone_failure_is_unknown_and_not_disclosed() -> None:
+    state_store = MemoryStateStore(
+        ManagedInstallation(
+            schema_version=1,
+            revision=SOURCE_REVISION,
+            profiles=(source_profile(),),
+            expected_config_sha256="a" * 64,
+        )
+    )
+    cloner = UnexpectedProfileCloner(
+        ProfileCloningService(
+            state_store=state_store,
+            mutation_lock=ImmediateApplyLock(),
+        )
+    )
+    app = ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=FixedProfileDetailsReader(),
+            profile_cloner=cloner,
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#view-profile-0")
+        await pilot.click("#clone-profile")
+        app.screen.query_one("#profile-clone-name", Input).value = "平板"
+        await pilot.click("#review-profile-clone")
+        await pilot.click("#confirm-profile-clone")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-clone-error-title", Static).content == (
+            "无法确认模板草案结果"
+        )
+        assert app.screen.query_one("#profile-clone-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#profile-clone-error-safety", Static).content == (
+            "该流程不修改服务器配置或服务。desired state 是否已创建草案未知。"
+            "请先返回配置列表检查，再决定是否重试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-profile-clone-worker-error" not in rendered_text
 
 
 async def test_stale_clone_confirmation_keeps_actionable_guidance() -> None:

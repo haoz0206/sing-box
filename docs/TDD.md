@@ -277,10 +277,15 @@ Release gate adds:
 - package build and clean-environment install;
 - exact retained-package rollback plan, confirmation, stale-plan, and stable
   launcher behavior;
+- profile edit, removal, availability, and template planning through Textual
+  controls for non-disclosing unclassified exceptions, explicit no-mutation
+  wording, fresh-read retry guidance, and preservation of typed validation,
+  stale-selection, and port evidence;
 - confirmed profile-apply, profile-edit, profile-removal,
-  profile-availability, and core-update workers for non-disclosing unclassified
-  exceptions, complete unknown-result wording, absence of safe state inference
-  or automatic retry, and preservation of existing typed failure evidence;
+  profile-availability, profile-clone, and core-update workers for
+  non-disclosing unclassified exceptions, complete scope-specific unknown-result
+  wording, absence of unsafe state inference or automatic retry, and
+  preservation of existing typed failure evidence;
 - profile removal plans for draft and applied scopes, revision conflicts,
   desired-state-only deletion, transactional live projection, failed-host state
   preservation, final-profile zero-inbound validation against the privileged

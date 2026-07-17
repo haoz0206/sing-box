@@ -90,12 +90,19 @@ from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
 from sb_manager.ui.screens.profile_availability import (
     ProfileAvailabilityErrorScreen,
+    ProfileAvailabilityPlanningErrorScreen,
     ProfileAvailabilityPlanScreen,
 )
-from sb_manager.ui.screens.profile_cloning import ProfileCloneScreen
+from sb_manager.ui.screens.profile_cloning import (
+    ProfileClonePlanningErrorScreen,
+    ProfileCloneScreen,
+)
 from sb_manager.ui.screens.profile_editing import ProfileEditFormScreen
 from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
-from sb_manager.ui.screens.profile_removal import ProfileRemovalScreen
+from sb_manager.ui.screens.profile_removal import (
+    ProfileRemovalPlanningErrorScreen,
+    ProfileRemovalScreen,
+)
 from sb_manager.ui.screens.state_recovery import (
     StateRecoveryConfirmationScreen,
     StateRecoveryPanel,
@@ -347,6 +354,9 @@ class ProfileDetailsScreen(Screen[None]):
         except ProfileRemovalNotFoundError:
             self.app.push_screen(ProfileDetailsErrorScreen())
             return
+        except Exception:
+            self.app.push_screen(ProfileRemovalPlanningErrorScreen())
+            return
         self.app.push_screen(screen)
 
     @on(Button.Pressed, "#clone-profile")
@@ -360,6 +370,9 @@ class ProfileDetailsScreen(Screen[None]):
             )
         except ProfileCloneError:
             self.app.push_screen(ProfileDetailsErrorScreen())
+            return
+        except Exception:
+            self.app.push_screen(ProfileClonePlanningErrorScreen())
             return
         self.app.push_screen(screen, self.finish_profile_clone)
 
@@ -388,6 +401,9 @@ class ProfileDetailsScreen(Screen[None]):
             ProfileResumePortUnavailableError,
         ) as error:
             self.app.push_screen(ProfileAvailabilityErrorScreen(str(error)))
+            return
+        except Exception:
+            self.app.push_screen(ProfileAvailabilityPlanningErrorScreen())
             return
         self.app.push_screen(
             ProfileAvailabilityPlanScreen(

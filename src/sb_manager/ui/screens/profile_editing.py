@@ -102,7 +102,30 @@ class ProfileEditFormScreen(Screen[None]):
                 "配置可能已被另一个会话移除，请返回后重新打开列表。"
             )
             return
+        except Exception:
+            self.app.push_screen(ProfileEditPlanningErrorScreen())
+            return
         self.app.push_screen(ProfileEditPlanScreen(self.profile_editor, plan=plan))
+
+
+class ProfileEditPlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only edit-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-edit-planning-error"):
+            yield Static("无法准备配置编辑", id="profile-edit-planning-error-title")
+            yield Static(
+                "读取配置编辑计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-edit-planning-error-details",
+            )
+            yield Static(
+                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                id="profile-edit-planning-error-safety",
+            )
+        yield Footer()
 
 
 class ProfileEditPlanScreen(Screen[None]):

@@ -246,3 +246,23 @@ class ProfileRemovalOperationalErrorScreen(Screen[None]):
                 id="profile-removal-error-safety",
             )
         yield Footer()
+
+
+class ProfileRemovalPlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only removal-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-removal-planning-error"):
+            yield Static("无法准备配置移除", id="profile-removal-planning-error-title")
+            yield Static(
+                "读取配置移除计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-removal-planning-error-details",
+            )
+            yield Static(
+                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                id="profile-removal-planning-error-safety",
+            )
+        yield Footer()

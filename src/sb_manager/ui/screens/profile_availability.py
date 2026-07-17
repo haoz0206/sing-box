@@ -262,3 +262,26 @@ class ProfileAvailabilityErrorScreen(Screen[None]):
                 id="profile-availability-error-safety",
             )
         yield Footer()
+
+
+class ProfileAvailabilityPlanningErrorScreen(Screen[None]):
+    """Report an unexpected read-only availability-planning failure safely."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="profile-availability-planning-error"):
+            yield Static(
+                "无法准备配置状态变更",
+                id="profile-availability-planning-error-title",
+            )
+            yield Static(
+                "读取暂停/恢复计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="profile-availability-planning-error-details",
+            )
+            yield Static(
+                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                id="profile-availability-planning-error-safety",
+            )
+        yield Footer()
