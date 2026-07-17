@@ -38,6 +38,7 @@ from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 REFRESHED_INSPECTION_COUNT = 2
 REFRESHED_SERVICE_LOG_COUNT = 2
+REFRESHED_APPLY_HISTORY_COUNT = 2
 
 
 class DiagnosticsCenterMarkerCatalog:
@@ -97,6 +98,49 @@ class ServiceLogsMarkerCatalog:
         if marker := markers.get(key.value):
             return marker
         return SIMPLIFIED_CHINESE.text(key, **values)
+
+
+class ApplyHistoryMarkerCatalog:
+    """Render markers across the complete bounded apply-history drill-down."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "apply_history.title": "目录应用历史",
+            "apply_history.status.in_progress": "目录结果待确认",
+            "apply_history.status.applied": "目录应用成功",
+            "apply_history.status.validation_failed": "目录校验失败",
+            "apply_history.status.precondition_failed": "目录前置失败",
+            "apply_history.status.commit_failed": "目录提交失败",
+            "apply_history.status.rolled_back": "目录已回滚",
+            "apply_history.status.rollback_failed": "目录回滚失败",
+            "apply_history.status.execution_error": "目录执行异常",
+            "apply_history.entry.in_progress": "目录先核对主机状态",
+            "apply_history.empty": "目录尚无应用记录",
+            "apply_history.details.unavailable": "目录无历史诊断",
+            "apply_history.error": "目录历史检查失败并可重试",
+            "apply_history.loading": "目录正在读取历史",
+            "apply_history.reloading": "目录正在重新读取历史",
+            "apply_history.refresh": "目录重新读取历史",
+        }
+        marker = markers.get(key.value)
+        if marker is None:
+            if key.value == "apply_history.safety":
+                marker = f"目录只读上限<{values['limit']}>"
+            elif key.value == "apply_history.entry.header":
+                marker = f"目录记录<{values['started_at']}|{values['status']}>"
+            elif key.value == "apply_history.entry.active_profiles":
+                marker = f"目录生效数<{values['count']}>"
+            elif key.value == "apply_history.entry.candidate":
+                marker = f"目录候选<{values['sha256']}>"
+            elif key.value == "apply_history.entry.diagnostics":
+                marker = f"目录诊断<{values['diagnostics']}>"
+            elif key.value == "apply_history.entry.redacted":
+                marker = f"目录脱敏数<{values['count']}>"
+            elif key.value == "apply_history.unavailable":
+                marker = f"目录历史不可用<{values['diagnostics']}>"
+            else:
+                marker = SIMPLIFIED_CHINESE.text(key, **values)
+        return marker
 
 
 class FixedDiagnosticsCenter:
@@ -182,6 +226,25 @@ class RecordingApplyHistoryReader:
 class FailingApplyHistoryReader:
     def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
         raise RuntimeError("token=private-history-reader-error")
+
+
+class BlockingApplyHistoryReader:
+    def __init__(self, report: ApplyHistoryReport, *, block_on_call: int) -> None:
+        self.report = report
+        self.block_on_call = block_on_call
+        self.calls = 0
+        self.limits: list[int] = []
+        self.started = Event()
+        self.release = Event()
+
+    def read_recent(self, *, limit: int = 20) -> ApplyHistoryReport:
+        self.calls += 1
+        self.limits.append(limit)
+        if self.calls == self.block_on_call:
+            self.started.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test did not release apply-history read")
+        return self.report
 
 
 class HealthyHostDiagnostics:
@@ -1169,6 +1232,347 @@ async def test_operator_drills_into_safe_configuration_apply_history() -> None:
         assert f"候选配置 SHA-256：{candidate_sha256}" in content.content
         assert "validation [red]failed[/red]" in content.content
         assert "validation [red]failed[/red]" in content.render().plain
+
+
+async def test_apply_history_record_copy_comes_from_catalog_and_keeps_evidence_literal() -> None:
+    candidate_sha256 = "a" * 64
+    diagnostics = "validation [red]failed[/red]"
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.ATTENTION,
+            summary="最近一次 [blue]配置应用[/blue] 未完成",
+            entries=(
+                ApplyHistoryEntry(
+                    attempt_id="apply-1",
+                    started_at=datetime(2026, 7, 17, 2, 3, tzinfo=timezone.utc),
+                    completed_at=datetime(2026, 7, 17, 2, 4, tzinfo=timezone.utc),
+                    status=ApplyHistoryStatus.VALIDATION_FAILED,
+                    candidate_sha256=candidate_sha256,
+                    active_profile_count=2,
+                    diagnostics=diagnostics,
+                    redacted_occurrences=3,
+                ),
+            ),
+            diagnostics="保留最近 1 次应用证据",
+            guidance="修复后重新预览并确认应用。",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-title", Static).content == "目录应用历史"
+        assert app.screen.query_one("#apply-history-safety", Static).content == ("目录只读上限<20>")
+        summary = app.screen.query_one("#apply-history-summary", Static)
+        assert summary.content == "最近一次 [blue]配置应用[/blue] 未完成"
+        assert summary.render().plain == summary.content
+        content = app.screen.query_one("#apply-history-content", Static)
+        assert content.content == "\n".join(
+            (
+                "目录记录<2026-07-17T02:03:00Z|目录校验失败>",
+                "目录生效数<2>",
+                f"目录候选<{candidate_sha256}>",
+                f"目录诊断<{diagnostics}>",
+                "目录脱敏数<3>",
+            )
+        )
+        assert content.render().plain == content.content
+        assert str(app.screen.query_one("#refresh-apply-history", Button).label) == (
+            "目录重新读取历史"
+        )
+
+
+async def test_apply_history_preserves_every_typed_status_and_unknown_result_warning() -> None:
+    statuses = (
+        ApplyHistoryStatus.IN_PROGRESS,
+        ApplyHistoryStatus.APPLIED,
+        ApplyHistoryStatus.VALIDATION_FAILED,
+        ApplyHistoryStatus.PRECONDITION_FAILED,
+        ApplyHistoryStatus.COMMIT_FAILED,
+        ApplyHistoryStatus.ROLLED_BACK,
+        ApplyHistoryStatus.ROLLBACK_FAILED,
+        ApplyHistoryStatus.EXECUTION_ERROR,
+    )
+    entries = tuple(
+        ApplyHistoryEntry(
+            attempt_id=f"apply-{index}",
+            started_at=datetime(2026, 7, 17, 2, index, tzinfo=timezone.utc),
+            completed_at=(
+                None
+                if status is ApplyHistoryStatus.IN_PROGRESS
+                else datetime(2026, 7, 17, 3, index, tzinfo=timezone.utc)
+            ),
+            status=status,
+            candidate_sha256=f"{index:064x}",
+            active_profile_count=index,
+            diagnostics="",
+            redacted_occurrences=0,
+        )
+        for index, status in enumerate(statuses)
+    )
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.ACTION_REQUIRED,
+            summary="最近一次配置应用结果需要人工确认",
+            entries=entries,
+            diagnostics="保留最近 8 次应用证据",
+            guidance="先核对主机。",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        content = app.screen.query_one("#apply-history-content", Static).content
+        for expected_status in (
+            "目录结果待确认",
+            "目录应用成功",
+            "目录校验失败",
+            "目录前置失败",
+            "目录提交失败",
+            "目录已回滚",
+            "目录回滚失败",
+            "目录执行异常",
+        ):
+            assert expected_status in content
+        assert "目录先核对主机状态" in content
+
+
+async def test_apply_history_empty_state_copy_comes_from_catalog() -> None:
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.HEALTHY,
+            summary="尚无配置应用记录",
+            entries=(),
+            diagnostics="没有执行过 live configuration 应用",
+            guidance="",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-content", Static).content == (
+            "目录尚无应用记录"
+        )
+
+
+async def test_apply_history_typed_unavailable_copy_keeps_diagnostics_literal() -> None:
+    diagnostics = "history [red]permission denied[/red]"
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.UNAVAILABLE,
+            summary="无法读取配置应用历史",
+            entries=(),
+            diagnostics=diagnostics,
+            guidance="不要假定上次应用成功。",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        content = app.screen.query_one("#apply-history-content", Static)
+        assert content.content == f"目录历史不可用<{diagnostics}>"
+        assert content.render().plain == content.content
+        assert app.screen.query_one("#refresh-apply-history", Button).disabled is False
+
+
+async def test_apply_history_typed_unavailable_uses_catalog_fallback_without_details() -> None:
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.UNAVAILABLE,
+            summary="无法读取配置应用历史",
+            entries=(),
+            diagnostics="",
+            guidance="不要假定上次应用成功。",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-content", Static).content == (
+            "目录历史不可用<目录无历史诊断>"
+        )
+
+
+async def test_apply_history_unexpected_failure_copy_comes_from_catalog() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=FailingApplyHistoryReader(),
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-loading", Static).content == (
+            "目录历史检查失败并可重试"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-history-reader-error" not in rendered_text
+        assert app.screen.query_one("#refresh-apply-history", Button).disabled is False
+
+
+async def test_initial_apply_history_progress_copy_comes_from_catalog() -> None:
+    history = BlockingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.HEALTHY,
+            summary="尚无配置应用记录",
+            entries=(),
+            diagnostics="没有执行过 live configuration 应用",
+            guidance="",
+            limit=20,
+        ),
+        block_on_call=1,
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert history.started.is_set()
+        assert app.screen.query_one("#apply-history-loading", Static).content == (
+            "目录正在读取历史"
+        )
+        assert app.screen.query_one("#refresh-apply-history", Button).disabled is True
+
+        history.release.set()
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-content", Static).content == (
+            "目录尚无应用记录"
+        )
+
+
+async def test_apply_history_refresh_progress_copy_comes_from_catalog() -> None:
+    history = BlockingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.HEALTHY,
+            summary="尚无配置应用记录",
+            entries=(),
+            diagnostics="没有执行过 live configuration 应用",
+            guidance="",
+            limit=20,
+        ),
+        block_on_call=2,
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+        await pilot.click("#refresh-apply-history")
+        await pilot.pause()
+
+        assert history.started.is_set()
+        assert app.screen.query_one("#apply-history-loading", Static).content == (
+            "目录正在重新读取历史"
+        )
+        assert app.screen.query_one("#refresh-apply-history", Button).disabled is True
+
+        history.release.set()
+        await pilot.pause()
+
+        assert history.calls == REFRESHED_APPLY_HISTORY_COUNT
+        assert history.limits == [20, 20]
+        assert app.screen.query_one("#apply-history-content", Static).content == (
+            "目录尚无应用记录"
+        )
 
 
 async def test_apply_history_hides_unexpected_failure_and_keeps_retry() -> None:

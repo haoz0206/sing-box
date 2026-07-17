@@ -424,6 +424,18 @@ Worked example — bounded log evidence and an empty refresh:
 > redacted lines, and typed diagnostics remain literal with markup disabled;
 > refreshing never follows the journal or mutates the service.
 
+Worked example — one failed apply record:
+
+> The operator opens Apply History and sees the newest bounded record with its
+> UTC start time, typed outcome, active-profile count, exact candidate SHA-256,
+> bounded redacted diagnostics, and redaction count. The report conclusion and
+> record evidence remain literal with markup disabled, while page framing,
+> status labels, entry templates, unknown-result warning, empty/unavailable
+> states, loading/reloading states, and generic failure recovery come from the
+> same injected interface copy catalog through every navigation entry. Opening
+> or refreshing history never retries an apply or infers success from desired
+> state.
+
 The first diagnostics-center slice aggregates desired-state consistency, host
 readiness, core/helper/config-target evidence, and runtime health behind one
 read-only `inspect()` interface. It assigns one stable severity model, keeps

@@ -248,7 +248,12 @@ A durable, newest-bounded record of exact configuration-apply attempts. An
 `in-progress` entry means the final host result is unknown and requires
 inspection; it never implies success from desired state alone. Entries retain
 only candidate identity, counts, typed outcome, timestamps, and bounded redacted
-diagnostics.
+diagnostics. Page framing, typed status labels, entry templates, unknown-result
+warning, empty/unavailable states, loading/reloading states, generic failure
+recovery, and refresh copy come from one validated interface copy catalog
+through both the diagnostics-center and operations-workspace entries. Report
+conclusions, timestamps, candidate SHA-256 values, and typed diagnostics remain
+literal non-markup evidence.
 _Avoid_: Desired-state revision history, generated configuration backup, raw log
 
 **Contextual shortcut**:

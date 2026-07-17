@@ -108,6 +108,29 @@ class UiText(str, Enum):
     SERVICE_LOGS_ERROR = "service_logs.error"
     SERVICE_LOGS_LOADING = "service_logs.loading"
     SERVICE_LOGS_RELOADING = "service_logs.reloading"
+    APPLY_HISTORY_TITLE = "apply_history.title"
+    APPLY_HISTORY_SAFETY = "apply_history.safety"
+    APPLY_HISTORY_STATUS_IN_PROGRESS = "apply_history.status.in_progress"
+    APPLY_HISTORY_STATUS_APPLIED = "apply_history.status.applied"
+    APPLY_HISTORY_STATUS_VALIDATION_FAILED = "apply_history.status.validation_failed"
+    APPLY_HISTORY_STATUS_PRECONDITION_FAILED = "apply_history.status.precondition_failed"
+    APPLY_HISTORY_STATUS_COMMIT_FAILED = "apply_history.status.commit_failed"
+    APPLY_HISTORY_STATUS_ROLLED_BACK = "apply_history.status.rolled_back"
+    APPLY_HISTORY_STATUS_ROLLBACK_FAILED = "apply_history.status.rollback_failed"
+    APPLY_HISTORY_STATUS_EXECUTION_ERROR = "apply_history.status.execution_error"
+    APPLY_HISTORY_ENTRY_HEADER = "apply_history.entry.header"
+    APPLY_HISTORY_ENTRY_ACTIVE_PROFILES = "apply_history.entry.active_profiles"
+    APPLY_HISTORY_ENTRY_CANDIDATE = "apply_history.entry.candidate"
+    APPLY_HISTORY_ENTRY_DIAGNOSTICS = "apply_history.entry.diagnostics"
+    APPLY_HISTORY_ENTRY_REDACTED = "apply_history.entry.redacted"
+    APPLY_HISTORY_ENTRY_IN_PROGRESS = "apply_history.entry.in_progress"
+    APPLY_HISTORY_EMPTY = "apply_history.empty"
+    APPLY_HISTORY_UNAVAILABLE = "apply_history.unavailable"
+    APPLY_HISTORY_DETAILS_UNAVAILABLE = "apply_history.details.unavailable"
+    APPLY_HISTORY_ERROR = "apply_history.error"
+    APPLY_HISTORY_LOADING = "apply_history.loading"
+    APPLY_HISTORY_RELOADING = "apply_history.reloading"
+    APPLY_HISTORY_REFRESH = "apply_history.refresh"
     SERVICE_LOGS_REFRESH = "service_logs.refresh"
     DASHBOARD_REFRESH_RUNTIME = "dashboard.refresh_runtime"
     DASHBOARD_VIEW_READINESS = "dashboard.view_readiness"
@@ -933,6 +956,13 @@ _EXPECTED_FIELDS.update(
         UiText.SERVICE_LOGS_SOURCE: frozenset({"source"}),
         UiText.SERVICE_LOGS_SOURCE_REDACTED: frozenset({"source", "count"}),
         UiText.SERVICE_LOGS_UNAVAILABLE: frozenset({"diagnostics"}),
+        UiText.APPLY_HISTORY_SAFETY: frozenset({"limit"}),
+        UiText.APPLY_HISTORY_ENTRY_HEADER: frozenset({"started_at", "status"}),
+        UiText.APPLY_HISTORY_ENTRY_ACTIVE_PROFILES: frozenset({"count"}),
+        UiText.APPLY_HISTORY_ENTRY_CANDIDATE: frozenset({"sha256"}),
+        UiText.APPLY_HISTORY_ENTRY_DIAGNOSTICS: frozenset({"diagnostics"}),
+        UiText.APPLY_HISTORY_ENTRY_REDACTED: frozenset({"count"}),
+        UiText.APPLY_HISTORY_UNAVAILABLE: frozenset({"diagnostics"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1084,6 +1114,31 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.SERVICE_LOGS_LOADING: "正在读取近期服务日志…",
         UiText.SERVICE_LOGS_RELOADING: "正在重新读取近期服务日志…",
+        UiText.APPLY_HISTORY_TITLE: "配置应用历史",
+        UiText.APPLY_HISTORY_SAFETY: "只读 · 最近 {limit} 次 · 不保存配置正文或私钥",
+        UiText.APPLY_HISTORY_STATUS_IN_PROGRESS: "结果待确认",
+        UiText.APPLY_HISTORY_STATUS_APPLIED: "应用成功",
+        UiText.APPLY_HISTORY_STATUS_VALIDATION_FAILED: "校验失败",
+        UiText.APPLY_HISTORY_STATUS_PRECONDITION_FAILED: "前置条件失败",
+        UiText.APPLY_HISTORY_STATUS_COMMIT_FAILED: "提交失败",
+        UiText.APPLY_HISTORY_STATUS_ROLLED_BACK: "已回滚",
+        UiText.APPLY_HISTORY_STATUS_ROLLBACK_FAILED: "回滚失败",
+        UiText.APPLY_HISTORY_STATUS_EXECUTION_ERROR: "执行异常",
+        UiText.APPLY_HISTORY_ENTRY_HEADER: "{started_at} · {status}",
+        UiText.APPLY_HISTORY_ENTRY_ACTIVE_PROFILES: "生效配置数：{count}",
+        UiText.APPLY_HISTORY_ENTRY_CANDIDATE: "候选配置 SHA-256：{sha256}",
+        UiText.APPLY_HISTORY_ENTRY_DIAGNOSTICS: "诊断：{diagnostics}",
+        UiText.APPLY_HISTORY_ENTRY_REDACTED: "已脱敏：{count} 处",
+        UiText.APPLY_HISTORY_ENTRY_IN_PROGRESS: "结果尚未写入，需要核对主机状态",
+        UiText.APPLY_HISTORY_EMPTY: "尚无配置应用记录。",
+        UiText.APPLY_HISTORY_UNAVAILABLE: "无法读取配置应用历史：{diagnostics}",
+        UiText.APPLY_HISTORY_DETAILS_UNAVAILABLE: "未提供诊断细节",
+        UiText.APPLY_HISTORY_ERROR: (
+            "无法完成应用历史检查。底层错误未显示，以避免泄露敏感信息。请重新读取。"
+        ),
+        UiText.APPLY_HISTORY_LOADING: "正在读取配置应用历史…",
+        UiText.APPLY_HISTORY_RELOADING: "正在重新读取配置应用历史…",
+        UiText.APPLY_HISTORY_REFRESH: "重新读取",
         UiText.SERVICE_LOGS_REFRESH: "重新读取",
         UiText.DASHBOARD_REFRESH_RUNTIME: "重新检查服务状态",
         UiText.DASHBOARD_VIEW_READINESS: "查看准备度",

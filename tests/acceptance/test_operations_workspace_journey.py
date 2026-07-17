@@ -1,3 +1,5 @@
+from typing import cast
+
 from textual.widgets import Button, Static
 
 from sb_manager.application.apply_history import ApplyHistoryCondition, ApplyHistoryReport
@@ -7,7 +9,8 @@ from sb_manager.application.core_update import (
     PlanCoreUpdateRequest,
 )
 from sb_manager.application.service_logs import ServiceLogCondition, ServiceLogReport
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 
 class NeverCalledCoreUpdater:
@@ -58,6 +61,19 @@ class RecordingApplyHistory:
             guidance="",
             limit=limit,
         )
+
+
+class ApplyHistoryMarkerCatalog:
+    """Mark the copy policy that must survive the Operations drill-down."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "apply_history.title": "目录应用历史",
+            "apply_history.empty": "目录尚无应用记录",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 async def test_dashboard_routes_core_management_through_operations() -> None:
@@ -168,3 +184,23 @@ async def test_operator_reads_apply_history_on_demand_from_operations() -> None:
 
         assert app.screen.query_one("#apply-history-title", Static).content == "配置应用历史"
         assert history.calls == 1
+
+
+async def test_operations_preserves_copy_policy_when_opening_apply_history() -> None:
+    history = RecordingApplyHistory()
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(apply_history_reader=history),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ApplyHistoryMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-operations")
+        await pilot.click("#open-apply-history")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-history-title", Static).content == "目录应用历史"
+        assert app.screen.query_one("#apply-history-content", Static).content == (
+            "目录尚无应用记录"
+        )

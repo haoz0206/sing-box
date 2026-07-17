@@ -92,4 +92,6 @@ class OperationsScreen(Screen[None]):
     @on(Button.Pressed, "#open-apply-history")
     def open_apply_history(self) -> None:
         if self.apply_history_reader is not None:
-            self.app.push_screen(ApplyHistoryScreen(self.apply_history_reader))
+            self.app.push_screen(
+                ApplyHistoryScreen(self.apply_history_reader, copy_catalog=self.copy)
+            )

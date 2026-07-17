@@ -407,8 +407,10 @@ Release gate adds:
 - configuration apply history for durable pre-mutation recording, typed final
   outcomes, interrupted/final-write-unknown semantics, strict atomic JSON,
   bounded retention, symlink refusal, credential redaction, diagnostics-center
-  classification, non-markup Textual drill-down, non-disclosing unexpected
-  failure retry, and shared direct/privileged production composition;
+  classification, catalogued framing/status/entry/empty/unavailable/progress/
+  recovery copy through both navigation entries, literal non-markup evidence,
+  non-disclosing unexpected failure retry, and shared direct/privileged
+  production composition;
 - keyboard-first Textual navigation for discoverable `?` help, dashboard-only
   add/profiles/network/settings/diagnostics/operations/quit actions, child-screen suppression,
   non-mutating navigation, and preservation of normal form input; the

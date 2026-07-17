@@ -17,47 +17,64 @@ from sb_manager.application.apply_history import (
     ApplyHistoryReport,
 )
 from sb_manager.seams.apply_history import ApplyHistoryEntry, ApplyHistoryStatus
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
-STATUS_LABELS = {
-    ApplyHistoryStatus.IN_PROGRESS: "结果待确认",
-    ApplyHistoryStatus.APPLIED: "应用成功",
-    ApplyHistoryStatus.VALIDATION_FAILED: "校验失败",
-    ApplyHistoryStatus.PRECONDITION_FAILED: "前置条件失败",
-    ApplyHistoryStatus.COMMIT_FAILED: "提交失败",
-    ApplyHistoryStatus.ROLLED_BACK: "已回滚",
-    ApplyHistoryStatus.ROLLBACK_FAILED: "回滚失败",
-    ApplyHistoryStatus.EXECUTION_ERROR: "执行异常",
+STATUS_TEXT = {
+    ApplyHistoryStatus.IN_PROGRESS: UiText.APPLY_HISTORY_STATUS_IN_PROGRESS,
+    ApplyHistoryStatus.APPLIED: UiText.APPLY_HISTORY_STATUS_APPLIED,
+    ApplyHistoryStatus.VALIDATION_FAILED: UiText.APPLY_HISTORY_STATUS_VALIDATION_FAILED,
+    ApplyHistoryStatus.PRECONDITION_FAILED: UiText.APPLY_HISTORY_STATUS_PRECONDITION_FAILED,
+    ApplyHistoryStatus.COMMIT_FAILED: UiText.APPLY_HISTORY_STATUS_COMMIT_FAILED,
+    ApplyHistoryStatus.ROLLED_BACK: UiText.APPLY_HISTORY_STATUS_ROLLED_BACK,
+    ApplyHistoryStatus.ROLLBACK_FAILED: UiText.APPLY_HISTORY_STATUS_ROLLBACK_FAILED,
+    ApplyHistoryStatus.EXECUTION_ERROR: UiText.APPLY_HISTORY_STATUS_EXECUTION_ERROR,
 }
 
 
 class ApplyHistoryScreen(Screen[None]):
     """Load safe, durable apply evidence away from the UI thread."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
     def __init__(
         self,
         apply_history_reader: ApplyHistoryReader,
         *,
         limit: int = DEFAULT_APPLY_HISTORY_LIMIT,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.apply_history_reader = apply_history_reader
         self.limit = limit
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="apply-history"):
-            yield Static("配置应用历史", id="apply-history-title", markup=False)
             yield Static(
-                f"只读 · 最近 {self.limit} 次 · 不保存配置正文或私钥",
+                self.copy.text(UiText.APPLY_HISTORY_TITLE),
+                id="apply-history-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.APPLY_HISTORY_SAFETY, limit=self.limit),
                 id="apply-history-safety",
                 markup=False,
             )
-            yield Static("正在读取配置应用历史…", id="apply-history-loading", markup=False)
+            yield Static(
+                self.copy.text(UiText.APPLY_HISTORY_LOADING),
+                id="apply-history-loading",
+                markup=False,
+            )
             yield Static("", id="apply-history-summary", classes="hidden", markup=False)
             yield Static("", id="apply-history-content", classes="hidden", markup=False)
-            yield Button("重新读取", id="refresh-apply-history", disabled=True)
+            yield Button(
+                self.copy.text(UiText.APPLY_HISTORY_REFRESH),
+                id="refresh-apply-history",
+                disabled=True,
+            )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -79,17 +96,23 @@ class ApplyHistoryScreen(Screen[None]):
         summary.remove_class("hidden")
         content = self.query_one("#apply-history-content", Static)
         if report.condition is ApplyHistoryCondition.UNAVAILABLE:
-            content.update(f"无法读取配置应用历史：{report.diagnostics or '未提供诊断细节'}")
+            content.update(
+                self.copy.text(
+                    UiText.APPLY_HISTORY_UNAVAILABLE,
+                    diagnostics=report.diagnostics
+                    or self.copy.text(UiText.APPLY_HISTORY_DETAILS_UNAVAILABLE),
+                )
+            )
         elif not report.entries:
-            content.update("尚无配置应用记录。")
+            content.update(self.copy.text(UiText.APPLY_HISTORY_EMPTY))
         else:
-            content.update("\n\n".join(_render_entry(entry) for entry in report.entries))
+            content.update("\n\n".join(_render_entry(entry, self.copy) for entry in report.entries))
         content.remove_class("hidden")
         self.query_one("#refresh-apply-history", Button).disabled = False
 
     def show_error(self) -> None:
         loading = self.query_one("#apply-history-loading", Static)
-        loading.update("无法完成应用历史检查。底层错误未显示，以避免泄露敏感信息。请重新读取。")
+        loading.update(self.copy.text(UiText.APPLY_HISTORY_ERROR))
         loading.remove_class("hidden")
         self.query_one("#refresh-apply-history", Button).disabled = False
 
@@ -98,23 +121,40 @@ class ApplyHistoryScreen(Screen[None]):
         self.query_one("#apply-history-summary", Static).add_class("hidden")
         self.query_one("#apply-history-content", Static).add_class("hidden")
         loading = self.query_one("#apply-history-loading", Static)
-        loading.update("正在重新读取配置应用历史…")
+        loading.update(self.copy.text(UiText.APPLY_HISTORY_RELOADING))
         loading.remove_class("hidden")
         self.query_one("#refresh-apply-history", Button).disabled = True
         self.load_history()
 
 
-def _render_entry(entry: ApplyHistoryEntry) -> str:
+def _render_entry(entry: ApplyHistoryEntry, copy: CopyCatalog) -> str:
     started_at = entry.started_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    status = copy.text(STATUS_TEXT[entry.status])
     lines = [
-        f"{started_at} · {STATUS_LABELS[entry.status]}",
-        f"生效配置数：{entry.active_profile_count}",
-        f"候选配置 SHA-256：{entry.candidate_sha256}",
+        copy.text(UiText.APPLY_HISTORY_ENTRY_HEADER, started_at=started_at, status=status),
+        copy.text(
+            UiText.APPLY_HISTORY_ENTRY_ACTIVE_PROFILES,
+            count=entry.active_profile_count,
+        ),
+        copy.text(
+            UiText.APPLY_HISTORY_ENTRY_CANDIDATE,
+            sha256=entry.candidate_sha256,
+        ),
     ]
     if entry.status is ApplyHistoryStatus.IN_PROGRESS:
-        lines.append("结果尚未写入，需要核对主机状态")
+        lines.append(copy.text(UiText.APPLY_HISTORY_ENTRY_IN_PROGRESS))
     if entry.diagnostics:
-        lines.append(f"诊断：{entry.diagnostics}")
+        lines.append(
+            copy.text(
+                UiText.APPLY_HISTORY_ENTRY_DIAGNOSTICS,
+                diagnostics=entry.diagnostics,
+            )
+        )
     if entry.redacted_occurrences:
-        lines.append(f"已脱敏：{entry.redacted_occurrences} 处")
+        lines.append(
+            copy.text(
+                UiText.APPLY_HISTORY_ENTRY_REDACTED,
+                count=entry.redacted_occurrences,
+            )
+        )
     return "\n".join(lines)

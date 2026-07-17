@@ -52,7 +52,13 @@ entry is healthy; validation, precondition, commit, or completed rollback
 failures require attention; rollback failure, execution error, and
 `in-progress` require operator action. An unavailable or corrupt ledger is
 attention and never a healthy claim. Textual loads the drill-down in a worker
-and renders every dynamic field with markup disabled.
+and renders every dynamic field with markup disabled. The injected interface
+copy catalog owns the page framing, typed outcome labels, entry templates,
+unknown-result warning, empty and unavailable states, loading and reloading
+progress, generic failure recovery, and refresh action. Both the diagnostics
+center and operations workspace pass the same catalog into the drill-down;
+report conclusions, timestamps, candidate SHA-256 values, and typed diagnostics
+remain literal evidence rather than presentation policy.
 
 ## Consequences
 
@@ -64,6 +70,8 @@ and renders every dynamic field with markup disabled.
   final write does not erase or falsify the host transaction result.
 - The ledger identifies candidate content and outcome but does not identify a
   specific UI action or retain enough data to reconstruct configuration.
+- Presentation policy is localized once without changing the read-only history
+  interface or duplicating rendering policy across its navigation entries.
 - Concurrent mutation safety continues to rely on the existing manager apply
   lock; readers are safe during writes because replacement is atomic.
 
