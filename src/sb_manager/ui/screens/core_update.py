@@ -132,6 +132,15 @@ class _CoreUpdatePlanScreen(Screen[None]):
                 _CoreUpdateErrorScreen(str(error), host_result_unknown=True),
             )
             return
+        except Exception:
+            self.app.call_from_thread(
+                self.app.push_screen,
+                _CoreUpdateErrorScreen(
+                    "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                    host_result_unknown=True,
+                ),
+            )
+            return
         self.app.call_from_thread(self.app.push_screen, _CoreUpdateResultScreen(result))
 
 

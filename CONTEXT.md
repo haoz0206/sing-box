@@ -186,3 +186,10 @@ typed, disclosure-safe report. The screen shows generic retry guidance and never
 stores or renders the exception text; typed unavailable reports continue to show
 their already-sanitized evidence.
 _Avoid_: Probe finding, typed unavailable report, raw exception presentation
+
+**Unknown mutation result**:
+A confirmed effectful workflow failed before returning a typed terminal result,
+so the TUI cannot prove which live configuration, runtime, artifact, or desired
+state is current. It hides the exception, makes no safety claim, and requires
+read-only identity, health, and history checks before any retry.
+_Avoid_: Typed transaction failure, assumed rollback, automatic retry

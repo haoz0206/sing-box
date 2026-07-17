@@ -457,6 +457,13 @@ Apply is effectful:
 9. commit the new applied revision;
 10. roll back on any failure after step 5.
 
+If a confirmed mutation worker fails before returning one of these typed
+terminal outcomes, Textual treats the complete effect as an unknown mutation
+result. It discards the exception text, does not claim that live configuration,
+runtime, artifacts, rollback, or desired state are unchanged, and directs the
+operator to read-only identity, health, and history evidence before deciding
+whether to retry. No automatic retry is offered.
+
 ### 7.5 Runtime adapters
 
 The runtime seam owns install/remove definitions, enable/disable, start/stop,
@@ -480,7 +487,9 @@ seam. The TUI exposes this as an exact-version plan/confirm workflow. Blocking
 metadata, download, and helper calls run in a Textual thread worker; UI updates
 return to the application thread. Acquisition failures are reported before any
 privileged request, while helper failures conservatively report an unknown host
-activation result.
+activation result. An unclassified exception after core-update confirmation is
+also non-disclosing and is conservatively presented as an unknown activation
+result, because it may have occurred before or after the atomic switch.
 
 ### 7.8 Privileged helper
 
@@ -689,7 +698,10 @@ Current implementation status (2026-07-17):
 - unprivileged client: explicit privileged apply mode stages deterministic
   mode-`0600` JSON, sends a SHA-256-only request through a non-interactive
   runner, strictly restores the typed transaction, and surfaces unknown host
-  results without committing desired state;
+  results without committing desired state; the Textual apply and core-update
+  workers also convert unclassified post-confirmation exceptions into
+  non-disclosing unknown-result guidance rather than crashing or implying a
+  rollback;
 - privileged installation: a root-only command installs fixed directories and
   exact no-arguments sudo/doas rules after a read-only plan and explicit
   `--confirm`, followed by native syntax validation; pinned Debian 12, Ubuntu

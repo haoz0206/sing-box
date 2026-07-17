@@ -156,6 +156,12 @@ class UnavailableProfileApplier:
         raise ConfigurationApplyError("sudo authorization denied")
 
 
+class UnexpectedProfileApplier:
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        raise RuntimeError("token=private-apply-worker-error")
+
+
 class SlowProfileApplier(RecordingProfileApplier):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         time.sleep(0.2)
@@ -1031,6 +1037,35 @@ async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown()
         assert app.screen.query_one("#apply-error-safety", Static).content == (
             "desired state 未提交。请先检查 sing-box 服务和 helper 日志，再决定是否重试。"
         )
+
+
+async def test_unexpected_apply_failure_reports_unknown_state_without_disclosure() -> None:
+    app = ManagerApp(profile_applier=UnexpectedProfileApplier())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#create-first-profile")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "意外失败"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-unexpected-error-title", Static).content == (
+            "无法确认配置应用结果"
+        )
+        assert app.screen.query_one("#apply-unexpected-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert app.screen.query_one("#apply-unexpected-error-safety", Static).content == (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-apply-worker-error" not in rendered_text
 
 
 async def test_operator_can_create_a_shadowsocks_2022_draft() -> None:

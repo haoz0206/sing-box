@@ -523,6 +523,27 @@ class ApplyOperationalErrorScreen(Screen[None]):
         yield Footer()
 
 
+class ApplyUnexpectedErrorScreen(Screen[None]):
+    """Treat an unexpected confirmed apply failure as an entirely unknown result."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="apply-operational-error"):
+            yield Static("无法确认配置应用结果", id="apply-unexpected-error-title")
+            yield Static(
+                "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                id="apply-unexpected-error-details",
+            )
+            yield Static(
+                "服务器配置、服务和 desired state 的结果均未知。"
+                "请先检查配置身份、服务状态和应用历史，再决定是否重试。",
+                id="apply-unexpected-error-safety",
+            )
+        yield Footer()
+
+
 class ApplyConfirmationScreen(Screen[None]):
     """Require a second explicit action before host mutation."""
 
@@ -581,6 +602,9 @@ class ApplyConfirmationScreen(Screen[None]):
                 self.app.push_screen,
                 ApplyOperationalErrorScreen(str(error)),
             )
+            return
+        except Exception:
+            self.app.call_from_thread(self.app.push_screen, ApplyUnexpectedErrorScreen())
             return
         self.app.call_from_thread(self.app.push_screen, ApplyResultScreen(result))
 

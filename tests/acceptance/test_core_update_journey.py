@@ -54,6 +54,12 @@ class FailingCoreUpdater(RecordingCoreUpdater):
         raise CoreActivationError("sudo authorization denied")
 
 
+class UnexpectedCoreUpdater(RecordingCoreUpdater):
+    def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
+        assert confirmed
+        raise RuntimeError("token=private-core-update-worker-error")
+
+
 async def open_core_plan(
     app: ManagerApp,
     updater: RecordingCoreUpdater,
@@ -141,3 +147,25 @@ async def test_unknown_privileged_activation_result_is_not_reported_as_safe() ->
         assert "检查 current 链接" in str(
             app.screen.query_one("#core-update-error-safety", Static).content
         )
+
+
+async def test_unexpected_core_update_failure_is_unknown_and_not_disclosed() -> None:
+    updater = UnexpectedCoreUpdater()
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await open_core_plan(app, updater, pilot)
+        await pilot.click("#confirm-core-update")
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-error-title", Static).content == (
+            "无法确认核心激活结果"
+        )
+        assert app.screen.query_one("#core-update-error-details", Static).content == (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        )
+        assert "检查 current 链接" in str(
+            app.screen.query_one("#core-update-error-safety", Static).content
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-core-update-worker-error" not in rendered_text
