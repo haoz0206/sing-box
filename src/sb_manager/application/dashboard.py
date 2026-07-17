@@ -33,21 +33,37 @@ class DashboardActionKind(str, Enum):
     ADD_PROFILE = "add-profile"
 
 
+class DashboardRecommendationKind(str, Enum):
+    """Stable explanation identity rendered by presentation adapters."""
+
+    RECHECK_READINESS = "recheck-readiness"
+    RECHECK_RUNTIME = "recheck-runtime"
+    RECHECK_CERTIFICATES = "recheck-certificates"
+    RESOLVE_READINESS = "resolve-readiness"
+    INSPECT_RUNTIME = "inspect-runtime"
+    RESOLVE_CERTIFICATES = "resolve-certificates"
+    ADD_PROFILE = "add-profile"
+    WAIT_FOR_INSPECTIONS = "wait-for-inspections"
+    REVIEW_DRAFTS = "review-drafts"
+    REVIEW_CERTIFICATES = "review-certificates"
+    VERIFY_RUNTIME = "verify-runtime"
+
+
 @dataclass(frozen=True, slots=True)
 class DashboardAction:
-    """One executable operator action with presentation-ready wording."""
+    """One executable operator action independent of rendered wording."""
 
     kind: DashboardActionKind
-    label: str
     profile_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class DashboardRecommendation:
-    """The dashboard explanation and its optional executable action."""
+    """One semantic explanation and its optional executable action."""
 
-    summary: str
+    kind: DashboardRecommendationKind
     action: DashboardAction | None
+    draft_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,26 +97,23 @@ def _failed_probe_recommendation(
 ) -> DashboardRecommendation | None:
     if evidence.readiness is DashboardProbeState.FAILED:
         return DashboardRecommendation(
-            summary="先重新检查主机准备度",
+            kind=DashboardRecommendationKind.RECHECK_READINESS,
             action=DashboardAction(
                 kind=DashboardActionKind.RECHECK_READINESS,
-                label="立即重新检查主机准备度",
             ),
         )
     if evidence.runtime is DashboardProbeState.FAILED:
         return DashboardRecommendation(
-            summary="先重新检查服务状态",
+            kind=DashboardRecommendationKind.RECHECK_RUNTIME,
             action=DashboardAction(
                 kind=DashboardActionKind.RECHECK_RUNTIME,
-                label="立即重新检查服务状态",
             ),
         )
     if evidence.certificates is DashboardProbeState.FAILED:
         return DashboardRecommendation(
-            summary="先重新检查证书维护状态",
+            kind=DashboardRecommendationKind.RECHECK_CERTIFICATES,
             action=DashboardAction(
                 kind=DashboardActionKind.RECHECK_CERTIFICATES,
-                label="立即重新检查证书",
             ),
         )
     return None
@@ -114,10 +127,9 @@ def _blocking_evidence_recommendation(
         and not evidence.readiness.ready_for_apply
     ):
         return DashboardRecommendation(
-            summary=evidence.readiness.recommended_action,
+            kind=DashboardRecommendationKind.RESOLVE_READINESS,
             action=DashboardAction(
                 kind=DashboardActionKind.OPEN_READINESS,
-                label="查看主机准备度",
             ),
         )
     if (
@@ -125,10 +137,9 @@ def _blocking_evidence_recommendation(
         and evidence.runtime.condition is HostCondition.UNHEALTHY
     ):
         return DashboardRecommendation(
-            summary="先检查 sing-box 服务，再进行配置变更",
+            kind=DashboardRecommendationKind.INSPECT_RUNTIME,
             action=DashboardAction(
                 kind=DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS,
-                label="查看服务诊断",
             ),
         )
     if (
@@ -136,11 +147,10 @@ def _blocking_evidence_recommendation(
         and evidence.certificates.condition is CertificateDiagnosticCondition.ACTION_REQUIRED
     ):
         return DashboardRecommendation(
-            summary=evidence.certificates.guidance,
+            kind=DashboardRecommendationKind.RESOLVE_CERTIFICATES,
             action=(
                 DashboardAction(
                     kind=DashboardActionKind.OPEN_DIAGNOSTICS,
-                    label="打开诊断中心",
                 )
                 if evidence.diagnostics_available
                 else None
@@ -154,10 +164,9 @@ def _initial_or_pending_recommendation(
 ) -> DashboardRecommendation | None:
     if not evidence.installation.profiles:
         return DashboardRecommendation(
-            summary="创建第一个配置",
+            kind=DashboardRecommendationKind.ADD_PROFILE,
             action=DashboardAction(
                 kind=DashboardActionKind.ADD_PROFILE,
-                label="创建第一个配置",
             ),
         )
     if any(
@@ -165,7 +174,7 @@ def _initial_or_pending_recommendation(
         for probe in (evidence.runtime, evidence.readiness, evidence.certificates)
     ):
         return DashboardRecommendation(
-            summary="正在检查主机状态",
+            kind=DashboardRecommendationKind.WAIT_FOR_INSPECTIONS,
             action=None,
         )
     return None
@@ -181,16 +190,16 @@ def _draft_recommendation(
     )
     if draft_profiles:
         return DashboardRecommendation(
-            summary=f"先审阅并应用 {len(draft_profiles)} 个草案",
+            kind=DashboardRecommendationKind.REVIEW_DRAFTS,
             action=(
                 DashboardAction(
                     kind=DashboardActionKind.APPLY_DRAFT,
-                    label="审阅并应用草案",
                     profile_id=draft_profiles[0].profile_id,
                 )
                 if evidence.profile_apply_available
                 else None
             ),
+            draft_count=len(draft_profiles),
         )
     return None
 
@@ -203,11 +212,10 @@ def _certificate_attention_recommendation(
         and evidence.certificates.condition is CertificateDiagnosticCondition.ATTENTION
     ):
         return DashboardRecommendation(
-            summary=evidence.certificates.guidance,
+            kind=DashboardRecommendationKind.REVIEW_CERTIFICATES,
             action=(
                 DashboardAction(
                     kind=DashboardActionKind.OPEN_DIAGNOSTICS,
-                    label="打开诊断中心",
                 )
                 if evidence.diagnostics_available
                 else None
@@ -221,18 +229,16 @@ def _steady_state_recommendation(
 ) -> DashboardRecommendation:
     if isinstance(evidence.runtime, HostDiagnosticsReport):
         return DashboardRecommendation(
-            summary="配置已应用，确认服务状态",
+            kind=DashboardRecommendationKind.VERIFY_RUNTIME,
             action=DashboardAction(
                 kind=DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS,
-                label="查看服务状态",
             ),
         )
     return DashboardRecommendation(
-        summary="配置已应用，确认服务状态",
+        kind=DashboardRecommendationKind.VERIFY_RUNTIME,
         action=(
             DashboardAction(
                 kind=DashboardActionKind.OPEN_DIAGNOSTICS,
-                label="打开诊断中心",
             )
             if evidence.diagnostics_available
             else None

@@ -8,6 +8,7 @@ from sb_manager.application.dashboard import (
     DashboardEvidence,
     DashboardProbeState,
     DashboardRecommendation,
+    DashboardRecommendationKind,
     recommend_dashboard_action,
 )
 from sb_manager.application.host_diagnostics import (
@@ -40,10 +41,9 @@ def test_failed_readiness_is_the_first_action_when_multiple_probes_fail() -> Non
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="先重新检查主机准备度",
+        kind=DashboardRecommendationKind.RECHECK_READINESS,
         action=DashboardAction(
             kind=DashboardActionKind.RECHECK_READINESS,
-            label="立即重新检查主机准备度",
         ),
     )
 
@@ -59,10 +59,9 @@ def test_failed_runtime_is_rechecked_before_certificate_evidence() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="先重新检查服务状态",
+        kind=DashboardRecommendationKind.RECHECK_RUNTIME,
         action=DashboardAction(
             kind=DashboardActionKind.RECHECK_RUNTIME,
-            label="立即重新检查服务状态",
         ),
     )
 
@@ -78,10 +77,9 @@ def test_failed_certificate_probe_produces_a_direct_recheck_action() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="先重新检查证书维护状态",
+        kind=DashboardRecommendationKind.RECHECK_CERTIFICATES,
         action=DashboardAction(
             kind=DashboardActionKind.RECHECK_CERTIFICATES,
-            label="立即重新检查证书",
         ),
     )
 
@@ -113,10 +111,9 @@ def test_blocking_readiness_opens_its_evidence_before_unhealthy_runtime() -> Non
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="安装最小权限策略",
+        kind=DashboardRecommendationKind.RESOLVE_READINESS,
         action=DashboardAction(
             kind=DashboardActionKind.OPEN_READINESS,
-            label="查看主机准备度",
         ),
     )
 
@@ -137,10 +134,9 @@ def test_unhealthy_runtime_opens_diagnostics_after_readiness_is_clear() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="先检查 sing-box 服务，再进行配置变更",
+        kind=DashboardRecommendationKind.INSPECT_RUNTIME,
         action=DashboardAction(
             kind=DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS,
-            label="查看服务诊断",
         ),
     )
 
@@ -162,10 +158,9 @@ def test_urgent_certificate_evidence_opens_the_diagnostics_center() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="处理已过期证书",
+        kind=DashboardRecommendationKind.RESOLVE_CERTIFICATES,
         action=DashboardAction(
             kind=DashboardActionKind.OPEN_DIAGNOSTICS,
-            label="打开诊断中心",
         ),
     )
 
@@ -202,12 +197,12 @@ def test_draft_review_is_actionable_before_certificate_attention() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="先审阅并应用 1 个草案",
+        kind=DashboardRecommendationKind.REVIEW_DRAFTS,
         action=DashboardAction(
             kind=DashboardActionKind.APPLY_DRAFT,
-            label="审阅并应用草案",
             profile_id="draft-phone",
         ),
+        draft_count=1,
     )
 
 
@@ -242,10 +237,9 @@ def test_certificate_attention_remains_actionable_when_there_are_no_drafts() -> 
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="安排证书续期检查",
+        kind=DashboardRecommendationKind.REVIEW_CERTIFICATES,
         action=DashboardAction(
             kind=DashboardActionKind.OPEN_DIAGNOSTICS,
-            label="打开诊断中心",
         ),
     )
 
@@ -261,10 +255,9 @@ def test_empty_dashboard_starts_the_guided_profile_journey() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="创建第一个配置",
+        kind=DashboardRecommendationKind.ADD_PROFILE,
         action=DashboardAction(
             kind=DashboardActionKind.ADD_PROFILE,
-            label="创建第一个配置",
         ),
     )
 
@@ -300,10 +293,9 @@ def test_applied_profile_can_open_healthy_runtime_evidence() -> None:
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="配置已应用，确认服务状态",
+        kind=DashboardRecommendationKind.VERIFY_RUNTIME,
         action=DashboardAction(
             kind=DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS,
-            label="查看服务状态",
         ),
     )
 
@@ -334,7 +326,7 @@ def test_applied_profile_waits_for_pending_observations_without_guessing() -> No
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="正在检查主机状态",
+        kind=DashboardRecommendationKind.WAIT_FOR_INSPECTIONS,
         action=None,
     )
 
@@ -350,10 +342,9 @@ def test_empty_dashboard_can_start_planning_while_host_checks_are_pending() -> N
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="创建第一个配置",
+        kind=DashboardRecommendationKind.ADD_PROFILE,
         action=DashboardAction(
             kind=DashboardActionKind.ADD_PROFILE,
-            label="创建第一个配置",
         ),
     )
 
@@ -384,6 +375,6 @@ def test_applied_profile_without_host_tools_keeps_a_non_executable_summary() -> 
     )
 
     assert recommendation == DashboardRecommendation(
-        summary="配置已应用，确认服务状态",
+        kind=DashboardRecommendationKind.VERIFY_RUNTIME,
         action=None,
     )

@@ -143,9 +143,11 @@ background checks are read-only and every mutation still requires a reviewed
 plan plus explicit confirmation. The title, initial and terminal probe states,
 profile counts, navigation, and reinspection controls render through the
 validated interface copy catalog. Application recommendations remain a
-separate typed decision module; their presentation-ready summary and action
-wording migrate in the next catalog slice rather than being partially remapped
-here.
+separate typed decision module that returns only a stable recommendation
+identity, optional structured values, and an optional stable action identity.
+The Textual presentation adapter renders the recommendation summary and action
+label through the same catalog; detailed readiness and certificate guidance
+remains on its evidence screen instead of becoming unbounded Dashboard copy.
 
 It shows aggregate profile counts, not the complete profile inventory or a row
 of lifecycle buttons per profile. One visible `Manage profiles` action and the
@@ -908,10 +910,10 @@ Current implementation status (2026-07-17):
   construction rejects missing, extra, or placeholder-incompatible entries;
   the Dashboard status shell now uses the same catalog for its application
   subtitle, contextual bindings, read-only scope, probe states, counts,
-  navigation, and retry controls; the UI discloses that no additional locale is
-  available until all remaining safety journeys and recommendation messages
-  have migrated, and the completely migrated preference screens retain no
-  locale literals;
+  semantic recommendation summaries, stable action labels, navigation, and
+  retry controls; the application recommendation module no longer owns
+  presentation-ready strings, and the UI discloses that no additional locale is
+  available until all remaining safety journeys have migrated;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
   latest desired state, and restarts runtime, readiness, and managed-certificate

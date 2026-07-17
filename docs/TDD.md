@@ -325,10 +325,11 @@ Release gate adds:
   mutation scope statement, and catalog-backed titles, probe states, counts,
   navigation, and reinspection controls;
 - typed dashboard recommendation priority across failed, pending, blocking,
-  maintenance, draft, empty, and healthy evidence; stable action identities,
-  capability-aware withholding, one visible primary action, and Pilot journeys
-  that execute add, draft-review, and failed-probe recovery without parsing
-  presentation text;
+  maintenance, draft, empty, and healthy evidence; stable recommendation and
+  action identities, catalog-rendered summaries and labels, capability-aware
+  withholding, one visible primary action, and Pilot journeys that execute add,
+  draft-review, and failed-probe recovery without producing or parsing
+  presentation text in application policy;
 - dashboard continuity after successful profile edit, removal, pause/resume,
   template creation, or desired-state recovery: stale observations are cleared,
   current desired state is recomposed, and all configured read-only workers run

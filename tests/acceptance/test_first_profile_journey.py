@@ -1,5 +1,6 @@
 import time
 from pathlib import Path
+from typing import cast
 
 from textual.containers import VerticalScroll
 from textual.pilot import Pilot
@@ -52,10 +53,24 @@ from sb_manager.transactions.apply import (
     RollbackResult,
 )
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 EXPECTED_DASHBOARD_REVISION = 2
 EXPECTED_REFRESH_INSPECTIONS = 2
+
+
+class DashboardRecommendationMarkerCatalog:
+    """Render marker copy only for the semantic first-profile recommendation."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "dashboard.recommendation.add_profile": "从目录开始首个配置",
+            "dashboard.action.add_profile": "目录中的创建动作",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 async def open_direct_protocol_selection(
@@ -423,6 +438,21 @@ async def test_operator_can_start_first_profile_from_empty_dashboard() -> None:
         assert str(general_option.label) == "通用搭建 · 推荐"
 
 
+async def test_dashboard_recommendation_copy_comes_from_the_interface_catalog() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DashboardRecommendationMarkerCatalog())
+        )
+    )
+
+    async with app.run_test():
+        recommendation = app.screen.query_one("#dashboard-next-action", Static)
+        primary_action = app.screen.query_one("#dashboard-primary-action", Button)
+
+        assert recommendation.content == "建议：从目录开始首个配置"
+        assert str(primary_action.label) == "目录中的创建动作"
+
+
 async def test_operator_can_review_and_confirm_existing_config_adoption() -> None:
     adopter = RecordingConfigAdopter()
     app = ManagerApp(host_tools=ManagerAppHostTools(config_adopter=adopter))
@@ -561,7 +591,7 @@ async def test_dashboard_prioritizes_a_managed_certificate_requiring_action() ->
             "证书维护：需要处理"
         )
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
-            "建议：打开诊断中心处理托管证书"
+            "建议：先处理证书维护项，再进行配置变更"
         )
         assert certificate_diagnostics.inspections == 1
 
@@ -583,7 +613,7 @@ async def test_dashboard_surfaces_certificate_maintenance_attention() -> None:
             "证书维护：建议关注"
         )
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
-            "建议：安排托管证书续期检查"
+            "建议：查看需要关注的证书维护项"
         )
 
 
@@ -687,7 +717,7 @@ async def test_first_run_dashboard_prioritizes_host_readiness_before_profile_app
             "主机准备度：需要完成 2 项"
         )
         assert app.screen.query_one("#dashboard-next-action", Static).content == (
-            "建议：安装最小权限策略"
+            "建议：先完成主机准备项，再应用配置"
         )
         assert str(app.screen.query_one("#view-readiness", Button).label) == "查看准备度"
 

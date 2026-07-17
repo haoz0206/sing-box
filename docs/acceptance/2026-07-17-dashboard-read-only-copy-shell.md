@@ -49,4 +49,5 @@ certificate, refresh, and navigation states. No new test seam is introduced.
 Replace presentation-ready `DashboardRecommendation.summary` and
 `DashboardAction.label` values with semantic identities and catalog rendering,
 while preserving the application's recommendation priority and stable action
-navigation.
+navigation. This boundary was completed in the subsequent
+[Dashboard semantic recommendation copy acceptance](2026-07-17-dashboard-semantic-recommendation-copy.md).

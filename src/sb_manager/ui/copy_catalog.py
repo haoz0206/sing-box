@@ -46,6 +46,25 @@ class UiText(str, Enum):
     DASHBOARD_CERTIFICATE_FAILED = "dashboard.certificate.failed"
     DASHBOARD_PROFILE_SUMMARY = "dashboard.profile_summary"
     DASHBOARD_RECOMMENDATION = "dashboard.recommendation"
+    DASHBOARD_RECOMMENDATION_RECHECK_READINESS = "dashboard.recommendation.recheck_readiness"
+    DASHBOARD_RECOMMENDATION_RECHECK_RUNTIME = "dashboard.recommendation.recheck_runtime"
+    DASHBOARD_RECOMMENDATION_RECHECK_CERTIFICATES = "dashboard.recommendation.recheck_certificates"
+    DASHBOARD_RECOMMENDATION_RESOLVE_READINESS = "dashboard.recommendation.resolve_readiness"
+    DASHBOARD_RECOMMENDATION_INSPECT_RUNTIME = "dashboard.recommendation.inspect_runtime"
+    DASHBOARD_RECOMMENDATION_RESOLVE_CERTIFICATES = "dashboard.recommendation.resolve_certificates"
+    DASHBOARD_RECOMMENDATION_ADD_PROFILE = "dashboard.recommendation.add_profile"
+    DASHBOARD_RECOMMENDATION_WAIT_FOR_INSPECTIONS = "dashboard.recommendation.wait_for_inspections"
+    DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS = "dashboard.recommendation.review_drafts"
+    DASHBOARD_RECOMMENDATION_REVIEW_CERTIFICATES = "dashboard.recommendation.review_certificates"
+    DASHBOARD_RECOMMENDATION_VERIFY_RUNTIME = "dashboard.recommendation.verify_runtime"
+    DASHBOARD_ACTION_RECHECK_READINESS = "dashboard.action.recheck_readiness"
+    DASHBOARD_ACTION_RECHECK_RUNTIME = "dashboard.action.recheck_runtime"
+    DASHBOARD_ACTION_RECHECK_CERTIFICATES = "dashboard.action.recheck_certificates"
+    DASHBOARD_ACTION_OPEN_READINESS = "dashboard.action.open_readiness"
+    DASHBOARD_ACTION_OPEN_RUNTIME_DIAGNOSTICS = "dashboard.action.open_runtime_diagnostics"
+    DASHBOARD_ACTION_OPEN_DIAGNOSTICS = "dashboard.action.open_diagnostics"
+    DASHBOARD_ACTION_APPLY_DRAFT = "dashboard.action.apply_draft"
+    DASHBOARD_ACTION_ADD_PROFILE = "dashboard.action.add_profile"
     DASHBOARD_NO_ACTION = "dashboard.no_action"
     DASHBOARD_NAV_PROFILES = "dashboard.navigation.profiles"
     DASHBOARD_NAV_NETWORK = "dashboard.navigation.network"
@@ -113,6 +132,7 @@ _EXPECTED_FIELDS.update(
         UiText.DASHBOARD_READINESS_ACTION_REQUIRED: frozenset({"count"}),
         UiText.DASHBOARD_PROFILE_SUMMARY: frozenset({"active", "paused", "drafts"}),
         UiText.DASHBOARD_RECOMMENDATION: frozenset({"summary"}),
+        UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS: frozenset({"count"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
         UiText.SETTINGS_PERSISTENCE_SAVED: frozenset({"label"}),
@@ -197,6 +217,25 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.DASHBOARD_CERTIFICATE_FAILED: "证书维护：无法检查",
         UiText.DASHBOARD_PROFILE_SUMMARY: ("配置：{active} 在线 · {paused} 已暂停 · {drafts} 草案"),
         UiText.DASHBOARD_RECOMMENDATION: "建议：{summary}",
+        UiText.DASHBOARD_RECOMMENDATION_RECHECK_READINESS: "先重新检查主机准备度",
+        UiText.DASHBOARD_RECOMMENDATION_RECHECK_RUNTIME: "先重新检查服务状态",
+        UiText.DASHBOARD_RECOMMENDATION_RECHECK_CERTIFICATES: "先重新检查证书维护状态",
+        UiText.DASHBOARD_RECOMMENDATION_RESOLVE_READINESS: "先完成主机准备项，再应用配置",
+        UiText.DASHBOARD_RECOMMENDATION_INSPECT_RUNTIME: ("先检查 sing-box 服务，再进行配置变更"),
+        UiText.DASHBOARD_RECOMMENDATION_RESOLVE_CERTIFICATES: ("先处理证书维护项，再进行配置变更"),
+        UiText.DASHBOARD_RECOMMENDATION_ADD_PROFILE: "创建第一个配置",
+        UiText.DASHBOARD_RECOMMENDATION_WAIT_FOR_INSPECTIONS: "正在检查主机状态",
+        UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS: "先审阅并应用 {count} 个草案",
+        UiText.DASHBOARD_RECOMMENDATION_REVIEW_CERTIFICATES: "查看需要关注的证书维护项",
+        UiText.DASHBOARD_RECOMMENDATION_VERIFY_RUNTIME: "配置已应用，确认服务状态",
+        UiText.DASHBOARD_ACTION_RECHECK_READINESS: "立即重新检查主机准备度",
+        UiText.DASHBOARD_ACTION_RECHECK_RUNTIME: "立即重新检查服务状态",
+        UiText.DASHBOARD_ACTION_RECHECK_CERTIFICATES: "立即重新检查证书",
+        UiText.DASHBOARD_ACTION_OPEN_READINESS: "查看主机准备度",
+        UiText.DASHBOARD_ACTION_OPEN_RUNTIME_DIAGNOSTICS: "查看服务诊断",
+        UiText.DASHBOARD_ACTION_OPEN_DIAGNOSTICS: "打开诊断中心",
+        UiText.DASHBOARD_ACTION_APPLY_DRAFT: "审阅并应用草案",
+        UiText.DASHBOARD_ACTION_ADD_PROFILE: "创建第一个配置",
         UiText.DASHBOARD_NO_ACTION: "暂无可执行建议",
         UiText.DASHBOARD_NAV_PROFILES: "管理配置",
         UiText.DASHBOARD_NAV_NETWORK: "查看网络概览",

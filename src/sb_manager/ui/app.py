@@ -24,6 +24,7 @@ from sb_manager.application.dashboard import (
     DashboardEvidence,
     DashboardProbeState,
     DashboardRecommendation,
+    DashboardRecommendationKind,
     recommend_dashboard_action,
 )
 from sb_manager.application.diagnostics_center import DiagnosticsCenter
@@ -1063,6 +1064,49 @@ class ManagerApp(App[None]):
         ("o", "open_operations", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_OPERATIONS)),
         ("q", "quit", SIMPLIFIED_CHINESE.text(UiText.APP_BINDING_QUIT)),
     ]
+    _DASHBOARD_RECOMMENDATION_COPY: ClassVar[dict[DashboardRecommendationKind, UiText]] = {
+        DashboardRecommendationKind.RECHECK_READINESS: (
+            UiText.DASHBOARD_RECOMMENDATION_RECHECK_READINESS
+        ),
+        DashboardRecommendationKind.RECHECK_RUNTIME: (
+            UiText.DASHBOARD_RECOMMENDATION_RECHECK_RUNTIME
+        ),
+        DashboardRecommendationKind.RECHECK_CERTIFICATES: (
+            UiText.DASHBOARD_RECOMMENDATION_RECHECK_CERTIFICATES
+        ),
+        DashboardRecommendationKind.RESOLVE_READINESS: (
+            UiText.DASHBOARD_RECOMMENDATION_RESOLVE_READINESS
+        ),
+        DashboardRecommendationKind.INSPECT_RUNTIME: (
+            UiText.DASHBOARD_RECOMMENDATION_INSPECT_RUNTIME
+        ),
+        DashboardRecommendationKind.RESOLVE_CERTIFICATES: (
+            UiText.DASHBOARD_RECOMMENDATION_RESOLVE_CERTIFICATES
+        ),
+        DashboardRecommendationKind.ADD_PROFILE: UiText.DASHBOARD_RECOMMENDATION_ADD_PROFILE,
+        DashboardRecommendationKind.WAIT_FOR_INSPECTIONS: (
+            UiText.DASHBOARD_RECOMMENDATION_WAIT_FOR_INSPECTIONS
+        ),
+        DashboardRecommendationKind.REVIEW_DRAFTS: (UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS),
+        DashboardRecommendationKind.REVIEW_CERTIFICATES: (
+            UiText.DASHBOARD_RECOMMENDATION_REVIEW_CERTIFICATES
+        ),
+        DashboardRecommendationKind.VERIFY_RUNTIME: (
+            UiText.DASHBOARD_RECOMMENDATION_VERIFY_RUNTIME
+        ),
+    }
+    _DASHBOARD_ACTION_COPY: ClassVar[dict[DashboardActionKind, UiText]] = {
+        DashboardActionKind.RECHECK_READINESS: UiText.DASHBOARD_ACTION_RECHECK_READINESS,
+        DashboardActionKind.RECHECK_RUNTIME: UiText.DASHBOARD_ACTION_RECHECK_RUNTIME,
+        DashboardActionKind.RECHECK_CERTIFICATES: (UiText.DASHBOARD_ACTION_RECHECK_CERTIFICATES),
+        DashboardActionKind.OPEN_READINESS: UiText.DASHBOARD_ACTION_OPEN_READINESS,
+        DashboardActionKind.OPEN_RUNTIME_DIAGNOSTICS: (
+            UiText.DASHBOARD_ACTION_OPEN_RUNTIME_DIAGNOSTICS
+        ),
+        DashboardActionKind.OPEN_DIAGNOSTICS: UiText.DASHBOARD_ACTION_OPEN_DIAGNOSTICS,
+        DashboardActionKind.APPLY_DRAFT: UiText.DASHBOARD_ACTION_APPLY_DRAFT,
+        DashboardActionKind.ADD_PROFILE: UiText.DASHBOARD_ACTION_ADD_PROFILE,
+    }
 
     def __init__(
         self,
@@ -1160,13 +1204,25 @@ class ManagerApp(App[None]):
         recommendation: DashboardRecommendation,
     ) -> Iterator[Static | Button]:
         yield Static(
-            self.copy_catalog.text(
-                UiText.DASHBOARD_RECOMMENDATION,
-                summary=recommendation.summary,
-            ),
+            self._dashboard_recommendation_text(recommendation),
             id="dashboard-next-action",
         )
         yield self._dashboard_primary_action(recommendation)
+
+    def _dashboard_recommendation_text(
+        self,
+        recommendation: DashboardRecommendation,
+    ) -> str:
+        key = self._DASHBOARD_RECOMMENDATION_COPY[recommendation.kind]
+        summary = (
+            self.copy_catalog.text(key, count=recommendation.draft_count)
+            if recommendation.kind is DashboardRecommendationKind.REVIEW_DRAFTS
+            else self.copy_catalog.text(key)
+        )
+        return self.copy_catalog.text(UiText.DASHBOARD_RECOMMENDATION, summary=summary)
+
+    def _dashboard_action_text(self, kind: DashboardActionKind) -> str:
+        return self.copy_catalog.text(self._DASHBOARD_ACTION_COPY[kind])
 
     def _workspace_navigation(self) -> Horizontal:
         return Horizontal(
@@ -1546,7 +1602,7 @@ class ManagerApp(App[None]):
     ) -> Button:
         action = recommendation.action
         return Button(
-            action.label
+            self._dashboard_action_text(action.kind)
             if action is not None
             else self.copy_catalog.text(UiText.DASHBOARD_NO_ACTION),
             id="dashboard-primary-action",
@@ -1559,17 +1615,14 @@ class ManagerApp(App[None]):
         recommendation = self._dashboard_recommendation(self.manager.get_installation())
         self._current_dashboard_recommendation = recommendation
         self.query_one("#dashboard-next-action", Static).update(
-            self.copy_catalog.text(
-                UiText.DASHBOARD_RECOMMENDATION,
-                summary=recommendation.summary,
-            )
+            self._dashboard_recommendation_text(recommendation)
         )
         button = self.query_one("#dashboard-primary-action", Button)
         if recommendation.action is None:
             button.disabled = True
             button.add_class("hidden")
             return
-        button.label = recommendation.action.label
+        button.label = self._dashboard_action_text(recommendation.action.kind)
         button.disabled = False
         button.remove_class("hidden")
 
@@ -1608,7 +1661,9 @@ class ManagerApp(App[None]):
             return
         self._host_diagnostics_failed = False
         self.host_diagnostics_report = None
-        self.query_one("#runtime-status", Static).update("服务状态：正在检查…")
+        self.query_one("#runtime-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_RUNTIME_CHECKING)
+        )
         if self.diagnostics_center is None:
             self.query_one("#view-diagnostics", Button).disabled = True
         self.query_one("#refresh-runtime-status", Button).disabled = True
@@ -1731,7 +1786,9 @@ class ManagerApp(App[None]):
             return
         self._host_readiness_failed = False
         self.host_readiness_report = None
-        self.query_one("#host-readiness-status", Static).update("主机准备度：正在检查…")
+        self.query_one("#host-readiness-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_READINESS_CHECKING)
+        )
         self.query_one("#view-readiness", Button).disabled = True
         self.query_one("#refresh-readiness", Button).disabled = True
         self._update_dashboard_next_action()
@@ -1743,7 +1800,9 @@ class ManagerApp(App[None]):
             return
         self._certificate_diagnostics_failed = False
         self.certificate_diagnostics_report = None
-        self.query_one("#certificate-maintenance-status", Static).update("证书维护：正在检查…")
+        self.query_one("#certificate-maintenance-status", Static).update(
+            self.copy_catalog.text(UiText.DASHBOARD_CERTIFICATE_CHECKING)
+        )
         self.query_one("#refresh-certificate-maintenance", Button).disabled = True
         self._update_dashboard_next_action()
         self.load_certificate_diagnostics()

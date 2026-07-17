@@ -230,11 +230,15 @@ _Avoid_: Proposed setting, raw argv, mutable desired state, helper policy editor
 
 **Dashboard recommendation**:
 The single safest next step selected from desired state and independent runtime,
-readiness, and certificate evidence. It carries a stable action identity when
-the destination capability exists, so Textual never parses translated guidance
-to choose navigation. Pending evidence may withhold an action; opening one
-never bypasses an existing plan or confirmation.
-_Avoid_: Status text parsed by the UI, a list of equally primary buttons
+readiness, and certificate evidence. It carries a stable recommendation
+identity, optional structured values, and a stable action identity when the
+destination capability exists. The presentation adapter renders both identities
+through the validated interface copy catalog, so application policy neither
+produces translated guidance nor parses it to choose navigation. Pending
+evidence may withhold an action; opening one never bypasses an existing plan or
+confirmation.
+_Avoid_: Presentation-ready application strings, status text parsed by the UI,
+a list of equally primary buttons
 
 **Probe failure**:
 An unexpected inability to complete a read-only dashboard observation. It is a
