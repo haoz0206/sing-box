@@ -89,6 +89,7 @@ from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.connection_share import ConnectionSharePanel
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
@@ -576,10 +577,8 @@ class ApplyUnexpectedErrorScreen(Screen[None]):
         yield Footer()
 
 
-class ApplyConfirmationScreen(Screen[None]):
+class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
     """Require a second explicit action before host mutation."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(
         self,
@@ -613,9 +612,11 @@ class ApplyConfirmationScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-apply")
     def confirm_apply(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-apply", Button).disabled = True
         self.query_one("#apply-progress", Static).update(
-            "正在校验、提交并检查服务健康状态; 请勿关闭程序。"
+            "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
         )
         self.execute_apply(
             ApplyProfileRequest(
@@ -631,14 +632,17 @@ class ApplyConfirmationScreen(Screen[None]):
             result = self.profile_applier.apply_profile(request)
         except ConfigurationApplyError as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ApplyOperationalErrorScreen(str(error)),
             )
             return
         except Exception:
-            self.app.call_from_thread(self.app.push_screen, ApplyUnexpectedErrorScreen())
+            self.app.call_from_thread(
+                self.push_terminal_screen,
+                ApplyUnexpectedErrorScreen(),
+            )
             return
-        self.app.call_from_thread(self.app.push_screen, ApplyResultScreen(result))
+        self.app.call_from_thread(self.push_terminal_screen, ApplyResultScreen(result))
 
 
 class DraftSavedScreen(Screen[None]):

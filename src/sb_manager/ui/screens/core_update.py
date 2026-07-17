@@ -19,6 +19,7 @@ from sb_manager.application.core_update import (
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.core_activator import CoreActivationError
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 
 
 class _CoreUpdateResultScreen(Screen[None]):
@@ -100,10 +101,8 @@ class _CoreUpdatePlanningErrorScreen(Screen[None]):
         yield Footer()
 
 
-class _CoreUpdatePlanScreen(Screen[None]):
+class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
     """Show an immutable artifact plan and require explicit host-mutation consent."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回修改")]
 
     def __init__(self, core_updater: CoreUpdater, plan: CoreUpdatePlan) -> None:
         super().__init__()
@@ -133,9 +132,11 @@ class _CoreUpdatePlanScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-core-update")
     def confirm_core_update(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-core-update", Button).disabled = True
         self.query_one("#core-update-progress", Static).update(
-            "正在下载、校验并激活; 请勿关闭程序。"
+            "操作已确认，正在下载、校验并激活。完成前无法返回。"
         )
         self.execute_core_update()
 
@@ -145,26 +146,29 @@ class _CoreUpdatePlanScreen(Screen[None]):
             result = self.core_updater.execute(self.plan, confirmed=True)
         except CoreArtifactAcquisitionError as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 _CoreUpdateErrorScreen(str(error), host_result_unknown=False),
             )
             return
         except CoreActivationError as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 _CoreUpdateErrorScreen(str(error), host_result_unknown=True),
             )
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 _CoreUpdateErrorScreen(
                     "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
                     host_result_unknown=True,
                 ),
             )
             return
-        self.app.call_from_thread(self.app.push_screen, _CoreUpdateResultScreen(result))
+        self.app.call_from_thread(
+            self.push_terminal_screen,
+            _CoreUpdateResultScreen(result),
+        )
 
 
 class CoreUpdateFormScreen(Screen[None]):

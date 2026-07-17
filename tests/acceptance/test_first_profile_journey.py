@@ -1269,12 +1269,22 @@ async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation
         await pilot.click("#confirm-apply")
 
         assert app.screen.query_one("#apply-progress", Static).content == (
-            "正在校验、提交并检查服务健康状态; 请勿关闭程序。"
+            "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
         )
         assert app.screen.query_one("#confirm-apply", Button).disabled is True
+        assert app.screen.check_action("return_from_confirmation", ()) is None
+        await pilot.press("escape")
+
+        assert app.screen.query_one("#apply-confirm-title", Static).content == ("即将修改服务器")
         await pilot.pause(0.3)
 
         assert app.screen.query_one("#apply-result-title", Static).content == "应用成功"
+        await pilot.press("escape")
+        assert app.screen.query_one("#apply-confirm-title", Static).content == ("即将修改服务器")
+        assert app.screen.check_action("return_from_confirmation", ()) is True
+
+        await pilot.press("escape")
+        assert app.screen.query_one("#draft-saved-title", Static).content == "草案已保存"
 
 
 async def test_operator_sees_manual_recovery_steps_when_rollback_fails() -> None:

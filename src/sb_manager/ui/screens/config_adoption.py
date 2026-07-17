@@ -17,6 +17,7 @@ from sb_manager.application.config_adoption import (
 )
 from sb_manager.application.manager import StateRevisionConflictError
 from sb_manager.seams.config_target import ConfigTargetInspectionError
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 
 
 class _ConfigAdoptionResultScreen(Screen[None]):
@@ -111,10 +112,8 @@ class _ConfigAdoptionOperationalErrorScreen(Screen[None]):
         yield Footer()
 
 
-class ConfigAdoptionScreen(Screen[None]):
+class ConfigAdoptionScreen(ConfirmedOperationScreen[None]):
     """Inspect, review, recheck, and record one exact live config identity."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(self, config_adopter: ConfigAdopter) -> None:
         super().__init__()
@@ -171,7 +170,12 @@ class ConfigAdoptionScreen(Screen[None]):
     def confirm_adoption(self) -> None:
         if self.plan is None:
             return
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-config-adoption", Button).disabled = True
+        self.query_one("#config-adoption-safety", Static).update(
+            "操作已确认，正在重新核对并记录配置指纹。完成前无法返回。"
+        )
         self.execute_adoption(self.plan)
 
     @work(thread=True, exclusive=True)
@@ -184,14 +188,17 @@ class ConfigAdoptionScreen(Screen[None]):
             StateRevisionConflictError,
         ) as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 _ConfigAdoptionErrorScreen(str(error)),
             )
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 _ConfigAdoptionOperationalErrorScreen(),
             )
             return
-        self.app.call_from_thread(self.app.push_screen, _ConfigAdoptionResultScreen(result))
+        self.app.call_from_thread(
+            self.push_terminal_screen,
+            _ConfigAdoptionResultScreen(result),
+        )

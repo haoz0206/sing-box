@@ -26,6 +26,7 @@ from sb_manager.application.profile_editing import (
 from sb_manager.domain.installation import PortSelection
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
@@ -129,10 +130,8 @@ class ProfileEditPlanningErrorScreen(Screen[None]):
         yield Footer()
 
 
-class ProfileEditPlanScreen(Screen[None]):
+class ProfileEditPlanScreen(ConfirmedOperationScreen[None]):
     """Present exact normalized changes and their host impact."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(self, profile_editor: ProfileEditor, *, plan: ProfileEditPlan) -> None:
         super().__init__()
@@ -189,9 +188,11 @@ class ProfileEditPlanScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-profile-edit")
     def confirm_edit(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-profile-edit", Button).disabled = True
         self.query_one("#profile-edit-plan-safety", Static).update(
-            "正在执行已确认的配置变更，请勿关闭程序。"
+            "操作已确认，正在执行配置变更。完成前无法返回。"
         )
         self.execute_edit()
 
@@ -201,7 +202,7 @@ class ProfileEditPlanScreen(Screen[None]):
             result = self.profile_editor.apply_edit(self.plan, confirmed=True)
         except ProfileEditPortUnavailableError as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileEditPortConflictScreen(str(error)),
             )
             return
@@ -212,7 +213,7 @@ class ProfileEditPlanScreen(Screen[None]):
             StateRevisionConflictError,
         ) as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileEditConflictScreen(str(error)),
             )
             return
@@ -222,18 +223,18 @@ class ProfileEditPlanScreen(Screen[None]):
             ProfileEditValidationError,
         ) as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileEditOperationalErrorScreen(str(error)),
             )
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileEditOperationalErrorScreen(),
             )
             return
         self.app.call_from_thread(
-            self.app.push_screen,
+            self.push_terminal_screen,
             ProfileEditResultScreen(result),
         )
 

@@ -441,6 +441,15 @@ Responsibilities:
 Textual screens are used for durable navigation and modal screens for explicit
 confirmation. UI state is not the desired-state source of truth.
 
+Every explicitly confirmed background operation uses one shared navigation
+guard. Before confirmation, Escape returns without executing the plan. From
+confirmation until a typed terminal result or classified error reaches the UI
+thread, the originating screen remains mounted, its return binding is visibly
+disabled, and progress text states that the operation cannot be left. Releasing
+the guard is part of presenting every terminal path, including retryable
+errors, unknown-result screens, same-screen success, and dismissed typed
+results. Escape never implies cancellation of host or desired-state work.
+
 ### 7.2 Application module
 
 Responsibilities:

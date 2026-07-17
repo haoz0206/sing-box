@@ -21,13 +21,12 @@ from sb_manager.application.profile_availability import (
 )
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
-class ProfileAvailabilityPlanScreen(Screen[None]):
+class ProfileAvailabilityPlanScreen(ConfirmedOperationScreen[None]):
     """Present the exact pause/resume impact before one explicit confirmation."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(
         self,
@@ -73,9 +72,11 @@ class ProfileAvailabilityPlanScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-profile-availability")
     def confirm_change(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-profile-availability", Button).disabled = True
         self.query_one("#profile-availability-plan-safety", Static).update(
-            "正在执行已确认的完整配置事务，请勿关闭程序。"
+            "操作已确认，正在执行完整配置事务。完成前无法返回。"
         )
         self.execute_change()
 
@@ -92,18 +93,18 @@ class ProfileAvailabilityPlanScreen(Screen[None]):
             StateRevisionConflictError,
         ) as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileAvailabilityErrorScreen(str(error)),
             )
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileAvailabilityErrorScreen(),
             )
             return
         self.app.call_from_thread(
-            self.app.push_screen,
+            self.push_terminal_screen,
             ProfileAvailabilityResultScreen(result),
         )
 

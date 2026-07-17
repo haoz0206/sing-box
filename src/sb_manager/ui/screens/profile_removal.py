@@ -19,13 +19,12 @@ from sb_manager.application.profile_removal import (
 )
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
-class ProfileRemovalScreen(Screen[None]):
+class ProfileRemovalScreen(ConfirmedOperationScreen[None]):
     """Show exact removal impact before exposing the destructive action."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(self, profile_remover: ProfileRemover, *, profile_id: str) -> None:
         super().__init__()
@@ -61,9 +60,11 @@ class ProfileRemovalScreen(Screen[None]):
 
     @on(Button.Pressed, "#confirm-profile-removal")
     def confirm_removal(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-profile-removal", Button).disabled = True
         self.query_one("#profile-removal-safety", Static).update(
-            "正在执行已确认的移除计划，请勿关闭程序。"
+            "操作已确认，正在执行移除计划。完成前无法返回。"
         )
         self.execute_removal()
 
@@ -78,18 +79,18 @@ class ProfileRemovalScreen(Screen[None]):
             StateRevisionConflictError,
         ) as error:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileRemovalOperationalErrorScreen(str(error)),
             )
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileRemovalOperationalErrorScreen(),
             )
             return
         self.app.call_from_thread(
-            self.app.push_screen,
+            self.push_terminal_screen,
             ProfileRemovalResultScreen(result),
         )
 

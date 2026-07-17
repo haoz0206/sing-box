@@ -365,6 +365,10 @@ Release gate adds:
 - keyboard-first Textual navigation for discoverable `?` help, dashboard-only
   add/diagnostics/core/quit actions, destination-capability gating, child-screen
   suppression, non-mutating navigation, and preservation of normal form input;
+- confirmed-operation navigation for pre-confirmation cancellation, disabled
+  return while a worker is in flight, duplicate-confirmation suppression,
+  terminal-result delivery to the originating screen, and guard release before
+  subsequent navigation;
 - typed diagnostic-action journeys from an untracked configuration to exact
   fingerprint adoption review and from a helper-ready missing core to the
   trusted update form, including withheld actions when prerequisites or

@@ -18,6 +18,7 @@ from sb_manager.application.profile_cloning import (
     ProfileCloner,
     ProfileCloneResult,
 )
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 
 FACET_LABELS = {
     ProfileCloneFacet.PROTOCOL: "协议",
@@ -79,10 +80,8 @@ class ProfileCloneOperationalErrorScreen(Screen[None]):
         yield Footer()
 
 
-class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
+class ProfileCloneScreen(ConfirmedOperationScreen[ProfileCloneResult | None]):
     """Edit a name, review reset semantics, then create one desired-state draft."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(self, profile_cloner: ProfileCloner, *, source_profile_id: str) -> None:
         super().__init__()
@@ -168,8 +167,13 @@ class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
 
     @on(Button.Pressed, "#confirm-profile-clone")
     def confirm_clone(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-profile-clone", Button).disabled = True
         self.query_one("#edit-profile-clone", Button).disabled = True
+        self.query_one("#profile-clone-summary", Static).update(
+            "操作已确认，正在创建新草案。完成前无法返回。"
+        )
         self.execute_clone(self.plan)
 
     @work(thread=True, exclusive=True)
@@ -187,13 +191,14 @@ class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 ProfileCloneOperationalErrorScreen(),
             )
             return
         self.app.call_from_thread(self.show_success, result)
 
     def show_error(self, diagnostics: str) -> None:
+        self.finish_confirmed_operation()
         error = self.query_one("#profile-clone-error", Static)
         error.update(diagnostics)
         error.remove_class("hidden")
@@ -201,6 +206,7 @@ class ProfileCloneScreen(Screen[ProfileCloneResult | None]):
         self.query_one("#edit-profile-clone", Button).disabled = False
 
     def show_success(self, result: ProfileCloneResult) -> None:
+        self.finish_confirmed_operation()
         self.result = result
         self.query_one("#profile-clone-title", Static).update("草案已创建")
         result_summary = self.query_one("#profile-clone-result", Static)

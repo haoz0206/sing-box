@@ -21,6 +21,7 @@ from sb_manager.seams.state_recovery import (
     StateRecoveryCommit,
     StateRecoverySourceError,
 )
+from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 
 
 class StateRecoveryPanel(Widget):
@@ -85,10 +86,8 @@ class StateRecoveryInspectionErrorPanel(Widget):
         )
 
 
-class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
+class StateRecoveryConfirmationScreen(ConfirmedOperationScreen[StateRecoveryCommit | None]):
     """Keep destructive file replacement behind a second explicit action."""
-
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "取消")]
 
     def __init__(
         self,
@@ -122,7 +121,12 @@ class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
 
     @on(Button.Pressed, "#confirm-state-recovery")
     def confirm_recovery(self) -> None:
+        if not self.begin_confirmed_operation():
+            return
         self.query_one("#confirm-state-recovery", Button).disabled = True
+        self.query_one("#state-recovery-confirm-safety", Static).update(
+            "操作已确认，正在恢复 desired state。完成前无法返回。"
+        )
         self.execute_recovery()
 
     @work(thread=True, exclusive=True)
@@ -134,13 +138,18 @@ class StateRecoveryConfirmationScreen(Screen[StateRecoveryCommit | None]):
             return
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
+                self.push_terminal_screen,
                 StateRecoveryOperationalErrorScreen(),
             )
             return
-        self.app.call_from_thread(self.dismiss, result)
+        self.app.call_from_thread(self.finish_recovery, result)
+
+    def finish_recovery(self, result: StateRecoveryCommit) -> None:
+        self.finish_confirmed_operation()
+        self.dismiss(result)
 
     def show_error(self, diagnostics: str) -> None:
+        self.finish_confirmed_operation()
         error = self.query_one("#state-recovery-confirm-error", Static)
         error.update(f"恢复未执行：{diagnostics}")
         error.remove_class("hidden")
