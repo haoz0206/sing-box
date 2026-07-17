@@ -112,7 +112,10 @@ from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.labels import PROTOCOL_LABELS
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
-from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
+from sb_manager.ui.screens.diagnostics_center import (
+    DiagnosticsCenterScreen,
+    DiagnosticsCenterTools,
+)
 from sb_manager.ui.screens.host_readiness import HostReadinessScreen
 from sb_manager.ui.screens.keyboard_help import KeyboardHelpScreen
 from sb_manager.ui.screens.network import NetworkScreen
@@ -1771,10 +1774,13 @@ class ManagerApp(App[None]):
             self.push_screen(
                 DiagnosticsCenterScreen(
                     self.diagnostics_center,
-                    config_adopter=self.config_adopter,
-                    core_updater=self.core_updater,
-                    service_log_reader=self.service_log_reader,
-                    apply_history_reader=self.apply_history_reader,
+                    tools=DiagnosticsCenterTools(
+                        config_adopter=self.config_adopter,
+                        core_updater=self.core_updater,
+                        service_log_reader=self.service_log_reader,
+                        apply_history_reader=self.apply_history_reader,
+                    ),
+                    copy_catalog=self.copy_catalog,
                 )
             )
 
@@ -1785,6 +1791,7 @@ class ManagerApp(App[None]):
                 core_updater=self.core_updater,
                 service_log_reader=self.service_log_reader,
                 apply_history_reader=self.apply_history_reader,
+                copy_catalog=self.copy_catalog,
             )
         )
 
@@ -1873,6 +1880,7 @@ class ManagerApp(App[None]):
                 HostReadinessScreen(
                     self.host_readiness_report,
                     core_updater=self.core_updater,
+                    copy_catalog=self.copy_catalog,
                 )
             )
 

@@ -1,6 +1,7 @@
 """Plan and explicitly authorize one trusted sing-box core update."""
 
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
@@ -25,6 +26,12 @@ class CoreArtifactAcquisitionError(RuntimeError):
     """The exact release artifact could not be acquired and verified."""
 
 
+class CoreUpdateWarning(str, Enum):
+    """Stable review warning rendered by the presentation catalog."""
+
+    PRERELEASE_COMPATIBILITY_RISK = "prerelease-compatibility-risk"
+
+
 @dataclass(frozen=True, slots=True)
 class PlanCoreUpdateRequest:
     """Operator-selected exact core version and host architecture."""
@@ -44,7 +51,7 @@ class CoreUpdatePlan:
     asset_name: str
     source: str
     mutates_host: bool
-    warnings: tuple[str, ...]
+    warnings: tuple[CoreUpdateWarning, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,7 +104,7 @@ class CoreUpdateService:
             ),
             source="SagerNet/sing-box immutable GitHub release",
             mutates_host=False,
-            warnings=(("这是预发布核心; 仅在接受兼容性风险时继续。",) if is_prerelease else ()),
+            warnings=((CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,) if is_prerelease else ()),
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:

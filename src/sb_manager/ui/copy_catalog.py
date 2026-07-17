@@ -460,6 +460,42 @@ class UiText(str, Enum):
     PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF = (
         "profile_recommendation.rationale.compatibility_vmess_websocket.tradeoff"
     )
+    CORE_UPDATE_FORM_TITLE = "core_update.form.title"
+    CORE_UPDATE_OPEN = "core_update.open"
+    CORE_UPDATE_FORM_GUIDANCE = "core_update.form.guidance"
+    CORE_UPDATE_FORM_VERSION_LABEL = "core_update.form.version_label"
+    CORE_UPDATE_FORM_VERSION_PLACEHOLDER = "core_update.form.version_placeholder"
+    CORE_UPDATE_FORM_ARCHITECTURE_LABEL = "core_update.form.architecture_label"
+    CORE_UPDATE_FORM_ARCHITECTURE_AMD64 = "core_update.form.architecture.amd64"
+    CORE_UPDATE_FORM_ARCHITECTURE_ARM64 = "core_update.form.architecture.arm64"
+    CORE_UPDATE_FORM_PRERELEASE_CONSENT = "core_update.form.prerelease_consent"
+    CORE_UPDATE_FORM_PREVIEW = "core_update.form.preview"
+    CORE_UPDATE_FORM_ERROR_INVALID_VERSION = "core_update.form.error.invalid_version"
+    CORE_UPDATE_FORM_ERROR_ARCHITECTURE = "core_update.form.error.architecture"
+    CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT = "core_update.form.error.prerelease_consent"
+    CORE_UPDATE_PLAN_TITLE = "core_update.plan.title"
+    CORE_UPDATE_PLAN_VERSION = "core_update.plan.version"
+    CORE_UPDATE_PLAN_ARCHITECTURE = "core_update.plan.architecture"
+    CORE_UPDATE_PLAN_ASSET = "core_update.plan.asset"
+    CORE_UPDATE_PLAN_SOURCE = "core_update.plan.source"
+    CORE_UPDATE_PLAN_WARNING_PRERELEASE = "core_update.plan.warning.prerelease"
+    CORE_UPDATE_PLAN_SAFETY = "core_update.plan.safety"
+    CORE_UPDATE_PLAN_CONFIRM = "core_update.plan.confirm"
+    CORE_UPDATE_PLAN_PROGRESS = "core_update.plan.progress"
+    CORE_UPDATE_RESULT_TITLE = "core_update.result.title"
+    CORE_UPDATE_RESULT_VERSION = "core_update.result.version"
+    CORE_UPDATE_RESULT_BINARY = "core_update.result.binary"
+    CORE_UPDATE_RESULT_TARGET = "core_update.result.target"
+    CORE_UPDATE_RESULT_PREVIOUS = "core_update.result.previous"
+    CORE_UPDATE_RESULT_PREVIOUS_NONE = "core_update.result.previous.none"
+    CORE_UPDATE_PLANNING_ERROR_TITLE = "core_update.planning_error.title"
+    CORE_UPDATE_PLANNING_ERROR_DETAILS = "core_update.planning_error.details"
+    CORE_UPDATE_PLANNING_ERROR_SAFETY = "core_update.planning_error.safety"
+    CORE_UPDATE_ERROR_UNKNOWN_TITLE = "core_update.error.unknown.title"
+    CORE_UPDATE_ERROR_ACQUISITION_TITLE = "core_update.error.acquisition.title"
+    CORE_UPDATE_ERROR_UNKNOWN_SAFETY = "core_update.error.unknown.safety"
+    CORE_UPDATE_ERROR_ACQUISITION_SAFETY = "core_update.error.acquisition.safety"
+    CORE_UPDATE_ERROR_UNEXPECTED_DETAILS = "core_update.error.unexpected_details"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -558,6 +594,14 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_RECOMMENDATION_RANKING_REASON: frozenset({"reason"}),
         UiText.PROFILE_RECOMMENDATION_RANKING_TRADEOFF: frozenset({"tradeoff"}),
         UiText.PROFILE_RECOMMENDATION_RANKING_SELECT: frozenset({"label"}),
+        UiText.CORE_UPDATE_PLAN_VERSION: frozenset({"version"}),
+        UiText.CORE_UPDATE_PLAN_ARCHITECTURE: frozenset({"architecture"}),
+        UiText.CORE_UPDATE_PLAN_ASSET: frozenset({"asset"}),
+        UiText.CORE_UPDATE_PLAN_SOURCE: frozenset({"source"}),
+        UiText.CORE_UPDATE_RESULT_VERSION: frozenset({"version"}),
+        UiText.CORE_UPDATE_RESULT_BINARY: frozenset({"path"}),
+        UiText.CORE_UPDATE_RESULT_TARGET: frozenset({"target"}),
+        UiText.CORE_UPDATE_RESULT_PREVIOUS: frozenset({"target"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1111,6 +1155,54 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF: (
             "新部署不默认推荐，并需要 TLS 与 WebSocket"
+        ),
+        UiText.CORE_UPDATE_FORM_TITLE: "安装或升级 sing-box 核心",
+        UiText.CORE_UPDATE_OPEN: "安装或升级 sing-box 核心",
+        UiText.CORE_UPDATE_FORM_GUIDANCE: "只接受官方 immutable release 的精确版本。",
+        UiText.CORE_UPDATE_FORM_VERSION_LABEL: "精确版本",
+        UiText.CORE_UPDATE_FORM_VERSION_PLACEHOLDER: "精确版本，例如 1.14.0-alpha.45",
+        UiText.CORE_UPDATE_FORM_ARCHITECTURE_LABEL: "服务器架构",
+        UiText.CORE_UPDATE_FORM_ARCHITECTURE_AMD64: "x86-64 (amd64)",
+        UiText.CORE_UPDATE_FORM_ARCHITECTURE_ARM64: "ARM64 (arm64)",
+        UiText.CORE_UPDATE_FORM_PRERELEASE_CONSENT: "我接受预发布版本的兼容性风险",
+        UiText.CORE_UPDATE_FORM_PREVIEW: "预览核心更新计划",
+        UiText.CORE_UPDATE_FORM_ERROR_INVALID_VERSION: (
+            "版本格式无效。请输入完整版本，例如 1.14.0 或 1.14.0-alpha.45。"
+        ),
+        UiText.CORE_UPDATE_FORM_ERROR_ARCHITECTURE: "请选择服务器架构。",
+        UiText.CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT: (
+            "该版本属于预发布版本。勾选兼容性风险确认后再预览计划。"
+        ),
+        UiText.CORE_UPDATE_PLAN_TITLE: "确认核心更新计划",
+        UiText.CORE_UPDATE_PLAN_VERSION: "版本：{version}",
+        UiText.CORE_UPDATE_PLAN_ARCHITECTURE: "架构：{architecture}",
+        UiText.CORE_UPDATE_PLAN_ASSET: "发行资产：{asset}",
+        UiText.CORE_UPDATE_PLAN_SOURCE: "来源：{source}",
+        UiText.CORE_UPDATE_PLAN_WARNING_PRERELEASE: ("这是预发布核心; 仅在接受兼容性风险时继续。"),
+        UiText.CORE_UPDATE_PLAN_SAFETY: ("当前仅预览; 尚未下载文件，也不会修改服务器。"),
+        UiText.CORE_UPDATE_PLAN_CONFIRM: "确认下载并激活",
+        UiText.CORE_UPDATE_PLAN_PROGRESS: ("操作已确认，正在下载、校验并激活。完成前无法返回。"),
+        UiText.CORE_UPDATE_RESULT_TITLE: "sing-box 核心已激活",
+        UiText.CORE_UPDATE_RESULT_VERSION: "版本：{version}",
+        UiText.CORE_UPDATE_RESULT_BINARY: "当前二进制：{path}",
+        UiText.CORE_UPDATE_RESULT_TARGET: "激活目标：{target}",
+        UiText.CORE_UPDATE_RESULT_PREVIOUS: "上一个激活目标：{target}",
+        UiText.CORE_UPDATE_RESULT_PREVIOUS_NONE: "无",
+        UiText.CORE_UPDATE_PLANNING_ERROR_TITLE: "无法准备核心更新计划",
+        UiText.CORE_UPDATE_PLANNING_ERROR_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.CORE_UPDATE_PLANNING_ERROR_SAFETY: (
+            "尚未下载发行资产，也未请求核心激活。请重新打开核心更新页后再试。"
+        ),
+        UiText.CORE_UPDATE_ERROR_UNKNOWN_TITLE: "无法确认核心激活结果",
+        UiText.CORE_UPDATE_ERROR_ACQUISITION_TITLE: "核心下载或校验失败",
+        UiText.CORE_UPDATE_ERROR_UNKNOWN_SAFETY: (
+            "请检查 current 链接、helper 日志和 sing-box 版本，再决定是否重试。"
+        ),
+        UiText.CORE_UPDATE_ERROR_ACQUISITION_SAFETY: ("尚未请求特权激活，当前核心保持不变。"),
+        UiText.CORE_UPDATE_ERROR_UNEXPECTED_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
         ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (

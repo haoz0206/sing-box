@@ -59,6 +59,16 @@ An operator-confirmed atomic activation of one exact retained package release.
 It never guesses which release the operator intended.
 _Avoid_: Downgrade install, manual symlink edit
 
+**Core update**:
+An operator-confirmed acquisition, verification, and atomic activation of one
+exact immutable sing-box release for one supported architecture. The application
+plan carries stable warning identities rather than locale-authored guidance;
+the form, validation, plan, progress, terminal evidence, and recovery policy
+come from one validated interface copy catalog. Typed acquisition or helper
+diagnostics remain literal non-markup evidence, while an unclassified
+post-confirmation failure is a non-disclosing unknown activation result.
+_Avoid_: Latest-version discovery, automatic upgrade, retry after unknown result
+
 **Profile removal**:
 An operator-confirmed lifecycle transition that removes one exact profile from
 desired state. Removing a draft changes desired state only; removing an applied

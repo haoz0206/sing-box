@@ -1,5 +1,6 @@
 """Action-oriented diagnostics center behind one Textual screen interface."""
 
+from dataclasses import dataclass
 from typing import ClassVar
 
 from textual import on, work
@@ -21,10 +22,21 @@ from sb_manager.application.diagnostics_center import (
     DiagnosticsCenterReport,
 )
 from sb_manager.application.service_logs import ServiceLogReader
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.screens.apply_history import ApplyHistoryScreen
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 from sb_manager.ui.screens.service_logs import ServiceLogsScreen
+
+
+@dataclass(frozen=True, slots=True)
+class DiagnosticsCenterTools:
+    """Optional navigation capabilities exposed by the diagnostics center."""
+
+    config_adopter: ConfigAdopter | None = None
+    core_updater: CoreUpdater | None = None
+    service_log_reader: ServiceLogReader | None = None
+    apply_history_reader: ApplyHistoryReader | None = None
 
 
 class DiagnosticsCenterScreen(Screen[None]):
@@ -36,17 +48,16 @@ class DiagnosticsCenterScreen(Screen[None]):
         self,
         diagnostics_center: DiagnosticsCenter,
         *,
-        config_adopter: ConfigAdopter | None,
-        core_updater: CoreUpdater | None,
-        service_log_reader: ServiceLogReader | None,
-        apply_history_reader: ApplyHistoryReader | None,
+        tools: DiagnosticsCenterTools,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.diagnostics_center = diagnostics_center
-        self.config_adopter = config_adopter
-        self.core_updater = core_updater
-        self.service_log_reader = service_log_reader
-        self.apply_history_reader = apply_history_reader
+        self.config_adopter = tools.config_adopter
+        self.core_updater = tools.core_updater
+        self.service_log_reader = tools.service_log_reader
+        self.apply_history_reader = tools.apply_history_reader
+        self.copy = copy_catalog
         self.report: DiagnosticsCenterReport | None = None
 
     def compose(self) -> ComposeResult:
@@ -140,7 +151,7 @@ class DiagnosticsCenterScreen(Screen[None]):
             report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
             and self.core_updater is not None
         ):
-            action.label = "安装或升级 sing-box 核心"
+            action.label = self.copy.text(UiText.CORE_UPDATE_OPEN)
             action.remove_class("hidden")
         else:
             action.add_class("hidden")
@@ -183,7 +194,7 @@ class DiagnosticsCenterScreen(Screen[None]):
             and self.report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
             and self.core_updater is not None
         ):
-            self.app.push_screen(CoreUpdateFormScreen(self.core_updater))
+            self.app.push_screen(CoreUpdateFormScreen(self.core_updater, self.copy))
 
     @on(Button.Pressed, "#open-service-logs")
     def open_service_logs(self) -> None:

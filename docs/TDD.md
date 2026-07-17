@@ -287,6 +287,9 @@ Release gate adds:
   new-profile planning, adoption planning, and core-update planning for a usable
   non-disclosing TUI, accurate no-mutation wording, and a fresh-read or advanced
   fallback path;
+- exact core-update form validation, semantic prerelease warning identity,
+  catalog-rendered immutable plan and activation evidence, literal non-markup
+  typed diagnostics, and catalog-rendered acquisition/unknown-result recovery;
 - confirmed profile-apply, profile-edit, profile-removal,
   profile-availability, profile-clone, config-adoption, state-recovery, and
   core-update workers for

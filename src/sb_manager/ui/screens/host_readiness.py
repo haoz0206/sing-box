@@ -15,6 +15,7 @@ from sb_manager.application.host_readiness import (
     HostReadinessReport,
     ReadinessState,
 )
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.screens.core_update import CoreUpdateFormScreen
 
 
@@ -28,10 +29,12 @@ class HostReadinessScreen(Screen[None]):
         report: HostReadinessReport,
         *,
         core_updater: CoreUpdater | None,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.report = report
         self.core_updater = core_updater
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -53,7 +56,7 @@ class HostReadinessScreen(Screen[None]):
                     yield Static(item.guidance, id=f"readiness-{item_id}-guidance")
             if self._can_install_core():
                 yield Button(
-                    "安装或升级 sing-box 核心",
+                    self.copy.text(UiText.CORE_UPDATE_OPEN),
                     id="readiness-manage-core",
                     variant="primary",
                 )
@@ -89,4 +92,4 @@ class HostReadinessScreen(Screen[None]):
     @on(Button.Pressed, "#readiness-manage-core")
     def open_core_update(self) -> None:
         if self.core_updater is not None:
-            self.app.push_screen(CoreUpdateFormScreen(self.core_updater))
+            self.app.push_screen(CoreUpdateFormScreen(self.core_updater, self.copy))

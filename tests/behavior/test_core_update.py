@@ -7,6 +7,7 @@ from sb_manager.application.core_update import (
     CorePrereleaseConsentRequiredError,
     CoreUpdateConfirmationRequiredError,
     CoreUpdateService,
+    CoreUpdateWarning,
     PlanCoreUpdateRequest,
 )
 from sb_manager.artifacts.installation import CoreActivation
@@ -113,6 +114,21 @@ def test_prerelease_plan_requires_explicit_consent(tmp_path: Path) -> None:
             )
         )
 
+    assert source.calls == []
+
+
+def test_prerelease_plan_returns_semantic_warning_after_consent(tmp_path: Path) -> None:
+    core_updates, source, _ = service(tmp_path)
+
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0-alpha.45",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    )
+
+    assert plan.warnings == (CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,)
     assert source.calls == []
 
 

@@ -39,6 +39,13 @@ repository. Acquisition follows these rules:
 9. Acquisition and staging run without root. A later minimal privileged seam
    performs the atomic host replacement from a verified staged manifest.
 
+The application plan represents prerelease compatibility risk with a stable
+`CoreUpdateWarning` identity. The Textual presentation adapter renders that
+warning, all validation guidance, immutable plan labels, progress, activation
+evidence, and recovery policy through the validated interface copy catalog.
+Typed acquisition and helper diagnostics remain literal evidence with markup
+disabled; application policy does not produce locale-authored warning text.
+
 The first supported architectures are `amd64` and `arm64`. Platform expansion
 requires fixture and host evidence before adding another enum member.
 
@@ -52,6 +59,9 @@ requires fixture and host evidence before adding another enum member.
 - The manager cannot silently follow upstream prereleases.
 - Privilege is not required for network access, parsing, hashing, extraction,
   or binary inspection.
+- Core-update wording changes remain local to the interface copy catalog, while
+  warning and failure classification remain testable through application and
+  Textual interfaces.
 
 ## Rejected alternatives
 

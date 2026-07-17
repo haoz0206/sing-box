@@ -510,7 +510,8 @@ recommendation, Profiles inventory, profile details and credential disclosure,
 the complete profile-edit journey, and profile pause/resume. Those migrated
 screen ranges also include the complete profile-removal and profile-template-
 clone journeys plus the purpose-first recommendation, recommendation-failure,
-and advanced direct-selection journey, and contain no locale-authored text.
+advanced direct-selection journey, and the complete trusted core-update
+journey, and contain no locale-authored text.
 Settings states that
 Chinese is fully supported and explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
@@ -702,7 +703,11 @@ return to the application thread. Acquisition failures are reported before any
 privileged request, while helper failures conservatively report an unknown host
 activation result. An unclassified exception after core-update confirmation is
 also non-disclosing and is conservatively presented as an unknown activation
-result, because it may have occurred before or after the atomic switch.
+result, because it may have occurred before or after the atomic switch. The
+application plan returns stable warning identities; the presentation adapter
+renders form validation, warnings, immutable plan values, progress, terminal
+evidence, and recovery policy through the validated interface copy catalog.
+Typed diagnostics stay literal and use non-markup widgets.
 
 ### 7.8 Privileged helper
 
@@ -1059,8 +1064,9 @@ Current implementation status (2026-07-17):
   to hidden state when the page closes;
 - UI module depth: the complete core-update form, plan, confirmation, worker,
   result, and failure workflow now lives behind the single
-  `CoreUpdateFormScreen(core_updater)` interface in `ui/screens/core_update.py`;
-  `ManagerApp` owns only the navigation entry to that workflow;
+  `CoreUpdateFormScreen(core_updater, copy_catalog)` interface in
+  `ui/screens/core_update.py`; `ManagerApp` owns only capabilities, the shared
+  catalog, and navigation into that workflow;
 - UI presentation: the Textual stylesheet is isolated in `ui/theme.tcss` and
   included as package data, so layout changes do not require editing screen
   behavior and installed wheels retain the same rendering contract;
