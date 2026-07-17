@@ -98,6 +98,17 @@ class UiText(str, Enum):
     DIAGNOSTICS_CENTER_REFRESH = "diagnostics_center.refresh"
     DIAGNOSTICS_CENTER_OPEN_SERVICE_LOGS = "diagnostics_center.open_service_logs"
     DIAGNOSTICS_CENTER_OPEN_APPLY_HISTORY = "diagnostics_center.open_apply_history"
+    SERVICE_LOGS_TITLE = "service_logs.title"
+    SERVICE_LOGS_SAFETY = "service_logs.safety"
+    SERVICE_LOGS_SOURCE = "service_logs.source"
+    SERVICE_LOGS_SOURCE_REDACTED = "service_logs.source_redacted"
+    SERVICE_LOGS_EMPTY = "service_logs.empty"
+    SERVICE_LOGS_UNAVAILABLE = "service_logs.unavailable"
+    SERVICE_LOGS_DETAILS_UNAVAILABLE = "service_logs.details.unavailable"
+    SERVICE_LOGS_ERROR = "service_logs.error"
+    SERVICE_LOGS_LOADING = "service_logs.loading"
+    SERVICE_LOGS_RELOADING = "service_logs.reloading"
+    SERVICE_LOGS_REFRESH = "service_logs.refresh"
     DASHBOARD_REFRESH_RUNTIME = "dashboard.refresh_runtime"
     DASHBOARD_VIEW_READINESS = "dashboard.view_readiness"
     DASHBOARD_REFRESH_READINESS = "dashboard.refresh_readiness"
@@ -918,6 +929,10 @@ _EXPECTED_FIELDS.update(
         UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE: frozenset({"action_required", "attention"}),
         UiText.DIAGNOSTICS_CENTER_ITEM_TITLE: frozenset({"condition", "title"}),
         UiText.DIAGNOSTICS_CENTER_ITEM_GUIDANCE: frozenset({"guidance"}),
+        UiText.SERVICE_LOGS_SAFETY: frozenset({"limit"}),
+        UiText.SERVICE_LOGS_SOURCE: frozenset({"source"}),
+        UiText.SERVICE_LOGS_SOURCE_REDACTED: frozenset({"source", "count"}),
+        UiText.SERVICE_LOGS_UNAVAILABLE: frozenset({"diagnostics"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1057,6 +1072,19 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.DIAGNOSTICS_CENTER_REFRESH: "重新检查",
         UiText.DIAGNOSTICS_CENTER_OPEN_SERVICE_LOGS: "查看近期服务日志",
         UiText.DIAGNOSTICS_CENTER_OPEN_APPLY_HISTORY: "查看配置应用历史",
+        UiText.SERVICE_LOGS_TITLE: "近期服务日志",
+        UiText.SERVICE_LOGS_SAFETY: "只读 · 最多 {limit} 行 · 自动清理控制字符并脱敏",
+        UiText.SERVICE_LOGS_SOURCE: "来源：{source}",
+        UiText.SERVICE_LOGS_SOURCE_REDACTED: "来源：{source} · 已脱敏 {count} 处",
+        UiText.SERVICE_LOGS_EMPTY: "近期没有可显示的 sing-box 服务日志。",
+        UiText.SERVICE_LOGS_UNAVAILABLE: "无法读取服务日志：{diagnostics}",
+        UiText.SERVICE_LOGS_DETAILS_UNAVAILABLE: "未提供诊断细节",
+        UiText.SERVICE_LOGS_ERROR: (
+            "无法完成日志检查。底层错误未显示，以避免泄露敏感信息。请重新读取。"
+        ),
+        UiText.SERVICE_LOGS_LOADING: "正在读取近期服务日志…",
+        UiText.SERVICE_LOGS_RELOADING: "正在重新读取近期服务日志…",
+        UiText.SERVICE_LOGS_REFRESH: "重新读取",
         UiText.DASHBOARD_REFRESH_RUNTIME: "重新检查服务状态",
         UiText.DASHBOARD_VIEW_READINESS: "查看准备度",
         UiText.DASHBOARD_REFRESH_READINESS: "重新检查",

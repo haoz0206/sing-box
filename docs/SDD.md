@@ -413,6 +413,17 @@ Presents actionable checks rather than raw logs first:
 
 Raw logs remain available as a drill-down view with secrets redacted.
 
+Worked example — bounded log evidence and an empty refresh:
+
+> The operator opens Recent service logs from Diagnostics Center and sees the
+> exact read-only bound, source identity, redaction count, and already-sanitized
+> lines. The operator explicitly refreshes after recovery and receives a typed
+> empty state rather than a blank page. Page framing, source/count templates,
+> empty/unavailable fallbacks, loading/reloading states, and generic failure
+> recovery come from the same injected interface copy catalog. Source labels,
+> redacted lines, and typed diagnostics remain literal with markup disabled;
+> refreshing never follows the journal or mutates the service.
+
 The first diagnostics-center slice aggregates desired-state consistency, host
 readiness, core/helper/config-target evidence, and runtime health behind one
 read-only `inspect()` interface. It assigns one stable severity model, keeps

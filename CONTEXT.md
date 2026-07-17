@@ -191,6 +191,16 @@ instructions remain literal non-markup evidence; returning preserves the
 dashboard context and performs no new probe or mutation.
 _Avoid_: Diagnostics center, service log viewer, runtime refresh
 
+**Service log drill-down**:
+The bounded, read-only view of recent systemd or OpenRC service evidence after
+one application disclosure policy has sanitized controls, capped lines, and
+redacted credentials. Title, read-only scope, source/count templates, typed
+empty/unavailable states, missing-detail fallback, loading/reloading states,
+generic failure recovery, and refresh copy come from one validated interface
+copy catalog through every navigation entry. Source labels, redacted log lines,
+and typed diagnostics remain literal non-markup evidence.
+_Avoid_: Streaming log follower, raw journal, runtime mutation, privileged log reader
+
 **Generated configuration inspection**:
 A read-only projection of one desired-state snapshot into a disposable complete
 sing-box document followed by the configured semantic validator. It reports

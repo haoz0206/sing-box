@@ -73,6 +73,32 @@ class DiagnosticsCenterMarkerCatalog:
         return SIMPLIFIED_CHINESE.text(key, **values)
 
 
+class ServiceLogsMarkerCatalog:
+    """Render markers across the complete bounded service-log drill-down."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "service_logs.title": "目录近期日志",
+            "service_logs.empty": "目录暂无日志",
+            "service_logs.details.unavailable": "目录无日志诊断",
+            "service_logs.error": "目录日志检查失败并可重试",
+            "service_logs.loading": "目录正在读取日志",
+            "service_logs.reloading": "目录正在重新读取日志",
+            "service_logs.refresh": "目录重新读取日志",
+        }
+        if key.value == "service_logs.safety":
+            return f"目录只读上限<{values['limit']}>"
+        if key.value == "service_logs.source_redacted":
+            return f"目录来源<{values['source']}>脱敏<{values['count']}>"
+        if key.value == "service_logs.source":
+            return f"目录来源<{values['source']}>"
+        if key.value == "service_logs.unavailable":
+            return f"目录日志不可用<{values['diagnostics']}>"
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
+
+
 class FixedDiagnosticsCenter:
     def __init__(self, *reports: DiagnosticsCenterReport) -> None:
         self.reports = reports
@@ -122,6 +148,25 @@ class RecordingServiceLogReader:
 class FailingServiceLogReader:
     def read_recent(self, *, limit: int = 200) -> ServiceLogReport:
         raise RuntimeError("password=private-log-reader-error")
+
+
+class BlockingServiceLogReader:
+    def __init__(self, report: ServiceLogReport, *, block_on_call: int) -> None:
+        self.report = report
+        self.block_on_call = block_on_call
+        self.calls = 0
+        self.limits: list[int] = []
+        self.started = Event()
+        self.release = Event()
+
+    def read_recent(self, *, limit: int = 200) -> ServiceLogReport:
+        self.calls += 1
+        self.limits.append(limit)
+        if self.calls == self.block_on_call:
+            self.started.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test did not release service-log read")
+        return self.report
 
 
 class RecordingApplyHistoryReader:
@@ -814,6 +859,264 @@ async def test_operator_drills_into_bounded_redacted_service_logs_and_refreshes(
         assert app.screen.query_one("#service-logs-content", Static).content == (
             "近期没有可显示的 sing-box 服务日志。"
         )
+
+
+async def test_service_logs_copy_catalog_flows_through_available_and_empty_refresh() -> None:
+    literal_log_line = "2026-07-17 [red]sing-box[/red] started"
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.AVAILABLE,
+            source_label="systemd [blue]journal[/blue]",
+            lines=(literal_log_line,),
+            diagnostics="",
+            redacted_occurrences=2,
+            limit=200,
+        ),
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd [blue]journal[/blue]",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        ),
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-title", Static).content == "目录近期日志"
+        assert app.screen.query_one("#service-logs-safety", Static).content == ("目录只读上限<200>")
+        source = app.screen.query_one("#service-logs-source", Static)
+        assert source.content == "目录来源<systemd [blue]journal[/blue]>脱敏<2>"
+        assert source.render().plain == source.content
+        content = app.screen.query_one("#service-logs-content", Static)
+        assert content.content == literal_log_line
+        assert content.render().plain == literal_log_line
+        assert str(app.screen.query_one("#refresh-service-logs", Button).label) == (
+            "目录重新读取日志"
+        )
+
+        await pilot.click("#refresh-service-logs")
+        await pilot.pause()
+
+        assert logs.calls == REFRESHED_SERVICE_LOG_COUNT
+        assert app.screen.query_one("#service-logs-content", Static).content == "目录暂无日志"
+
+
+async def test_service_logs_typed_unavailable_copy_keeps_diagnostics_literal() -> None:
+    diagnostics = "logread: [red]permission denied[/red]"
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.UNAVAILABLE,
+            source_label="OpenRC [blue]syslog[/blue]",
+            lines=(),
+            diagnostics=diagnostics,
+            redacted_occurrences=0,
+            limit=200,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        source = app.screen.query_one("#service-logs-source", Static)
+        assert source.content == "目录来源<OpenRC [blue]syslog[/blue]>"
+        assert source.render().plain == source.content
+        content = app.screen.query_one("#service-logs-content", Static)
+        assert content.content == f"目录日志不可用<{diagnostics}>"
+        assert content.render().plain == content.content
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is False
+
+
+async def test_service_logs_typed_unavailable_uses_catalog_fallback_without_details() -> None:
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.UNAVAILABLE,
+            source_label="OpenRC syslog",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-content", Static).content == (
+            "目录日志不可用<目录无日志诊断>"
+        )
+
+
+async def test_service_logs_unexpected_failure_copy_comes_from_catalog() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=FailingServiceLogReader(),
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-loading", Static).content == (
+            "目录日志检查失败并可重试"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-log-reader-error" not in rendered_text
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is False
+
+
+async def test_initial_service_logs_progress_copy_comes_from_catalog() -> None:
+    logs = BlockingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd journal",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        ),
+        block_on_call=1,
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert logs.started.is_set()
+        assert app.screen.query_one("#service-logs-loading", Static).content == ("目录正在读取日志")
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is True
+
+        logs.release.set()
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-content", Static).content == "目录暂无日志"
+
+
+async def test_service_logs_refresh_progress_copy_comes_from_catalog() -> None:
+    logs = BlockingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd journal",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        ),
+        block_on_call=2,
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+        await pilot.click("#refresh-service-logs")
+        await pilot.pause()
+
+        assert logs.started.is_set()
+        assert app.screen.query_one("#service-logs-loading", Static).content == (
+            "目录正在重新读取日志"
+        )
+        assert app.screen.query_one("#refresh-service-logs", Button).disabled is True
+
+        logs.release.set()
+        await pilot.pause()
+
+        assert logs.calls == REFRESHED_SERVICE_LOG_COUNT
+        assert logs.limits == [200, 200]
+        assert app.screen.query_one("#service-logs-content", Static).content == "目录暂无日志"
+
+
+async def test_operations_workspace_preserves_service_logs_copy_catalog() -> None:
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd journal",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(service_log_reader=logs),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ServiceLogsMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.press("o")
+        await pilot.click("#open-service-logs")
+        await pilot.pause()
+
+        assert app.screen.query_one("#service-logs-title", Static).content == "目录近期日志"
+        assert app.screen.query_one("#service-logs-content", Static).content == "目录暂无日志"
 
 
 async def test_operator_drills_into_safe_configuration_apply_history() -> None:

@@ -87,7 +87,7 @@ class OperationsScreen(Screen[None]):
     @on(Button.Pressed, "#open-service-logs")
     def open_service_logs(self) -> None:
         if self.service_log_reader is not None:
-            self.app.push_screen(ServiceLogsScreen(self.service_log_reader))
+            self.app.push_screen(ServiceLogsScreen(self.service_log_reader, copy_catalog=self.copy))
 
     @on(Button.Pressed, "#open-apply-history")
     def open_apply_history(self) -> None:

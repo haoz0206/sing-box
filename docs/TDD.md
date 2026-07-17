@@ -389,7 +389,10 @@ Release gate adds:
   command contracts, command/permission/empty states, persisted and generic
   credential redaction, control-sequence cleaning, non-markup Textual
   presentation, typed-unavailable evidence, non-disclosing unexpected failure,
-  refresh, retry, and both production compositions;
+  refresh, retry, both production compositions, catalog propagation from both
+  Diagnostics Center and Operations, catalog-backed source/redaction templates,
+  empty and missing-detail fallbacks, and disabled refresh during initial or
+  repeated reads;
 - listener ownership diagnostics for protocol-specific TCP/UDP expectations,
   draft/paused exclusion, missing and foreign listeners, incomplete ownership,
   unavailable `/proc`, IPv4/IPv6 inode merging, UDP socket state, owner process

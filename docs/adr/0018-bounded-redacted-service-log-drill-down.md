@@ -60,6 +60,13 @@ policy, renders log text with markup disabled, reports the source and redaction
 count, and keeps retry available after failure. It never follows the journal,
 exports logs, changes the service, or invokes the privileged helper.
 
+The same injected interface copy catalog flows into the screen from both
+Diagnostics Center and Operations. It owns page framing, read-only scope,
+source/redaction templates, typed empty and unavailable presentation,
+missing-detail fallback, initial/repeated loading states, generic failure
+recovery, and refresh copy. Source labels, sanitized log lines, and typed
+diagnostics remain literal non-markup evidence and cannot select behavior.
+
 ## Consequences
 
 - Operators can move from an actionable finding to recent evidence without
