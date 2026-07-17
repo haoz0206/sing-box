@@ -276,6 +276,14 @@ and rollback. Fixed-port resume checks availability during preview and again
 under the lock; automatic resume may choose a new actual port only under that
 lock. Drafts use first apply, while paused edits and removals are desired-state
 only.
+The profile-details catalog instance flows into expected planning rejection,
+unexpected planning failure, the pause/resume plan, confirmation progress,
+every terminal transaction outcome, and known or unknown operational failure.
+Authored copy uses semantic identities; profile names, transaction diagnostics,
+and recovery commands render with markup disabled. An unexpected planning
+failure states that no operation ran, while an unexpected confirmed failure
+claims no host or desired-state result and requires identity, service, and
+apply-history inspection before retry.
 
 ### 5.4 Profile wizard
 
@@ -473,9 +481,9 @@ template placeholders at construction, and exposes only one rendering method
 to screens. Complete migration units now cover Settings and every
 preference-reset outcome, the Dashboard read-only shell and semantic
 recommendation, Profiles inventory, profile details and credential disclosure,
-and the complete profile-edit journey. Those migrated screen ranges contain no
-locale-authored text. Settings states that Chinese is fully supported and
-explains why other languages are withheld.
+the complete profile-edit journey, and profile pause/resume. Those migrated
+screen ranges contain no locale-authored text. Settings states that Chinese is
+fully supported and explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
 string has moved into the catalog, so an operator never receives a partially
 translated safety workflow. Additional accessibility preferences require their

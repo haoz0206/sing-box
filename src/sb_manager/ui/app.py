@@ -499,15 +499,16 @@ class ProfileDetailsScreen(Screen[None]):
             ProfileAvailabilityNotFoundError,
             ProfileResumePortUnavailableError,
         ) as error:
-            self.app.push_screen(ProfileAvailabilityErrorScreen(str(error)))
+            self.app.push_screen(ProfileAvailabilityErrorScreen(str(error), copy_catalog=self.copy))
             return
         except Exception:
-            self.app.push_screen(ProfileAvailabilityPlanningErrorScreen())
+            self.app.push_screen(ProfileAvailabilityPlanningErrorScreen(self.copy))
             return
         self.app.push_screen(
             ProfileAvailabilityPlanScreen(
                 self.capabilities.availability_manager,
                 plan=plan,
+                copy_catalog=self.copy,
             )
         )
 

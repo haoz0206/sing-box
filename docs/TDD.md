@@ -391,6 +391,11 @@ Release gate adds:
   actionable field validation, revision-bound confirmation, typed conflict and
   rollback outcomes, non-disclosing unexpected failures, and non-markup dynamic
   profile/diagnostic evidence;
+- profile-availability acceptance for catalog propagation from details through
+  pause/resume plan, committed result, expected rejection, unexpected planning
+  failure, and unknown mutation result; preserved identity/material, exact
+  complete-configuration impact, confirmation-time port policy, typed
+  transaction/rollback evidence, and non-markup profile and diagnostic values;
 - read-only Network workspace acceptance for empty and populated desired state,
   lifecycle-aware TCP/UDP listener intent, fixed and apply-time automatic ports,
   public addresses, explicit no-probe/no-firewall policy, contextual `n`

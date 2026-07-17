@@ -22,6 +22,7 @@ from sb_manager.application.profile_availability import (
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
@@ -33,38 +34,62 @@ class ProfileAvailabilityPlanScreen(ConfirmedOperationScreen[None]):
         manager: ProfileAvailabilityManager,
         *,
         plan: ProfileAvailabilityPlan,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__()
         self.manager = manager
         self.plan = plan
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         pausing = self.plan.target is ProfileAvailability.PAUSED
         yield Header()
         with Vertical(id="profile-availability-plan"):
             yield Static(
-                "确认暂停配置" if pausing else "确认恢复配置",
-                id="profile-availability-plan-title",
-            )
-            yield Static(
-                f"配置：{self.plan.profile_name}",
-                id="profile-availability-plan-profile",
-            )
-            yield Static(
-                (
-                    "将从完整 sing-box 配置中移除此 inbound，保留 profile、端口和凭据。"
+                self.copy.text(
+                    UiText.PROFILE_AVAILABILITY_PLAN_PAUSE_TITLE
                     if pausing
-                    else "将把此 inbound 恢复到完整 sing-box 配置，校验并刷新服务。"
+                    else UiText.PROFILE_AVAILABILITY_PLAN_RESUME_TITLE
+                ),
+                id="profile-availability-plan-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_AVAILABILITY_PLAN_PROFILE,
+                    name=self.plan.profile_name,
+                ),
+                id="profile-availability-plan-profile",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_AVAILABILITY_PLAN_PAUSE_IMPACT
+                    if pausing
+                    else UiText.PROFILE_AVAILABILITY_PLAN_RESUME_IMPACT
                 ),
                 id="profile-availability-plan-impact",
+                markup=False,
             )
             yield Static(
-                f"完成后在线配置数：{self.plan.remaining_active_profile_count}",
+                self.copy.text(
+                    UiText.PROFILE_AVAILABILITY_PLAN_ACTIVE_COUNT,
+                    count=self.plan.remaining_active_profile_count,
+                ),
                 id="profile-availability-plan-count",
+                markup=False,
             )
-            yield Static("当前仅预览，尚未修改任何内容。", id="profile-availability-plan-safety")
+            yield Static(
+                self.copy.text(UiText.PROFILE_AVAILABILITY_PLAN_SAFETY_PREVIEW),
+                id="profile-availability-plan-safety",
+                markup=False,
+            )
             yield Button(
-                "确认暂停" if pausing else "确认恢复",
+                self.copy.text(
+                    UiText.PROFILE_AVAILABILITY_PLAN_CONFIRM_PAUSE
+                    if pausing
+                    else UiText.PROFILE_AVAILABILITY_PLAN_CONFIRM_RESUME
+                ),
                 id="confirm-profile-availability",
                 variant="warning",
             )
@@ -76,7 +101,7 @@ class ProfileAvailabilityPlanScreen(ConfirmedOperationScreen[None]):
             return
         self.query_one("#confirm-profile-availability", Button).disabled = True
         self.query_one("#profile-availability-plan-safety", Static).update(
-            "操作已确认，正在执行完整配置事务。完成前无法返回。"
+            self.copy.text(UiText.PROFILE_AVAILABILITY_PLAN_IN_PROGRESS)
         )
         self.execute_change()
 
@@ -94,29 +119,37 @@ class ProfileAvailabilityPlanScreen(ConfirmedOperationScreen[None]):
         ) as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileAvailabilityErrorScreen(str(error)),
+                ProfileAvailabilityErrorScreen(str(error), copy_catalog=self.copy),
             )
             return
         except Exception:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileAvailabilityErrorScreen(),
+                ProfileAvailabilityErrorScreen(copy_catalog=self.copy),
             )
             return
         self.app.call_from_thread(
             self.push_terminal_screen,
-            ProfileAvailabilityResultScreen(result),
+            ProfileAvailabilityResultScreen(result, copy_catalog=self.copy),
         )
 
 
 class ProfileAvailabilityResultScreen(Screen[None]):
     """Present committed availability or a transaction outcome without guessing."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, result: ProfileAvailabilityResult) -> None:
+    def __init__(
+        self,
+        result: ProfileAvailabilityResult,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.result = result
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         committed = (
@@ -127,23 +160,29 @@ class ProfileAvailabilityResultScreen(Screen[None]):
         with Vertical(id="profile-availability-result"):
             if committed:
                 yield Static(
-                    (
-                        "配置已暂停"
+                    self.copy.text(
+                        UiText.PROFILE_AVAILABILITY_RESULT_PAUSED_TITLE
                         if self.result.availability is ProfileAvailability.PAUSED
-                        else "配置已恢复"
+                        else UiText.PROFILE_AVAILABILITY_RESULT_RESUMED_TITLE
                     ),
                     id="profile-availability-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    f"desired state 已提交 revision {self.result.committed_revision}。",
+                    self.copy.text(
+                        UiText.PROFILE_AVAILABILITY_RESULT_REVISION,
+                        revision=self.result.committed_revision,
+                    ),
                     id="profile-availability-result-details",
+                    markup=False,
                 )
                 yield Static(
-                    "完整配置已通过校验，服务刷新和健康检查已完成。",
+                    self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_SUCCESS_SAFETY),
                     id="profile-availability-result-safety",
+                    markup=False,
                 )
                 yield Button(
-                    "返回仪表盘",
+                    self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_RETURN_DASHBOARD),
                     id="profile-availability-return-dashboard",
                     variant="primary",
                 )
@@ -155,79 +194,114 @@ class ProfileAvailabilityResultScreen(Screen[None]):
         transaction = self.result.transaction
         if transaction.outcome is ApplyOutcome.VALIDATION_FAILED:
             yield Static(
-                "配置校验失败，状态未改变",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_TITLE),
                 id="profile-availability-result-title",
+                markup=False,
             )
             yield Static(
                 transaction.validation.diagnostics,
                 id="profile-availability-result-details",
+                markup=False,
             )
             yield Static(
-                "原有配置、服务和 desired state 均未改变。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_SAFETY),
                 id="profile-availability-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.PRECONDITION_FAILED:
             yield Static(
-                "服务器配置已变化，状态未改变",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_FAILED_TITLE),
                 id="profile-availability-result-title",
+                markup=False,
             )
             yield Static(
-                transaction.commit.diagnostics
-                if transaction.commit is not None
-                else "live configuration 不再匹配已确认的版本",
+                (
+                    transaction.commit.diagnostics
+                    if transaction.commit is not None
+                    else self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_FALLBACK)
+                ),
                 id="profile-availability-result-details",
+                markup=False,
             )
             yield Static(
-                "本次尚未写入配置，请重新检查后再确认。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_SAFETY),
                 id="profile-availability-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.COMMIT_FAILED:
             yield Static(
-                "无法写入状态变更后的配置",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_FAILED_TITLE),
                 id="profile-availability-result-title",
+                markup=False,
             )
             yield Static(
-                transaction.commit.diagnostics
-                if transaction.commit is not None
-                else "配置提交失败",
+                (
+                    transaction.commit.diagnostics
+                    if transaction.commit is not None
+                    else self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_FALLBACK)
+                ),
                 id="profile-availability-result-details",
+                markup=False,
             )
             yield Static(
-                "尚未刷新服务，原有配置和 desired state 保持不变。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_SAFETY),
                 id="profile-availability-result-safety",
+                markup=False,
             )
             return
         rollback = transaction.rollback
         if transaction.outcome is ApplyOutcome.ROLLED_BACK:
             yield Static(
-                "状态变更失败，已自动回滚",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_TITLE),
                 id="profile-availability-result-title",
+                markup=False,
             )
             yield Static(
-                rollback.diagnostics if rollback is not None else "旧配置已恢复。",
+                (
+                    rollback.diagnostics
+                    if rollback is not None
+                    else self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_FALLBACK)
+                ),
                 id="profile-availability-result-details",
+                markup=False,
             )
             yield Static(
-                "原有配置、服务和 desired state 已保留。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_SAFETY),
                 id="profile-availability-result-safety",
+                markup=False,
             )
             return
-        yield Static("回滚未完成，需要人工恢复", id="profile-availability-result-title")
         yield Static(
-            rollback.diagnostics if rollback is not None else "回滚状态未知",
-            id="profile-availability-result-details",
+            self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_TITLE),
+            id="profile-availability-result-title",
+            markup=False,
         )
         yield Static(
-            "desired state 未提交。完成恢复前不要再次修改配置。",
+            (
+                rollback.diagnostics
+                if rollback is not None
+                else self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_FALLBACK)
+            ),
+            id="profile-availability-result-details",
+            markup=False,
+        )
+        yield Static(
+            self.copy.text(UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_SAFETY),
             id="profile-availability-result-safety",
+            markup=False,
         )
         if rollback is not None:
             for index, instruction in enumerate(rollback.recovery_instructions):
                 yield Static(
-                    f"{index + 1}. {instruction}",
+                    self.copy.text(
+                        UiText.PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP,
+                        number=index + 1,
+                        instruction=instruction,
+                    ),
                     id=f"profile-availability-recovery-step-{index}",
+                    markup=False,
                 )
 
     @on(Button.Pressed, "#profile-availability-return-dashboard")
@@ -240,28 +314,42 @@ class ProfileAvailabilityResultScreen(Screen[None]):
 class ProfileAvailabilityErrorScreen(Screen[None]):
     """Conservatively report an unavailable or stale availability transition."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, diagnostics: str | None = None) -> None:
+    def __init__(
+        self,
+        diagnostics: str | None = None,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.diagnostics = diagnostics
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-availability-error"):
-            yield Static("无法确认配置状态变更", id="profile-availability-error-title")
             yield Static(
-                self.diagnostics or "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_OPERATIONAL_TITLE),
+                id="profile-availability-error-title",
+                markup=False,
+            )
+            yield Static(
+                self.diagnostics
+                or self.copy.text(UiText.PROFILE_AVAILABILITY_OPERATIONAL_UNEXPECTED_DETAILS),
                 id="profile-availability-error-details",
+                markup=False,
             )
             yield Static(
                 (
-                    "desired state 未提交。请重新打开配置详情并检查当前服务状态。"
+                    self.copy.text(UiText.PROFILE_AVAILABILITY_OPERATIONAL_KNOWN_SAFETY)
                     if self.diagnostics is not None
-                    else "服务器配置、服务和 desired state 的结果均未知。"
-                    "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+                    else self.copy.text(UiText.PROFILE_AVAILABILITY_OPERATIONAL_UNKNOWN_SAFETY)
                 ),
                 id="profile-availability-error-safety",
+                markup=False,
             )
         yield Footer()
 
@@ -269,21 +357,30 @@ class ProfileAvailabilityErrorScreen(Screen[None]):
 class ProfileAvailabilityPlanningErrorScreen(Screen[None]):
     """Report an unexpected read-only availability-planning failure safely."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-availability-planning-error"):
             yield Static(
-                "无法准备配置状态变更",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_PLANNING_TITLE),
                 id="profile-availability-planning-error-title",
+                markup=False,
             )
             yield Static(
-                "读取暂停/恢复计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_PLANNING_DETAILS),
                 id="profile-availability-planning-error-details",
+                markup=False,
             )
             yield Static(
-                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                self.copy.text(UiText.PROFILE_AVAILABILITY_PLANNING_SAFETY),
                 id="profile-availability-planning-error-safety",
+                markup=False,
             )
         yield Footer()

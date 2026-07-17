@@ -1,5 +1,6 @@
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from typing import cast
 
 from textual.widgets import Button, Static
 
@@ -7,6 +8,7 @@ from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import Manager
 from sb_manager.application.profile_availability import (
     ProfileAvailability,
+    ProfileAvailabilityManager,
     ProfileAvailabilityPlan,
     ProfileAvailabilityResult,
     ProfileAvailabilityService,
@@ -31,8 +33,24 @@ from sb_manager.transactions.apply import (
     ConfigTargetPrecondition,
     RollbackResult,
 )
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.screens.profile_availability import ProfileAvailabilityResultScreen
+
+
+class ProfileAvailabilityMarkerCatalog:
+    """Render markers across the nested pause/resume journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_availability.plan.resume.title": "目录确认恢复配置",
+            "profile_availability.operational.title": "目录无法确认状态变更",
+            "profile_availability.planning.title": "目录无法准备状态变更",
+            "profile_availability.result.resumed.title": "目录配置已恢复",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 class GenerationMustNotRun:
@@ -129,6 +147,28 @@ class UnexpectedProfileAvailabilityManager:
         raise RuntimeError("token=private-profile-availability-worker-error")
 
 
+class SuccessfulProfileAvailabilityManager(UnexpectedProfileAvailabilityManager):
+    def apply_change(
+        self,
+        plan: ProfileAvailabilityPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileAvailabilityResult:
+        assert confirmed
+        return ProfileAvailabilityResult(
+            availability=ProfileAvailability.ACTIVE,
+            listen_port=4433,
+            transaction=ApplyTransactionResult(
+                outcome=ApplyOutcome.APPLIED,
+                validation=ConfigValidationResult(valid=True, diagnostics="valid"),
+                runtime_refresh=RuntimeRefreshResult(success=True, diagnostics="reloaded"),
+                postcondition=RuntimePostcondition(healthy=True, diagnostics="active"),
+                rollback=None,
+            ),
+            committed_revision=6,
+        )
+
+
 class UnexpectedPlanningProfileAvailabilityManager:
     def plan_change(self, request: object) -> ProfileAvailabilityPlan:
         raise RuntimeError("token=private-profile-availability-planning-error")
@@ -140,6 +180,80 @@ class UnexpectedPlanningProfileAvailabilityManager:
         confirmed: bool,
     ) -> ProfileAvailabilityResult:
         raise AssertionError("a failed availability plan must not be confirmed")
+
+
+def catalog_app_for(manager: ProfileAvailabilityManager) -> ManagerApp:
+    paused = ManagedProfile(
+        profile_id="profile-1",
+        profile_name="手机",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=False,
+    )
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=5, profiles=(paused,))
+    )
+    return ManagerApp(
+        manager=Manager(state_store=state_store),
+        host_tools=ManagerAppHostTools(
+            profile_details_reader=PausedProfileDetailsReader(),
+            profile_availability_manager=manager,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileAvailabilityMarkerCatalog())
+        ),
+    )
+
+
+async def test_profile_availability_copy_catalog_flows_from_details_to_plan() -> None:
+    app = catalog_app_for(UnexpectedProfileAvailabilityManager())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#change-profile-availability")
+
+        assert app.screen.query_one("#profile-availability-plan-title", Static).content == (
+            "目录确认恢复配置"
+        )
+
+        await pilot.click("#confirm-profile-availability")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-availability-error-title", Static).content == (
+            "目录无法确认状态变更"
+        )
+
+
+async def test_profile_availability_copy_catalog_reaches_planning_failure() -> None:
+    app = catalog_app_for(UnexpectedPlanningProfileAvailabilityManager())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#change-profile-availability")
+
+        assert (
+            app.screen.query_one("#profile-availability-planning-error-title", Static).content
+            == "目录无法准备状态变更"
+        )
+
+
+async def test_profile_availability_copy_catalog_reaches_committed_result() -> None:
+    app = catalog_app_for(SuccessfulProfileAvailabilityManager())
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#change-profile-availability")
+        await pilot.click("#confirm-profile-availability")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-availability-result-title", Static).content == (
+            "目录配置已恢复"
+        )
 
 
 async def test_operator_pauses_applied_profile_without_deleting_intent() -> None:

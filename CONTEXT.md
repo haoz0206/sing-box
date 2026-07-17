@@ -90,7 +90,10 @@ Whether one previously applied profile currently participates in the complete
 managed configuration. An active profile contributes an inbound; a paused
 profile retains its stable identity, credentials, endpoint, and port intent but
 does not contribute an inbound. A confirmed transition commits desired state
-only after the complete host transaction succeeds.
+only after the complete host transaction succeeds. Plan, confirmation,
+transaction outcomes, recovery guidance, and failure boundaries come from one
+validated interface copy catalog; typed host diagnostics remain non-markup
+evidence and never select actions.
 _Avoid_: Draft status, profile removal, stopping the whole sing-box service
 
 **Profile purpose**:

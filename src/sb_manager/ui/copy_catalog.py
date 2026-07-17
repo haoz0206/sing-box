@@ -175,6 +175,71 @@ class UiText(str, Enum):
     PROFILE_EDIT_PORT_CONFLICT_SAFETY = "profile_edit.port_conflict.safety"
     PROFILE_EDIT_CONFLICT_TITLE = "profile_edit.conflict.title"
     PROFILE_EDIT_CONFLICT_SAFETY = "profile_edit.conflict.safety"
+    PROFILE_AVAILABILITY_PLAN_RESUME_TITLE = "profile_availability.plan.resume.title"
+    PROFILE_AVAILABILITY_PLAN_PAUSE_TITLE = "profile_availability.plan.pause.title"
+    PROFILE_AVAILABILITY_PLAN_PROFILE = "profile_availability.plan.profile"
+    PROFILE_AVAILABILITY_PLAN_PAUSE_IMPACT = "profile_availability.plan.pause.impact"
+    PROFILE_AVAILABILITY_PLAN_RESUME_IMPACT = "profile_availability.plan.resume.impact"
+    PROFILE_AVAILABILITY_PLAN_ACTIVE_COUNT = "profile_availability.plan.active_count"
+    PROFILE_AVAILABILITY_PLAN_SAFETY_PREVIEW = "profile_availability.plan.safety.preview"
+    PROFILE_AVAILABILITY_PLAN_CONFIRM_PAUSE = "profile_availability.plan.confirm.pause"
+    PROFILE_AVAILABILITY_PLAN_CONFIRM_RESUME = "profile_availability.plan.confirm.resume"
+    PROFILE_AVAILABILITY_PLAN_IN_PROGRESS = "profile_availability.plan.in_progress"
+    PROFILE_AVAILABILITY_OPERATIONAL_TITLE = "profile_availability.operational.title"
+    PROFILE_AVAILABILITY_OPERATIONAL_UNEXPECTED_DETAILS = (
+        "profile_availability.operational.unexpected.details"
+    )
+    PROFILE_AVAILABILITY_OPERATIONAL_KNOWN_SAFETY = "profile_availability.operational.known.safety"
+    PROFILE_AVAILABILITY_OPERATIONAL_UNKNOWN_SAFETY = (
+        "profile_availability.operational.unknown.safety"
+    )
+    PROFILE_AVAILABILITY_PLANNING_TITLE = "profile_availability.planning.title"
+    PROFILE_AVAILABILITY_PLANNING_DETAILS = "profile_availability.planning.details"
+    PROFILE_AVAILABILITY_PLANNING_SAFETY = "profile_availability.planning.safety"
+    PROFILE_AVAILABILITY_RESULT_PAUSED_TITLE = "profile_availability.result.paused.title"
+    PROFILE_AVAILABILITY_RESULT_RESUMED_TITLE = "profile_availability.result.resumed.title"
+    PROFILE_AVAILABILITY_RESULT_REVISION = "profile_availability.result.revision"
+    PROFILE_AVAILABILITY_RESULT_SUCCESS_SAFETY = "profile_availability.result.success.safety"
+    PROFILE_AVAILABILITY_RESULT_RETURN_DASHBOARD = "profile_availability.result.return_dashboard"
+    PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_TITLE = (
+        "profile_availability.result.validation_failed.title"
+    )
+    PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_SAFETY = (
+        "profile_availability.result.validation_failed.safety"
+    )
+    PROFILE_AVAILABILITY_RESULT_PRECONDITION_FAILED_TITLE = (
+        "profile_availability.result.precondition_failed.title"
+    )
+    PROFILE_AVAILABILITY_RESULT_PRECONDITION_FALLBACK = (
+        "profile_availability.result.precondition_failed.fallback"
+    )
+    PROFILE_AVAILABILITY_RESULT_PRECONDITION_SAFETY = (
+        "profile_availability.result.precondition_failed.safety"
+    )
+    PROFILE_AVAILABILITY_RESULT_COMMIT_FAILED_TITLE = (
+        "profile_availability.result.commit_failed.title"
+    )
+    PROFILE_AVAILABILITY_RESULT_COMMIT_FALLBACK = (
+        "profile_availability.result.commit_failed.fallback"
+    )
+    PROFILE_AVAILABILITY_RESULT_COMMIT_SAFETY = "profile_availability.result.commit_failed.safety"
+    PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_TITLE = "profile_availability.result.rolled_back.title"
+    PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_FALLBACK = (
+        "profile_availability.result.rolled_back.fallback"
+    )
+    PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_SAFETY = (
+        "profile_availability.result.rolled_back.safety"
+    )
+    PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_TITLE = (
+        "profile_availability.result.rollback_unknown.title"
+    )
+    PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_FALLBACK = (
+        "profile_availability.result.rollback_unknown.fallback"
+    )
+    PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_SAFETY = (
+        "profile_availability.result.rollback_unknown.safety"
+    )
+    PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP = "profile_availability.result.recovery_step"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -252,6 +317,10 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_EDIT_RESULT_REVISION: frozenset({"revision"}),
         UiText.PROFILE_EDIT_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.PROFILE_EDIT_RESULT_LISTEN_PORT: frozenset({"port"}),
+        UiText.PROFILE_AVAILABILITY_PLAN_PROFILE: frozenset({"name"}),
+        UiText.PROFILE_AVAILABILITY_PLAN_ACTIVE_COUNT: frozenset({"count"}),
+        UiText.PROFILE_AVAILABILITY_RESULT_REVISION: frozenset({"revision"}),
+        UiText.PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -503,6 +572,76 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_EDIT_CONFLICT_SAFETY: (
             "本次变更未执行。请返回列表，重新打开详情并预览最新计划。"
         ),
+        UiText.PROFILE_AVAILABILITY_PLAN_RESUME_TITLE: "确认恢复配置",
+        UiText.PROFILE_AVAILABILITY_PLAN_PAUSE_TITLE: "确认暂停配置",
+        UiText.PROFILE_AVAILABILITY_PLAN_PROFILE: "配置：{name}",
+        UiText.PROFILE_AVAILABILITY_PLAN_PAUSE_IMPACT: (
+            "将从完整 sing-box 配置中移除此 inbound，保留 profile、端口和凭据。"
+        ),
+        UiText.PROFILE_AVAILABILITY_PLAN_RESUME_IMPACT: (
+            "将把此 inbound 恢复到完整 sing-box 配置，校验并刷新服务。"
+        ),
+        UiText.PROFILE_AVAILABILITY_PLAN_ACTIVE_COUNT: "完成后在线配置数：{count}",
+        UiText.PROFILE_AVAILABILITY_PLAN_SAFETY_PREVIEW: "当前仅预览，尚未修改任何内容。",
+        UiText.PROFILE_AVAILABILITY_PLAN_CONFIRM_PAUSE: "确认暂停",
+        UiText.PROFILE_AVAILABILITY_PLAN_CONFIRM_RESUME: "确认恢复",
+        UiText.PROFILE_AVAILABILITY_PLAN_IN_PROGRESS: (
+            "操作已确认，正在执行完整配置事务。完成前无法返回。"
+        ),
+        UiText.PROFILE_AVAILABILITY_OPERATIONAL_TITLE: "无法确认配置状态变更",
+        UiText.PROFILE_AVAILABILITY_OPERATIONAL_UNEXPECTED_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_AVAILABILITY_OPERATIONAL_KNOWN_SAFETY: (
+            "desired state 未提交。请重新打开配置详情并检查当前服务状态。"
+        ),
+        UiText.PROFILE_AVAILABILITY_OPERATIONAL_UNKNOWN_SAFETY: (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        ),
+        UiText.PROFILE_AVAILABILITY_PLANNING_TITLE: "无法准备配置状态变更",
+        UiText.PROFILE_AVAILABILITY_PLANNING_DETAILS: (
+            "读取暂停/恢复计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_AVAILABILITY_PLANNING_SAFETY: (
+            "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_PAUSED_TITLE: "配置已暂停",
+        UiText.PROFILE_AVAILABILITY_RESULT_RESUMED_TITLE: "配置已恢复",
+        UiText.PROFILE_AVAILABILITY_RESULT_REVISION: "desired state 已提交 revision {revision}。",
+        UiText.PROFILE_AVAILABILITY_RESULT_SUCCESS_SAFETY: (
+            "完整配置已通过校验，服务刷新和健康检查已完成。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_TITLE: ("配置校验失败，状态未改变"),
+        UiText.PROFILE_AVAILABILITY_RESULT_VALIDATION_FAILED_SAFETY: (
+            "原有配置、服务和 desired state 均未改变。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_FAILED_TITLE: (
+            "服务器配置已变化，状态未改变"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_FALLBACK: (
+            "live configuration 不再匹配已确认的版本"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_PRECONDITION_SAFETY: (
+            "本次尚未写入配置，请重新检查后再确认。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_FAILED_TITLE: "无法写入状态变更后的配置",
+        UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_FALLBACK: "配置提交失败",
+        UiText.PROFILE_AVAILABILITY_RESULT_COMMIT_SAFETY: (
+            "尚未刷新服务，原有配置和 desired state 保持不变。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_TITLE: "状态变更失败，已自动回滚",
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_FALLBACK: "旧配置已恢复。",
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLED_BACK_SAFETY: (
+            "原有配置、服务和 desired state 已保留。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_TITLE: ("回滚未完成，需要人工恢复"),
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_FALLBACK: "回滚状态未知",
+        UiText.PROFILE_AVAILABILITY_RESULT_ROLLBACK_UNKNOWN_SAFETY: (
+            "desired state 未提交。完成恢复前不要再次修改配置。"
+        ),
+        UiText.PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP: "{number}. {instruction}",
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (
             "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"
