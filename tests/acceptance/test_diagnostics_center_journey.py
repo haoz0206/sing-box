@@ -1,4 +1,6 @@
 from datetime import datetime, timezone
+from threading import Event
+from typing import cast
 
 from textual.widgets import Button, Static
 
@@ -31,10 +33,44 @@ from sb_manager.application.service_logs import (
     ServiceLogReport,
 )
 from sb_manager.seams.apply_history import ApplyHistoryEntry, ApplyHistoryStatus
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 REFRESHED_INSPECTION_COUNT = 2
 REFRESHED_SERVICE_LOG_COUNT = 2
+
+
+class DiagnosticsCenterMarkerCatalog:
+    """Render markers for presentation policy owned by Diagnostics Center."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "diagnostics_center.title": "目录诊断中心",
+            "diagnostics_center.summary.healthy": "目录整体正常",
+            "diagnostics_center.recommendation.none": "目录无需处理",
+            "diagnostics_center.condition.healthy": "目录正常",
+            "diagnostics_center.condition.attention": "目录注意",
+            "diagnostics_center.condition.action_required": "目录需处理",
+            "diagnostics_center.details.unavailable": "目录无诊断证据",
+            "diagnostics_center.action.review_config_adoption": "目录审查接管",
+            "diagnostics_center.error": "目录诊断失败并可重试",
+            "diagnostics_center.loading": "目录正在检查",
+            "diagnostics_center.rechecking": "目录正在复检",
+            "diagnostics_center.refresh": "目录重新检查",
+            "diagnostics_center.open_service_logs": "目录查看日志",
+            "diagnostics_center.open_apply_history": "目录查看历史",
+        }
+        if key.value == "diagnostics_center.recommendation":
+            return f"目录建议<{values['summary']}>"
+        if key.value == "diagnostics_center.summary.actionable":
+            return f"目录待处理<{values['action_required']},{values['attention']}>"
+        if key.value == "diagnostics_center.item.title":
+            return f"{values['condition']}<{values['title']}>"
+        if key.value == "diagnostics_center.item.guidance":
+            return f"目录下一步<{values['guidance']}>"
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 class FixedDiagnosticsCenter:
@@ -51,6 +87,23 @@ class FixedDiagnosticsCenter:
 class FailingDiagnosticsCenter:
     def inspect(self) -> DiagnosticsCenterReport:
         raise RuntimeError("token=private-diagnostics-value")
+
+
+class BlockingDiagnosticsCenter:
+    def __init__(self, report: DiagnosticsCenterReport, *, block_on_call: int) -> None:
+        self.report = report
+        self.block_on_call = block_on_call
+        self.calls = 0
+        self.started = Event()
+        self.release = Event()
+
+    def inspect(self) -> DiagnosticsCenterReport:
+        self.calls += 1
+        if self.calls == self.block_on_call:
+            self.started.set()
+            if not self.release.wait(timeout=5):
+                raise TimeoutError("test did not release diagnostics inspection")
+        return self.report
 
 
 class RecordingServiceLogReader:
@@ -364,6 +417,206 @@ async def test_operator_sees_expiring_certificate_as_literal_actionable_evidence
         assert (
             app.screen.query_one("#diagnostic-certificate-condition-guidance", Static).content
             == "下一步：检查 ACME 自动续期并在 7 天阈值前复检。"
+        )
+
+
+async def test_diagnostics_center_presentation_policy_comes_from_catalog() -> None:
+    logs = RecordingServiceLogReader(
+        ServiceLogReport(
+            condition=ServiceLogCondition.EMPTY,
+            source_label="systemd journal",
+            lines=(),
+            diagnostics="",
+            redacted_occurrences=0,
+            limit=200,
+        )
+    )
+    history = RecordingApplyHistoryReader(
+        ApplyHistoryReport(
+            condition=ApplyHistoryCondition.HEALTHY,
+            summary="最近一次配置应用成功",
+            entries=(),
+            diagnostics="",
+            guidance="",
+            limit=20,
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(healthy_report()),
+            service_log_reader=logs,
+            apply_history_reader=history,
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert app.screen.query_one("#diagnostics-center-title", Static).content == ("目录诊断中心")
+        assert app.screen.query_one("#diagnostics-center-summary", Static).content == (
+            "目录整体正常"
+        )
+        assert (
+            app.screen.query_one("#diagnostics-center-recommended-action", Static).content
+            == "目录建议<目录无需处理>"
+        )
+        assert app.screen.query_one("#diagnostic-runtime-title", Static).content == (
+            "目录正常<sing-box 运行状态>"
+        )
+        assert str(app.screen.query_one("#refresh-diagnostics-center", Button).label) == (
+            "目录重新检查"
+        )
+        assert str(app.screen.query_one("#open-service-logs", Button).label) == ("目录查看日志")
+        assert str(app.screen.query_one("#open-apply-history", Button).label) == ("目录查看历史")
+
+
+async def test_actionable_diagnostics_priority_policy_comes_from_catalog() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(report_with_actions())
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert app.screen.query_one("#diagnostics-center-summary", Static).content == (
+            "目录待处理<1,1>"
+        )
+        assert (
+            app.screen.query_one("#diagnostics-center-recommended-action", Static).content
+            == "目录建议<运行 systemctl restart sing-box.service。>"
+        )
+        assert app.screen.query_one("#diagnostic-privileged-helper-title", Static).content == (
+            "目录注意<最小权限 helper>"
+        )
+        assert app.screen.query_one("#diagnostic-runtime-title", Static).content == (
+            "目录需处理<sing-box 运行状态>"
+        )
+        assert app.screen.query_one("#diagnostic-runtime-guidance", Static).content == (
+            "目录下一步<运行 systemctl restart sing-box.service。>"
+        )
+
+
+async def test_diagnostics_fallback_and_typed_action_copy_come_from_catalog() -> None:
+    report = DiagnosticsCenterReport(
+        items=(
+            DiagnosticItem(
+                code=DiagnosticCode.LIVE_CONFIGURATION,
+                condition=DiagnosticCondition.ACTION_REQUIRED,
+                title="实时配置身份",
+                summary="发现未接管配置",
+                diagnostics="",
+                guidance="先审查精确指纹",
+                action=DiagnosticAction.REVIEW_CONFIG_ADOPTION,
+            ),
+        )
+    )
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(
+            diagnostics_center=FixedDiagnosticsCenter(report),
+            config_adopter=RecordingConfigAdopter(),
+        ),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert (
+            app.screen.query_one("#diagnostic-live-configuration-details", Static).content
+            == "目录无诊断证据"
+        )
+        action = app.screen.query_one("#diagnostics-center-action", Button)
+        assert str(action.label) == "目录审查接管"
+        assert not action.has_class("hidden")
+
+
+async def test_diagnostics_unexpected_failure_copy_comes_from_catalog() -> None:
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(diagnostics_center=FailingDiagnosticsCenter()),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert app.screen.query_one("#diagnostics-center-loading", Static).content == (
+            "目录诊断失败并可重试"
+        )
+        rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-diagnostics-value" not in rendered_text
+        assert app.screen.query_one("#refresh-diagnostics-center", Button).disabled is False
+
+
+async def test_initial_diagnostics_progress_copy_comes_from_catalog() -> None:
+    center = BlockingDiagnosticsCenter(healthy_report(), block_on_call=1)
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(diagnostics_center=center),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+
+        assert center.started.is_set()
+        assert app.screen.query_one("#diagnostics-center-loading", Static).content == (
+            "目录正在检查"
+        )
+        assert app.screen.query_one("#refresh-diagnostics-center", Button).disabled is True
+
+        center.release.set()
+        await pilot.pause()
+
+        assert app.screen.query_one("#diagnostics-center-summary", Static).content == (
+            "目录整体正常"
+        )
+
+
+async def test_diagnostics_recheck_progress_copy_comes_from_catalog() -> None:
+    center = BlockingDiagnosticsCenter(healthy_report(), block_on_call=2)
+    app = ManagerApp(
+        host_tools=ManagerAppHostTools(diagnostics_center=center),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, DiagnosticsCenterMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-diagnostics-center")
+        await pilot.pause()
+        await pilot.click("#refresh-diagnostics-center")
+        await pilot.pause()
+
+        assert center.started.is_set()
+        assert app.screen.query_one("#diagnostics-center-loading", Static).content == (
+            "目录正在复检"
+        )
+        assert app.screen.query_one("#refresh-diagnostics-center", Button).disabled is True
+
+        center.release.set()
+        await pilot.pause()
+
+        assert center.calls == REFRESHED_INSPECTION_COUNT
+        assert app.screen.query_one("#diagnostics-center-summary", Static).content == (
+            "目录整体正常"
         )
 
 

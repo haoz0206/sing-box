@@ -174,7 +174,12 @@ _Avoid_: Protocol recommendation, generated inbound editing, implicit apply
 One read-only, prioritized report that combines manager desired-state
 consistency, host readiness, and runtime health into stable checks and one
 recommended operator action. A failed probe becomes its own check and does not
-erase independent evidence.
+erase independent evidence. Page framing, priority counts, condition markers,
+healthy fallback, progress/error states, missing-detail fallback, and navigation
+labels come from one validated interface copy catalog. A fully healthy report
+returns no application-authored recommendation; the presentation catalog owns
+that wording. Report observations and diagnostics remain literal non-markup
+evidence.
 _Avoid_: Raw log dump, runtime status page, readiness wizard
 
 **Host runtime diagnostics**:

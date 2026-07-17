@@ -38,13 +38,18 @@ inspect() -> DiagnosticsCenterReport
 - maps all checks to `healthy`, `attention`, or `action-required`;
 - preserves each independent result when another probe fails;
 - selects the first action-required guidance, then attention guidance, as the
-  single recommended operator action.
+  single recommended operator action; a fully healthy report returns no
+  recommendation so locale-specific “no action required” policy remains in the
+  presentation catalog.
 
 The Textual screen loads only when the operator opens the diagnostics center,
 runs inspection in a worker, displays stable check identities and guidance, and
 supports an explicit recheck. The dashboard retains its lightweight background
 runtime/readiness summary but exposes only one diagnostics action when the
-center is available.
+center is available. Page framing, priority summaries, condition markers,
+missing-detail fallback, progress/error recovery, and navigation labels come
+from the validated interface copy catalog; report evidence is rendered
+literally with markup disabled.
 
 The live-configuration identity check has six explicit outcomes: no recorded
 identity and no target is healthy; an existing untracked target requires

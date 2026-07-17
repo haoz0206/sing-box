@@ -938,7 +938,7 @@ def test_diagnostics_center_aggregates_healthy_desired_host_and_runtime_evidence
     )
     assert report.action_required_count == 0
     assert report.attention_count == 0
-    assert report.recommended_action == "当前无需处理，可以安全继续操作"
+    assert report.recommended_action is None
     desired_state = report.items[0]
     assert desired_state.summary == (
         "desired state revision 4 可读取，1 个在线配置，0 个已暂停配置，0 个草案"

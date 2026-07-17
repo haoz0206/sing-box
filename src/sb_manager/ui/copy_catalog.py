@@ -78,6 +78,26 @@ class UiText(str, Enum):
     HOST_DIAGNOSTICS_RECOVERY_TITLE = "host_diagnostics.recovery.title"
     HOST_DIAGNOSTICS_RECOVERY_STEP = "host_diagnostics.recovery.step"
     HOST_DIAGNOSTICS_RECOVERY_EMPTY = "host_diagnostics.recovery.empty"
+    DIAGNOSTICS_CENTER_TITLE = "diagnostics_center.title"
+    DIAGNOSTICS_CENTER_SUMMARY_HEALTHY = "diagnostics_center.summary.healthy"
+    DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE = "diagnostics_center.summary.actionable"
+    DIAGNOSTICS_CENTER_RECOMMENDATION = "diagnostics_center.recommendation"
+    DIAGNOSTICS_CENTER_RECOMMENDATION_NONE = "diagnostics_center.recommendation.none"
+    DIAGNOSTICS_CENTER_CONDITION_HEALTHY = "diagnostics_center.condition.healthy"
+    DIAGNOSTICS_CENTER_CONDITION_ATTENTION = "diagnostics_center.condition.attention"
+    DIAGNOSTICS_CENTER_CONDITION_ACTION_REQUIRED = "diagnostics_center.condition.action_required"
+    DIAGNOSTICS_CENTER_ITEM_TITLE = "diagnostics_center.item.title"
+    DIAGNOSTICS_CENTER_ITEM_GUIDANCE = "diagnostics_center.item.guidance"
+    DIAGNOSTICS_CENTER_DETAILS_UNAVAILABLE = "diagnostics_center.details.unavailable"
+    DIAGNOSTICS_CENTER_ACTION_REVIEW_CONFIG_ADOPTION = (
+        "diagnostics_center.action.review_config_adoption"
+    )
+    DIAGNOSTICS_CENTER_ERROR = "diagnostics_center.error"
+    DIAGNOSTICS_CENTER_LOADING = "diagnostics_center.loading"
+    DIAGNOSTICS_CENTER_RECHECKING = "diagnostics_center.rechecking"
+    DIAGNOSTICS_CENTER_REFRESH = "diagnostics_center.refresh"
+    DIAGNOSTICS_CENTER_OPEN_SERVICE_LOGS = "diagnostics_center.open_service_logs"
+    DIAGNOSTICS_CENTER_OPEN_APPLY_HISTORY = "diagnostics_center.open_apply_history"
     DASHBOARD_REFRESH_RUNTIME = "dashboard.refresh_runtime"
     DASHBOARD_VIEW_READINESS = "dashboard.view_readiness"
     DASHBOARD_REFRESH_READINESS = "dashboard.refresh_readiness"
@@ -894,6 +914,10 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_CREATION_APPLY_RESULT_SUCCESS_REVISION: frozenset({"revision"}),
         UiText.PROFILE_CREATION_APPLY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.DIAGNOSTICS_CENTER_RECOMMENDATION: frozenset({"summary"}),
+        UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE: frozenset({"action_required", "attention"}),
+        UiText.DIAGNOSTICS_CENTER_ITEM_TITLE: frozenset({"condition", "title"}),
+        UiText.DIAGNOSTICS_CENTER_ITEM_GUIDANCE: frozenset({"guidance"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -1011,6 +1035,28 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.HOST_DIAGNOSTICS_RECOVERY_TITLE: "建议的恢复步骤",
         UiText.HOST_DIAGNOSTICS_RECOVERY_STEP: "{number}. {instruction}",
         UiText.HOST_DIAGNOSTICS_RECOVERY_EMPTY: "当前无需恢复操作。",
+        UiText.DIAGNOSTICS_CENTER_TITLE: "诊断中心",
+        UiText.DIAGNOSTICS_CENTER_SUMMARY_HEALTHY: "整体状态：所有检查均正常",
+        UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE: (
+            "整体状态：需要处理 {action_required} 项，注意 {attention} 项"
+        ),
+        UiText.DIAGNOSTICS_CENTER_RECOMMENDATION: "建议：{summary}",
+        UiText.DIAGNOSTICS_CENTER_RECOMMENDATION_NONE: "当前无需处理，可以安全继续操作",
+        UiText.DIAGNOSTICS_CENTER_CONDITION_HEALTHY: "[正常]",
+        UiText.DIAGNOSTICS_CENTER_CONDITION_ATTENTION: "[注意]",
+        UiText.DIAGNOSTICS_CENTER_CONDITION_ACTION_REQUIRED: "[需处理]",
+        UiText.DIAGNOSTICS_CENTER_ITEM_TITLE: "{condition} {title}",
+        UiText.DIAGNOSTICS_CENTER_ITEM_GUIDANCE: "下一步：{guidance}",
+        UiText.DIAGNOSTICS_CENTER_DETAILS_UNAVAILABLE: "未提供诊断细节",
+        UiText.DIAGNOSTICS_CENTER_ACTION_REVIEW_CONFIG_ADOPTION: "审查并接管现有配置",
+        UiText.DIAGNOSTICS_CENTER_ERROR: (
+            "无法完成诊断检查。底层错误未显示，以避免泄露敏感信息。请重新检查。"
+        ),
+        UiText.DIAGNOSTICS_CENTER_LOADING: "正在读取 desired state、主机准备度与运行状态…",
+        UiText.DIAGNOSTICS_CENTER_RECHECKING: ("正在重新检查 desired state、主机准备度与运行状态…"),
+        UiText.DIAGNOSTICS_CENTER_REFRESH: "重新检查",
+        UiText.DIAGNOSTICS_CENTER_OPEN_SERVICE_LOGS: "查看近期服务日志",
+        UiText.DIAGNOSTICS_CENTER_OPEN_APPLY_HISTORY: "查看配置应用历史",
         UiText.DASHBOARD_REFRESH_RUNTIME: "重新检查服务状态",
         UiText.DASHBOARD_VIEW_READINESS: "查看准备度",
         UiText.DASHBOARD_REFRESH_READINESS: "重新检查",

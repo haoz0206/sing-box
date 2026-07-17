@@ -484,6 +484,18 @@ adoption review and trusted core-update form. Opening an action never adopts,
 downloads, activates, or otherwise mutates the host; the destination workflow
 retains its own plan and explicit confirmation.
 
+Worked example — catalogued healthy report:
+
+> The operator opens Diagnostics after all checks have succeeded. The screen
+> presents one healthy overall summary, one explicit “no action required”
+> recommendation, stable condition markers for every check, and only the
+> read-only drill-downs supported by the current application capabilities.
+> Page framing, condition policy, recommendation templates, missing-evidence
+> fallback, refresh/error guidance, and action labels come from the injected
+> interface copy catalog. Report diagnostics remain literal, non-markup
+> evidence. Rechecking never duplicates the prior report or exposes an
+> exception raised before a typed report exists.
+
 ### 5.8 Settings
 
 Owns language, color/accessibility preferences, update channel, paths, and

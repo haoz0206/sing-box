@@ -340,7 +340,11 @@ Release gate adds:
 - diagnostics-center aggregation for healthy evidence, corrupt or inconsistent
   desired state, duplicate/missing identities, readiness/runtime probe
   isolation, severity prioritization, on-demand TUI loading, refresh after
-  recovery, non-disclosing unexpected failure retry, and production composition;
+  recovery, non-disclosing unexpected failure retry, production composition,
+  catalog propagation across healthy/actionable summaries, condition markers,
+  recommended-action framing, missing-detail fallback, typed navigation labels,
+  initial/recheck progress, and generic error recovery; a healthy application
+  report must carry no locale-authored default recommendation;
 - dashboard background-probe isolation for non-disclosing runtime/readiness
   failure states, conservative next-action guidance, disabled stale details,
   catalog propagation into the host-runtime fallback drill-down, exact

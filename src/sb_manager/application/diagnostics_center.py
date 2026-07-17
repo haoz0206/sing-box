@@ -103,11 +103,9 @@ class DiagnosticsCenterReport:
         return sum(item.condition is DiagnosticCondition.ATTENTION for item in self.items)
 
     @property
-    def recommended_action(self) -> str:
+    def recommended_action(self) -> str | None:
         item = self._recommended_item()
-        return (
-            item.guidance or item.summary if item is not None else "当前无需处理，可以安全继续操作"
-        )
+        return item.guidance or item.summary if item is not None else None
 
     @property
     def recommended_action_kind(self) -> DiagnosticAction | None:

@@ -42,7 +42,9 @@ class DiagnosticsCenterTools:
 class DiagnosticsCenterScreen(Screen[None]):
     """Load and present one prioritized diagnostics report on demand."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
     def __init__(
         self,
@@ -63,9 +65,13 @@ class DiagnosticsCenterScreen(Screen[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with VerticalScroll(id="diagnostics-center"):
-            yield Static("诊断中心", id="diagnostics-center-title", markup=False)
             yield Static(
-                "正在读取 desired state、主机准备度与运行状态…",
+                self.copy.text(UiText.DIAGNOSTICS_CENTER_TITLE),
+                id="diagnostics-center-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.DIAGNOSTICS_CENTER_LOADING),
                 id="diagnostics-center-loading",
                 markup=False,
             )
@@ -77,7 +83,7 @@ class DiagnosticsCenterScreen(Screen[None]):
                 markup=False,
             )
             yield Button(
-                "审查并接管现有配置",
+                self.copy.text(UiText.DIAGNOSTICS_CENTER_ACTION_REVIEW_CONFIG_ADOPTION),
                 id="diagnostics-center-action",
                 classes="hidden",
                 variant="primary",
@@ -109,14 +115,20 @@ class DiagnosticsCenterScreen(Screen[None]):
                     markup=False,
                 )
             yield Button(
-                "重新检查",
+                self.copy.text(UiText.DIAGNOSTICS_CENTER_REFRESH),
                 id="refresh-diagnostics-center",
                 disabled=True,
             )
             if self.service_log_reader is not None:
-                yield Button("查看近期服务日志", id="open-service-logs")
+                yield Button(
+                    self.copy.text(UiText.DIAGNOSTICS_CENTER_OPEN_SERVICE_LOGS),
+                    id="open-service-logs",
+                )
             if self.apply_history_reader is not None:
-                yield Button("查看配置应用历史", id="open-apply-history")
+                yield Button(
+                    self.copy.text(UiText.DIAGNOSTICS_CENTER_OPEN_APPLY_HISTORY),
+                    id="open-apply-history",
+                )
         yield Footer()
 
     def on_mount(self) -> None:
@@ -138,14 +150,25 @@ class DiagnosticsCenterScreen(Screen[None]):
         summary.update(self._summary(report))
         summary.remove_class("hidden")
         recommended = self.query_one("#diagnostics-center-recommended-action", Static)
-        recommended.update(f"建议：{report.recommended_action}")
+        recommended_summary = (
+            self.copy.text(UiText.DIAGNOSTICS_CENTER_RECOMMENDATION_NONE)
+            if report.condition is DiagnosticCondition.HEALTHY
+            else report.recommended_action
+            or self.copy.text(UiText.DIAGNOSTICS_CENTER_RECOMMENDATION_NONE)
+        )
+        recommended.update(
+            self.copy.text(
+                UiText.DIAGNOSTICS_CENTER_RECOMMENDATION,
+                summary=recommended_summary,
+            )
+        )
         recommended.remove_class("hidden")
         action = self.query_one("#diagnostics-center-action", Button)
         if (
             report.recommended_action_kind is DiagnosticAction.REVIEW_CONFIG_ADOPTION
             and self.config_adopter is not None
         ):
-            action.label = "审查并接管现有配置"
+            action.label = self.copy.text(UiText.DIAGNOSTICS_CENTER_ACTION_REVIEW_CONFIG_ADOPTION)
             action.remove_class("hidden")
         elif (
             report.recommended_action_kind is DiagnosticAction.MANAGE_CORE
@@ -163,7 +186,7 @@ class DiagnosticsCenterScreen(Screen[None]):
     def show_error(self) -> None:
         self.report = None
         loading = self.query_one("#diagnostics-center-loading", Static)
-        loading.update("无法完成诊断检查。底层错误未显示，以避免泄露敏感信息。请重新检查。")
+        loading.update(self.copy.text(UiText.DIAGNOSTICS_CENTER_ERROR))
         loading.remove_class("hidden")
         self.query_one("#diagnostics-center-action", Button).add_class("hidden")
         self.query_one("#refresh-diagnostics-center", Button).disabled = False
@@ -176,7 +199,7 @@ class DiagnosticsCenterScreen(Screen[None]):
         self.query_one("#diagnostics-center-action", Button).add_class("hidden")
         self._hide_items()
         loading = self.query_one("#diagnostics-center-loading", Static)
-        loading.update("正在重新检查 desired state、主机准备度与运行状态…")
+        loading.update(self.copy.text(UiText.DIAGNOSTICS_CENTER_RECHECKING))
         loading.remove_class("hidden")
         self.query_one("#refresh-diagnostics-center", Button).disabled = True
         self.load_report()
@@ -206,13 +229,13 @@ class DiagnosticsCenterScreen(Screen[None]):
         if self.apply_history_reader is not None:
             self.app.push_screen(ApplyHistoryScreen(self.apply_history_reader))
 
-    @staticmethod
-    def _summary(report: DiagnosticsCenterReport) -> str:
+    def _summary(self, report: DiagnosticsCenterReport) -> str:
         if report.condition is DiagnosticCondition.HEALTHY:
-            return "整体状态：所有检查均正常"
-        return (
-            f"整体状态：需要处理 {report.action_required_count} 项，"
-            f"注意 {report.attention_count} 项"
+            return self.copy.text(UiText.DIAGNOSTICS_CENTER_SUMMARY_HEALTHY)
+        return self.copy.text(
+            UiText.DIAGNOSTICS_CENTER_SUMMARY_ACTIONABLE,
+            action_required=report.action_required_count,
+            attention=report.attention_count,
         )
 
     def _hide_items(self) -> None:
@@ -223,23 +246,35 @@ class DiagnosticsCenterScreen(Screen[None]):
     def _show_item(self, item: DiagnosticItem) -> None:
         item_id = item.code.value
         title = self.query_one(f"#diagnostic-{item_id}-title", Static)
-        title.update(f"{self._condition_marker(item.condition)} {item.title}")
+        title.update(
+            self.copy.text(
+                UiText.DIAGNOSTICS_CENTER_ITEM_TITLE,
+                condition=self._condition_marker(item.condition),
+                title=item.title,
+            )
+        )
         title.remove_class("hidden")
         summary = self.query_one(f"#diagnostic-{item_id}-summary", Static)
         summary.update(item.summary)
         summary.remove_class("hidden")
         details = self.query_one(f"#diagnostic-{item_id}-details", Static)
-        details.update(item.diagnostics or "未提供诊断细节")
+        details.update(
+            item.diagnostics or self.copy.text(UiText.DIAGNOSTICS_CENTER_DETAILS_UNAVAILABLE)
+        )
         details.remove_class("hidden")
         if item.guidance:
             guidance = self.query_one(f"#diagnostic-{item_id}-guidance", Static)
-            guidance.update(f"下一步：{item.guidance}")
+            guidance.update(
+                self.copy.text(
+                    UiText.DIAGNOSTICS_CENTER_ITEM_GUIDANCE,
+                    guidance=item.guidance,
+                )
+            )
             guidance.remove_class("hidden")
 
-    @staticmethod
-    def _condition_marker(condition: DiagnosticCondition) -> str:
+    def _condition_marker(self, condition: DiagnosticCondition) -> str:
         if condition is DiagnosticCondition.HEALTHY:
-            return "[正常]"
+            return self.copy.text(UiText.DIAGNOSTICS_CENTER_CONDITION_HEALTHY)
         if condition is DiagnosticCondition.ATTENTION:
-            return "[注意]"
-        return "[需处理]"
+            return self.copy.text(UiText.DIAGNOSTICS_CENTER_CONDITION_ATTENTION)
+        return self.copy.text(UiText.DIAGNOSTICS_CENTER_CONDITION_ACTION_REQUIRED)
