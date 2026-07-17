@@ -180,6 +180,15 @@ starts only after an explicit selection, while unavailable tools remain visible
 as explanations rather than dead controls.
 _Avoid_: Dashboard miscellaneous buttons, direct mutation shortcut, empty menu
 
+**Profiles workspace**:
+The task-oriented view of one desired-state snapshot that owns the complete
+profile inventory and its lifecycle entry points. The dashboard exposes only
+profile counts, one safest recommendation, and navigation into this workspace;
+ordinary return preserves the workspace context, while lifecycle success
+refreshes the snapshot through the dashboard.
+_Avoid_: Full profile rows on the dashboard, cross-screen CSS event routing,
+stale inventory after mutation
+
 **Dashboard recommendation**:
 The single safest next step selected from desired state and independent runtime,
 readiness, and certificate evidence. It carries a stable action identity when

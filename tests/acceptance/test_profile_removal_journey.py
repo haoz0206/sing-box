@@ -230,6 +230,7 @@ async def test_operator_reviews_draft_profile_removal_before_confirmation() -> N
     app = app_for(remover)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         assert str(app.screen.query_one("#remove-profile", Button).label) == "移除此配置"
 
@@ -253,6 +254,7 @@ async def test_operator_confirms_draft_removal_and_sees_desired_state_result() -
     app = app_for(remover)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")
@@ -287,6 +289,7 @@ async def test_successful_profile_removal_returns_to_recomposed_dashboard() -> N
         assert app.screen.query_one("#runtime-status", Static).content == "服务状态：运行正常"
         assert host_diagnostics.inspections == 1
 
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")
@@ -310,6 +313,7 @@ async def test_operator_confirms_applied_profile_shutdown_and_sees_healthy_resul
     app = app_for(RecordingProfileRemover(status=ProfileStatus.APPLIED))
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
 
@@ -333,6 +337,7 @@ async def test_failed_applied_profile_removal_does_not_claim_success() -> None:
     app = app_for(ValidationFailingProfileRemover())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")
@@ -352,6 +357,7 @@ async def test_unknown_profile_removal_host_result_requires_operator_diagnostics
     app = app_for(UnavailableProfileRemover())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")
@@ -371,6 +377,7 @@ async def test_unexpected_profile_removal_planning_failure_is_safe_and_not_discl
     app = app_for(UnexpectedPlanningProfileRemover())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.pause()
@@ -392,6 +399,7 @@ async def test_unexpected_profile_removal_failure_is_unknown_and_not_disclosed()
     app = app_for(UnexpectedProfileRemover())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#remove-profile")
         await pilot.click("#confirm-profile-removal")

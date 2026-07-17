@@ -98,6 +98,7 @@ from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.connection_share import ConnectionSharePanel
+from sb_manager.ui.labels import PROTOCOL_LABELS
 from sb_manager.ui.messages import DashboardRefreshRequested
 from sb_manager.ui.screens.config_adoption import ConfigAdoptionScreen
 from sb_manager.ui.screens.diagnostics_center import DiagnosticsCenterScreen
@@ -118,6 +119,11 @@ from sb_manager.ui.screens.profile_recommendation import ProfilePurposeScreen
 from sb_manager.ui.screens.profile_removal import (
     ProfileRemovalPlanningErrorScreen,
     ProfileRemovalScreen,
+)
+from sb_manager.ui.screens.profiles import (
+    ProfilesScreen,
+    ProfileWorkspaceActionKind,
+    ProfileWorkspaceActionRequested,
 )
 from sb_manager.ui.screens.state_recovery import (
     StateRecoveryConfirmationScreen,
@@ -244,16 +250,6 @@ GUIDED_PROFILES_BY_VARIANT: dict[ProtocolVariant, GuidedProfileDefinition] = {
     ProtocolVariant.VLESS_GRPC: VLESS_GRPC_PROFILE,
     ProtocolVariant.VMESS_WEBSOCKET: VMESS_WEBSOCKET_PROFILE,
     ProtocolVariant.VMESS_GRPC: VMESS_GRPC_PROFILE,
-}
-PROTOCOL_LABELS: dict[ProtocolKind, str] = {
-    ProtocolKind.VLESS_REALITY: "VLESS Reality",
-    ProtocolKind.SHADOWSOCKS: "Shadowsocks 2022",
-    ProtocolKind.HYSTERIA2: "Hysteria2",
-    ProtocolKind.TROJAN: "Trojan",
-    ProtocolKind.ANYTLS: "AnyTLS",
-    ProtocolKind.TUIC: "TUIC",
-    ProtocolKind.VLESS_TLS: "VLESS TLS",
-    ProtocolKind.VMESS_TLS: "VMess TLS",
 }
 
 
@@ -1022,6 +1018,7 @@ class ManagerApp(App[None]):
     BINDINGS: ClassVar[list[BindingType]] = [
         ("?", "show_keyboard_help", "帮助"),
         ("a", "add_profile", "添加配置"),
+        ("p", "open_profiles", "配置"),
         ("d", "open_diagnostics", "诊断"),
         ("o", "open_operations", "运维"),
         ("q", "quit", "退出"),
@@ -1140,7 +1137,7 @@ class ManagerApp(App[None]):
         self._current_dashboard_recommendation = recommendation
         if installation.profiles:
             with Vertical(id="dashboard-profiles"):
-                yield Static("代理配置", id="profile-list-title")
+                yield Static("服务总览", id="dashboard-title")
                 yield Static(runtime_status, id="runtime-status")
                 yield Static(readiness_status, id="host-readiness-status")
                 yield Static(certificate_status, id="certificate-maintenance-status")
@@ -1151,47 +1148,7 @@ class ManagerApp(App[None]):
                 )
                 yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
-                for index, profile in enumerate(installation.profiles):
-                    port = (
-                        "自动选择端口"
-                        if profile.listen_port is None
-                        else f"端口 {profile.listen_port}"
-                    )
-                    yield Static(
-                        " · ".join(
-                            (
-                                profile.profile_name,
-                                PROTOCOL_LABELS[profile.protocol],
-                                (
-                                    ("在线" if profile.enabled else "已暂停")
-                                    if profile.status is ProfileStatus.APPLIED
-                                    else "草案"
-                                ),
-                                port,
-                            )
-                        ),
-                        id=f"profile-{index}",
-                    )
-                    if self.profile_details_reader is not None:
-                        yield Button(
-                            "查看详情",
-                            name=profile.profile_id,
-                            id=f"view-profile-{index}",
-                            classes="view-profile-action",
-                        )
-                    if profile.status is ProfileStatus.DRAFT and self.profile_applier is not None:
-                        yield Button(
-                            "应用草案",
-                            name=profile.profile_id,
-                            id=f"apply-profile-{index}",
-                            classes="apply-profile-action",
-                            variant="warning",
-                        )
-                yield Button(
-                    "添加配置",
-                    id="add-profile",
-                    classes="add-profile-action",
-                )
+                yield Button("管理配置", id="open-profiles")
                 yield Button("打开运维中心", id="open-operations")
         else:
             with Vertical(id="dashboard-empty"):
@@ -1203,11 +1160,7 @@ class ManagerApp(App[None]):
                 yield from self._dashboard_recommendation_widgets(recommendation)
                 yield from self._host_action_buttons(installation)
                 yield Static("从一个引导式配置开始。应用前你会看到完整变更计划。")
-                yield Button(
-                    "创建第一个配置",
-                    id="create-first-profile",
-                    classes="add-profile-action",
-                )
+                yield Button("管理配置", id="open-profiles")
                 yield Button("打开运维中心", id="open-operations")
         yield Footer()
 
@@ -1217,6 +1170,10 @@ class ManagerApp(App[None]):
     def action_add_profile(self) -> None:
         if self._dashboard_action_available():
             self.open_protocol_selection()
+
+    def action_open_profiles(self) -> None:
+        if self._dashboard_action_available():
+            self.open_profiles_workspace()
 
     def action_open_diagnostics(self) -> None:
         if self._dashboard_action_available() and self.diagnostics_center is not None:
@@ -1228,6 +1185,8 @@ class ManagerApp(App[None]):
 
     def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
         if action == "add_profile":
+            return self._dashboard_action_available()
+        if action == "open_profiles":
             return self._dashboard_action_available()
         if action == "open_diagnostics":
             return self._dashboard_action_available() and self.diagnostics_center is not None
@@ -1273,6 +1232,8 @@ class ManagerApp(App[None]):
 
     @on(DashboardRefreshRequested)
     async def refresh_dashboard(self) -> None:
+        while len(self.screen_stack) > 1:
+            self.pop_screen()
         self.host_diagnostics_report = None
         self.host_readiness_report = None
         self.certificate_diagnostics_report = None
@@ -1533,6 +1494,28 @@ class ManagerApp(App[None]):
             )
         )
 
+    @on(Button.Pressed, "#open-profiles")
+    def open_profiles_workspace(self) -> None:
+        self.push_screen(
+            ProfilesScreen(
+                self.manager.get_installation(),
+                details_available=self.profile_details_reader is not None,
+                apply_available=self.profile_applier is not None,
+            )
+        )
+
+    @on(ProfileWorkspaceActionRequested)
+    def handle_profile_workspace_action(
+        self,
+        event: ProfileWorkspaceActionRequested,
+    ) -> None:
+        if event.kind is ProfileWorkspaceActionKind.ADD_PROFILE:
+            self.open_protocol_selection()
+        elif event.kind is ProfileWorkspaceActionKind.VIEW_DETAILS and event.profile_id is not None:
+            self._open_profile_details(event.profile_id)
+        elif event.kind is ProfileWorkspaceActionKind.APPLY_DRAFT and event.profile_id is not None:
+            self._open_saved_draft_apply(event.profile_id)
+
     @on(Button.Pressed, "#view-readiness")
     def open_host_readiness(self) -> None:
         if self.host_readiness_report is not None:
@@ -1566,7 +1549,6 @@ class ManagerApp(App[None]):
         self._update_dashboard_next_action()
         self.load_certificate_diagnostics()
 
-    @on(Button.Pressed, ".add-profile-action")
     def open_protocol_selection(self) -> None:
         self.push_screen(
             ProfilePurposeScreen(self.profile_recommendation_advisor),
@@ -1582,12 +1564,6 @@ class ManagerApp(App[None]):
                     self.profile_applier,
                 )
             )
-
-    @on(Button.Pressed, ".apply-profile-action")
-    def open_saved_draft_apply(self, event: Button.Pressed) -> None:
-        if self.profile_applier is None or event.button.name is None:
-            return
-        self._open_saved_draft_apply(event.button.name)
 
     def _open_saved_draft_apply(self, profile_id: str) -> None:
         if self.profile_applier is None:
@@ -1609,12 +1585,11 @@ class ManagerApp(App[None]):
             )
         )
 
-    @on(Button.Pressed, ".view-profile-action")
-    def open_profile_details(self, event: Button.Pressed) -> None:
-        if self.profile_details_reader is None or event.button.name is None:
+    def _open_profile_details(self, profile_id: str) -> None:
+        if self.profile_details_reader is None:
             return
         try:
-            details = self.profile_details_reader.get_profile_details(event.button.name)
+            details = self.profile_details_reader.get_profile_details(profile_id)
         except ProfileDetailsError:
             self.push_screen(ProfileDetailsErrorScreen())
             return

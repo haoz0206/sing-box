@@ -129,6 +129,7 @@ async def test_operator_creates_a_secret_free_draft_from_profile_details() -> No
     app, state_store = create_app()
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         assert str(app.screen.query_one("#clone-profile", Button).label) == ("以此配置为模板")
 
@@ -167,6 +168,10 @@ async def test_operator_creates_a_secret_free_draft_from_profile_details() -> No
         await pilot.click("#finish-profile-clone")
         await pilot.pause()
 
+        assert app.screen.query_one("#profile-summary", Static).content == (
+            "配置：1 在线 · 0 已暂停 · 1 草案"
+        )
+        await pilot.click("#open-profiles")
         assert "平板" in str(app.screen.query_one("#profile-1", Static).content)
         assert "草案" in str(app.screen.query_one("#profile-1", Static).content)
 
@@ -175,6 +180,7 @@ async def test_duplicate_clone_name_stays_in_review_without_mutating_state() -> 
     app, state_store = create_app()
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#clone-profile")
         app.screen.query_one("#profile-clone-name", Input).value = "手机"
@@ -206,6 +212,7 @@ async def test_unexpected_clone_planning_failure_is_safe_and_not_disclosed() -> 
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#clone-profile")
         await pilot.pause()
@@ -248,6 +255,7 @@ async def test_unexpected_clone_review_failure_is_safe_and_not_disclosed() -> No
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#clone-profile")
         app.screen.query_one("#profile-clone-name", Input).value = "平板"
@@ -289,6 +297,7 @@ async def test_unexpected_clone_failure_is_unknown_and_not_disclosed() -> None:
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#clone-profile")
         app.screen.query_one("#profile-clone-name", Input).value = "平板"
@@ -314,6 +323,7 @@ async def test_stale_clone_confirmation_keeps_actionable_guidance() -> None:
     app, state_store = create_app()
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#clone-profile")
         await pilot.click("#review-profile-clone")

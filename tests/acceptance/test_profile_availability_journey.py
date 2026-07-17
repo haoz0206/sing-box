@@ -191,8 +191,9 @@ async def test_operator_pauses_applied_profile_without_deleting_intent() -> None
         assert app.query_one("#profile-summary", Static).content == (
             "配置：1 在线 · 0 已暂停 · 0 草案"
         )
-        assert "在线" in str(app.query_one("#profile-0", Static).content)
 
+        await pilot.click("#open-profiles")
+        assert "在线" in str(app.screen.query_one("#profile-0", Static).content)
         await pilot.click("#view-profile-0")
 
         assert app.screen.query_one("#profile-details-status", Static).content == (
@@ -274,8 +275,9 @@ async def test_operator_restores_paused_profile_from_details() -> None:
         assert app.query_one("#profile-summary", Static).content == (
             "配置：0 在线 · 1 已暂停 · 0 草案"
         )
-        assert "已暂停" in str(app.query_one("#profile-0", Static).content)
 
+        await pilot.click("#open-profiles")
+        assert "已暂停" in str(app.screen.query_one("#profile-0", Static).content)
         await pilot.click("#view-profile-0")
 
         assert app.screen.query_one("#profile-details-status", Static).content == (
@@ -326,6 +328,7 @@ async def test_unavailable_resume_port_has_actionable_planning_guidance() -> Non
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#change-profile-availability")
 
@@ -362,6 +365,7 @@ async def test_unexpected_availability_planning_failure_is_safe_and_not_disclose
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#change-profile-availability")
         await pilot.pause()
@@ -402,6 +406,7 @@ async def test_unexpected_availability_failure_is_unknown_and_not_disclosed() ->
     )
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#change-profile-availability")
         await pilot.click("#confirm-profile-availability")

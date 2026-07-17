@@ -11,8 +11,10 @@ the dashboard context.
 
 - `?` opens keyboard help and `Escape` returns to the previous screen.
 - `a` starts the purpose-first profile journey from the root dashboard.
+- `p` opens the complete profiles workspace from the root dashboard.
 - `d` opens the diagnostics center only when that capability is configured.
-- `c` opens core management only when a core updater is configured.
+- `o` opens the capability-aware operations workspace; core planning remains an
+  explicit selection inside it.
 - `q` exits only from the root dashboard.
 - Dashboard-only bindings are hidden and disabled on child screens through
   `ManagerApp.check_action`; they cannot consume form input or jump between

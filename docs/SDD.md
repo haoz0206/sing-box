@@ -109,7 +109,7 @@ Splitting one function per file is explicitly avoided.
 │                         active screen                                 │
 │                                                                       │
 ├───────────────────────────────────────────────────────────────────────┤
-│ ? Help   a Add profile   d Diagnostics   o Operations   Enter Open   q Quit │
+│ ? Help   a Add profile   p Profiles   d Diagnostics   o Operations   q Quit │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -117,8 +117,9 @@ The application is keyboard-first and mouse-capable. A persistent footer shows
 only actions valid for the current screen.
 
 The root dashboard exposes `?` for help, `a` for the purpose-first add journey,
-`d` for the diagnostics center, `o` for the operations workspace, and `q` for
-exit. Core lifecycle is not a direct root shortcut: the operations workspace
+`p` for the profiles workspace, `d` for the diagnostics center, `o` for the
+operations workspace, and `q` for exit. Core lifecycle is not a direct root
+shortcut: the operations workspace
 first explains available capabilities and safety, then opens the existing plan
 workflow only after an explicit selection. `check_action()` hides dashboard-only
 bindings whenever a child screen is active, so printable letters remain form
@@ -135,6 +136,12 @@ The dashboard answers five questions without navigation:
 3. Is there an unapplied plan?
 4. Are certificates or artifacts approaching maintenance?
 5. What is the safest next action?
+
+It shows aggregate profile counts, not the complete profile inventory or a row
+of lifecycle buttons per profile. One visible `Manage profiles` action and the
+contextual `p` shortcut open the dedicated profiles workspace. The empty state
+keeps exactly one primary creation action; navigation to the empty workspace is
+secondary and does not duplicate that call to action.
 
 One application-level recommendation module owns that fifth answer. It consumes
 the desired-state snapshot plus typed runtime, readiness, and certificate
@@ -172,6 +179,15 @@ cannot remain indefinitely at `正在检查` or reuse a pre-mutation conclusion.
 ### 5.3 Profiles
 
 Profiles represent operator intent, not raw inbound JSON.
+
+The profiles workspace owns the complete desired-state inventory and the entry
+points for add, details, and draft apply. It receives one immutable snapshot and
+only renders actions whose application capabilities were injected. Row buttons
+are translated locally into one typed message carrying a stable action kind and,
+when required, a stable profile ID; the root application never listens to child
+screen CSS selectors. `Esc` from details returns to the workspace, while a
+successful lifecycle mutation uses the shared refresh message to discard stale
+child snapshots and return to a freshly recomposed dashboard.
 
 List columns:
 
@@ -710,7 +726,7 @@ the release acceptance criteria. It is not translated function by function.
 Current implementation status (2026-07-17):
 
 - keyboard-first contextual navigation: the Footer exposes help and only the
-  dashboard actions currently safe to open; `a`, `d`, `c`, and `q` are gated by
+  dashboard actions currently safe to open; `a`, `p`, `d`, `o`, and `q` are gated by
   screen context and injected capability, while `?` opens a non-mutating help
   page that explains focus, activation, return, and confirmation safety;
 - secret-free profile templates: profile details can plan a uniquely named
@@ -776,8 +792,10 @@ Current implementation status (2026-07-17):
   `--confirm`, followed by native syntax validation; pinned Debian 12, Ubuntu
   24.04, and Alpine 3.20 container acceptance passes;
 - persisted operator journey: reopening the TUI exposes an apply action for
-  each draft and carries its stable profile ID plus current desired-state
-  revision into the existing confirmation and background apply flow;
+  each draft in a dedicated profiles workspace and carries its stable profile
+  ID plus current desired-state revision into the existing confirmation and
+  background apply flow; the dashboard retains counts and one safest next
+  action instead of duplicating the full inventory;
 - host diagnostics: the dashboard performs a read-only systemd/OpenRC health
   observation in a Textual worker, reports applied/draft counts and the safest
   next action, exposes typed diagnostics plus recovery guidance without parsing
@@ -922,6 +940,11 @@ Current implementation status (2026-07-17):
   never bypass preview or confirmation. Operations navigation groups core
   planning and read-only evidence without reading or mutating the host eagerly,
   and explains capabilities missing from the current startup mode.
+- The dashboard contains profile counts and one recommendation, while the
+  profiles workspace contains the complete inventory and capability-aware
+  lifecycle entries. Cross-screen navigation uses typed action identity rather
+  than selectors or translated labels; cancellation preserves context and
+  lifecycle success refreshes the desired-state snapshot.
 - An operator can use an existing profile as a template while the review makes
   copied intent and reset credentials/port/runtime state explicit; confirmation
   creates only a revision-bound draft and never changes the host.

@@ -19,7 +19,7 @@ async def test_add_profile_starts_with_operator_purpose_instead_of_protocol_term
     app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
 
     async with app.run_test() as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
 
         assert app.screen.query_one("#profile-purpose-title", Static).content == (
             "你主要想优化什么?"
@@ -43,7 +43,7 @@ async def test_general_purpose_shows_ranked_reasons_and_tradeoffs() -> None:
     app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
 
     async with app.run_test() as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
         await pilot.click("#purpose-general")
 
         assert app.screen.query_one("#profile-recommendation-title", Static).content == (
@@ -75,7 +75,7 @@ async def test_unexpected_recommendation_failure_keeps_advanced_path_and_not_dis
     )
 
     async with app.run_test() as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
         await pilot.click("#purpose-general")
         await pilot.pause()
 
@@ -112,7 +112,7 @@ async def test_each_non_default_purpose_opens_its_own_ranking(
     app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
 
     async with app.run_test() as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
         app.screen.query_one(purpose_selector, Button).press()
         await pilot.pause()
 
@@ -128,7 +128,7 @@ async def test_recommended_variant_opens_the_existing_guided_profile_form() -> N
     app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
 
     async with app.run_test() as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
         await pilot.click("#purpose-general")
         await pilot.click("#select-recommendation-0")
         await pilot.pause()
@@ -143,7 +143,7 @@ async def test_advanced_operator_can_still_choose_an_exact_protocol_variant() ->
     app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
 
     async with app.run_test(size=(100, 60)) as pilot:
-        await pilot.click("#create-first-profile")
+        await pilot.click("#dashboard-primary-action")
         await pilot.click("#choose-protocol-directly")
 
         assert app.screen.query_one("#protocol-selection-title", Static).content == ("直接选择协议")

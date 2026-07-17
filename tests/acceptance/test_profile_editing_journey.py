@@ -306,6 +306,7 @@ async def test_operator_opens_prefilled_profile_edit_form_without_creating_a_pla
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         assert str(app.screen.query_one("#edit-profile", Button).label) == "编辑配置"
 
@@ -329,6 +330,7 @@ async def test_operator_previews_normalized_draft_metadata_changes_before_confir
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -358,6 +360,7 @@ async def test_operator_previews_applied_listen_port_change_before_confirmation(
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-listen-port", Input).value = "8443"
@@ -388,6 +391,7 @@ async def test_port_conflict_after_review_returns_operator_to_a_fresh_preview() 
     app = app_for(PortUnavailableProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-listen-port", Input).value = "8443"
@@ -410,6 +414,7 @@ async def test_automatic_port_edit_reports_the_selected_live_port() -> None:
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-listen-port", Input).value = ""
@@ -434,6 +439,7 @@ async def test_profile_edit_form_keeps_field_validation_actionable() -> None:
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = ""
@@ -448,6 +454,7 @@ async def test_operator_confirms_desired_state_only_edit_and_sees_revision() -> 
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -487,6 +494,7 @@ async def test_successful_profile_edit_returns_to_recomposed_dashboard() -> None
     app = app_for(editor, state_store=state_store)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -498,6 +506,7 @@ async def test_successful_profile_edit_returns_to_recomposed_dashboard() -> None
         )
         await pilot.click("#profile-edit-return-dashboard")
 
+        await pilot.click("#open-profiles")
         assert "平板" in str(app.screen.query_one("#profile-0", Static).content)
 
 
@@ -506,6 +515,7 @@ async def test_applied_name_edit_requires_live_apply_and_reports_healthy_result(
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -531,6 +541,7 @@ async def test_failed_live_profile_edit_does_not_claim_success() -> None:
     app = app_for(LiveValidationFailingProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -552,6 +563,7 @@ async def test_unknown_profile_edit_host_result_requires_operator_diagnostics() 
     app = app_for(UnavailableProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -573,6 +585,7 @@ async def test_unexpected_profile_edit_planning_failure_is_safe_and_not_disclose
     app = app_for(UnexpectedPlanningProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -596,6 +609,7 @@ async def test_unexpected_profile_edit_failure_is_unknown_and_not_disclosed() ->
     app = app_for(UnexpectedProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -621,6 +635,7 @@ async def test_stale_profile_edit_plan_routes_operator_back_to_fresh_details() -
     app = app_for(StaleProfileEditor())
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -655,6 +670,7 @@ async def test_profile_edit_precondition_failure_explains_that_nothing_was_writt
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -686,6 +702,7 @@ async def test_profile_edit_commit_failure_preserves_the_running_service() -> No
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -724,6 +741,7 @@ async def test_failed_profile_edit_reports_successful_automatic_rollback() -> No
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"
@@ -765,6 +783,7 @@ async def test_failed_profile_edit_exposes_manual_recovery_steps() -> None:
     app = app_for(editor)
 
     async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
         await pilot.click("#view-profile-0")
         await pilot.click("#edit-profile")
         app.screen.query_one("#profile-edit-name", Input).value = "平板"

@@ -31,6 +31,7 @@ Footer {
 #profile-purpose, #profile-recommendation,
 #core-update-form, #core-update-plan, #core-update-result, #core-update-error,
 #operations,
+#profiles-workspace,
 #keyboard-help,
 #config-adoption, #config-adoption-result, #config-adoption-error {
     width: 72;
@@ -60,6 +61,7 @@ Footer {
 #profile-availability-error-title,
 #profile-purpose-title, #profile-recommendation-title,
 #operations-title,
+#profiles-workspace-title,
 #keyboard-help-title,
 #config-adoption-result-title, #config-adoption-error-title {
     margin-bottom: 1;
