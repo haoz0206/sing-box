@@ -240,6 +240,60 @@ class UiText(str, Enum):
         "profile_availability.result.rollback_unknown.safety"
     )
     PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP = "profile_availability.result.recovery_step"
+    PROFILE_REMOVAL_PLAN_TITLE = "profile_removal.plan.title"
+    PROFILE_REMOVAL_PLAN_PROFILE = "profile_removal.plan.profile"
+    PROFILE_REMOVAL_PLAN_DRAFT_IMPACT = "profile_removal.plan.draft.impact"
+    PROFILE_REMOVAL_PLAN_LIVE_IMPACT = "profile_removal.plan.live.impact"
+    PROFILE_REMOVAL_PLAN_REMAINING = "profile_removal.plan.remaining"
+    PROFILE_REMOVAL_PLAN_SAFETY_PREVIEW = "profile_removal.plan.safety.preview"
+    PROFILE_REMOVAL_PLAN_CONFIRM_DRAFT = "profile_removal.plan.confirm.draft"
+    PROFILE_REMOVAL_PLAN_CONFIRM_LIVE = "profile_removal.plan.confirm.live"
+    PROFILE_REMOVAL_PLAN_IN_PROGRESS = "profile_removal.plan.in_progress"
+    PROFILE_REMOVAL_RESULT_DRAFT_TITLE = "profile_removal.result.draft.title"
+    PROFILE_REMOVAL_RESULT_APPLIED_TITLE = "profile_removal.result.applied.title"
+    PROFILE_REMOVAL_RESULT_REVISION = "profile_removal.result.revision"
+    PROFILE_REMOVAL_RESULT_DRAFT_SAFETY = "profile_removal.result.draft.safety"
+    PROFILE_REMOVAL_RESULT_RETURN_DASHBOARD = "profile_removal.result.return_dashboard"
+    PROFILE_REMOVAL_RESULT_UNTRUSTED_TITLE = "profile_removal.result.untrusted.title"
+    PROFILE_REMOVAL_RESULT_UNTRUSTED_DETAILS = "profile_removal.result.untrusted.details"
+    PROFILE_REMOVAL_RESULT_UNTRUSTED_SAFETY = "profile_removal.result.untrusted.safety"
+    PROFILE_REMOVAL_RESULT_APPLIED_SAFETY = "profile_removal.result.applied.safety"
+    PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_TITLE = (
+        "profile_removal.result.validation_failed.title"
+    )
+    PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_SAFETY = (
+        "profile_removal.result.validation_failed.safety"
+    )
+    PROFILE_REMOVAL_RESULT_PRECONDITION_FAILED_TITLE = (
+        "profile_removal.result.precondition_failed.title"
+    )
+    PROFILE_REMOVAL_RESULT_PRECONDITION_FALLBACK = (
+        "profile_removal.result.precondition_failed.fallback"
+    )
+    PROFILE_REMOVAL_RESULT_PRECONDITION_SAFETY = "profile_removal.result.precondition_failed.safety"
+    PROFILE_REMOVAL_RESULT_COMMIT_FAILED_TITLE = "profile_removal.result.commit_failed.title"
+    PROFILE_REMOVAL_RESULT_COMMIT_FALLBACK = "profile_removal.result.commit_failed.fallback"
+    PROFILE_REMOVAL_RESULT_COMMIT_SAFETY = "profile_removal.result.commit_failed.safety"
+    PROFILE_REMOVAL_RESULT_ROLLED_BACK_TITLE = "profile_removal.result.rolled_back.title"
+    PROFILE_REMOVAL_RESULT_ROLLED_BACK_FALLBACK = "profile_removal.result.rolled_back.fallback"
+    PROFILE_REMOVAL_RESULT_ROLLED_BACK_SAFETY = "profile_removal.result.rolled_back.safety"
+    PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_TITLE = "profile_removal.result.rollback_unknown.title"
+    PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_FALLBACK = (
+        "profile_removal.result.rollback_unknown.fallback"
+    )
+    PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_SAFETY = (
+        "profile_removal.result.rollback_unknown.safety"
+    )
+    PROFILE_REMOVAL_RESULT_RECOVERY_STEP = "profile_removal.result.recovery_step"
+    PROFILE_REMOVAL_OPERATIONAL_TITLE = "profile_removal.operational.title"
+    PROFILE_REMOVAL_OPERATIONAL_UNEXPECTED_DETAILS = (
+        "profile_removal.operational.unexpected.details"
+    )
+    PROFILE_REMOVAL_OPERATIONAL_KNOWN_SAFETY = "profile_removal.operational.known.safety"
+    PROFILE_REMOVAL_OPERATIONAL_UNKNOWN_SAFETY = "profile_removal.operational.unknown.safety"
+    PROFILE_REMOVAL_PLANNING_TITLE = "profile_removal.planning.title"
+    PROFILE_REMOVAL_PLANNING_DETAILS = "profile_removal.planning.details"
+    PROFILE_REMOVAL_PLANNING_SAFETY = "profile_removal.planning.safety"
     CONNECTION_SHARE_ENDPOINT = "connection_share.endpoint"
     CONNECTION_SHARE_WARNING_HIDDEN = "connection_share.warning.hidden"
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
@@ -321,6 +375,10 @@ _EXPECTED_FIELDS.update(
         UiText.PROFILE_AVAILABILITY_PLAN_ACTIVE_COUNT: frozenset({"count"}),
         UiText.PROFILE_AVAILABILITY_RESULT_REVISION: frozenset({"revision"}),
         UiText.PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
+        UiText.PROFILE_REMOVAL_PLAN_PROFILE: frozenset({"name"}),
+        UiText.PROFILE_REMOVAL_PLAN_REMAINING: frozenset({"profiles", "applied"}),
+        UiText.PROFILE_REMOVAL_RESULT_REVISION: frozenset({"revision"}),
+        UiText.PROFILE_REMOVAL_RESULT_RECOVERY_STEP: frozenset({"number", "instruction"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
@@ -642,6 +700,80 @@ SIMPLIFIED_CHINESE = CopyCatalog(
             "desired state 未提交。完成恢复前不要再次修改配置。"
         ),
         UiText.PROFILE_AVAILABILITY_RESULT_RECOVERY_STEP: "{number}. {instruction}",
+        UiText.PROFILE_REMOVAL_PLAN_TITLE: "确认移除配置",
+        UiText.PROFILE_REMOVAL_PLAN_PROFILE: "配置：{name}",
+        UiText.PROFILE_REMOVAL_PLAN_DRAFT_IMPACT: (
+            "只删除 manager 中的草案，不会修改 sing-box 配置或刷新服务。"
+        ),
+        UiText.PROFILE_REMOVAL_PLAN_LIVE_IMPACT: (
+            "将生成不含此配置的完整 sing-box 配置，校验并刷新服务。失败时自动回滚。"
+        ),
+        UiText.PROFILE_REMOVAL_PLAN_REMAINING: (
+            "移除后保留 {profiles} 个配置，其中 {applied} 个已应用。"
+        ),
+        UiText.PROFILE_REMOVAL_PLAN_SAFETY_PREVIEW: "当前仅预览，尚未删除任何内容。",
+        UiText.PROFILE_REMOVAL_PLAN_CONFIRM_DRAFT: "确认移除草案",
+        UiText.PROFILE_REMOVAL_PLAN_CONFIRM_LIVE: "确认下线并移除",
+        UiText.PROFILE_REMOVAL_PLAN_IN_PROGRESS: "操作已确认，正在执行移除计划。完成前无法返回。",
+        UiText.PROFILE_REMOVAL_RESULT_DRAFT_TITLE: "草案已移除",
+        UiText.PROFILE_REMOVAL_RESULT_APPLIED_TITLE: "配置已下线并移除",
+        UiText.PROFILE_REMOVAL_RESULT_REVISION: "desired state 已提交 revision {revision}。",
+        UiText.PROFILE_REMOVAL_RESULT_DRAFT_SAFETY: "未修改 sing-box 配置，也未刷新服务。",
+        UiText.PROFILE_REMOVAL_RESULT_RETURN_DASHBOARD: "返回仪表盘",
+        UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_TITLE: "无法确认移除结果",
+        UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_DETAILS: "未收到可信的 host transaction。",
+        UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_SAFETY: (
+            "desired state 未提交，host transaction 结果未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_APPLIED_SAFETY: (
+            "新配置已通过校验，服务刷新和健康检查已完成。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_TITLE: "配置校验失败，未移除",
+        UiText.PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_SAFETY: (
+            "原有配置、服务和 desired state 均未改变。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_FAILED_TITLE: "服务器配置已变化，未移除",
+        UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_FALLBACK: (
+            "live configuration 不再匹配已确认的版本"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_SAFETY: (
+            "本次尚未写入配置，请重新检查后再确认。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_COMMIT_FAILED_TITLE: "无法写入移除后的配置",
+        UiText.PROFILE_REMOVAL_RESULT_COMMIT_FALLBACK: "配置提交失败",
+        UiText.PROFILE_REMOVAL_RESULT_COMMIT_SAFETY: (
+            "尚未刷新服务，原有配置和 desired state 保持不变。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_TITLE: "移除失败，已自动回滚",
+        UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_FALLBACK: "旧配置已恢复。",
+        UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_SAFETY: (
+            "原有配置、服务和 desired state 已保留。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_TITLE: "回滚未完成，需要人工恢复",
+        UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_FALLBACK: "回滚状态未知",
+        UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_SAFETY: (
+            "desired state 未提交。完成恢复前不要再次修改配置。"
+        ),
+        UiText.PROFILE_REMOVAL_RESULT_RECOVERY_STEP: "{number}. {instruction}",
+        UiText.PROFILE_REMOVAL_OPERATIONAL_TITLE: "无法确认配置移除结果",
+        UiText.PROFILE_REMOVAL_OPERATIONAL_UNEXPECTED_DETAILS: (
+            "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_REMOVAL_OPERATIONAL_KNOWN_SAFETY: (
+            "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
+        ),
+        UiText.PROFILE_REMOVAL_OPERATIONAL_UNKNOWN_SAFETY: (
+            "服务器配置、服务和 desired state 的结果均未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        ),
+        UiText.PROFILE_REMOVAL_PLANNING_TITLE: "无法准备配置移除",
+        UiText.PROFILE_REMOVAL_PLANNING_DETAILS: (
+            "读取配置移除计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.PROFILE_REMOVAL_PLANNING_SAFETY: (
+            "尚未执行任何操作。请返回配置列表，重新打开详情后再试。"
+        ),
         UiText.CONNECTION_SHARE_ENDPOINT: "服务器：{address}:{port}",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN: (
             "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"

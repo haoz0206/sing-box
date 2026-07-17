@@ -294,7 +294,10 @@ Release gate adds:
 - profile removal plans for draft and applied scopes, revision conflicts,
   desired-state-only deletion, transactional live projection, failed-host state
   preservation, final-profile zero-inbound validation against the privileged
-  allowlist and real sing-box, and the complete Textual confirmation/result journey;
+  allowlist and real sing-box, catalog propagation through planning and
+  operational failures, literal non-markup diagnostics, missing-transaction
+  uncertainty, precondition and commit failures, rollback success, manual
+  recovery instructions, and the complete Textual confirmation/result journey;
 - profile edit plans for normalized mutable metadata, no-op and field
   validation, desired-state-only versus live-configuration scope, revision and
   reviewed-content conflicts, transactional failure preservation, every typed

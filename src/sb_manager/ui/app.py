@@ -449,12 +449,13 @@ class ProfileDetailsScreen(Screen[None]):
             screen = ProfileRemovalScreen(
                 self.capabilities.remover,
                 profile_id=self.details.profile_id,
+                copy_catalog=self.copy,
             )
         except ProfileRemovalNotFoundError:
             self.app.push_screen(ProfileDetailsErrorScreen(self.copy))
             return
         except Exception:
-            self.app.push_screen(ProfileRemovalPlanningErrorScreen())
+            self.app.push_screen(ProfileRemovalPlanningErrorScreen(self.copy))
             return
         self.app.push_screen(screen)
 

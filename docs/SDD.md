@@ -225,7 +225,13 @@ connection-disclosure, stale-read, and unexpected-read copy renders through the
 validated interface copy catalog. Removal is always planned and confirmed: a
 draft removal changes desired state only, while an applied removal
 transactionally projects and applies all remaining profiles before desired
-state is committed.
+state is committed. The details catalog instance flows through the scope-aware
+plan, confirmation progress, every typed terminal transaction outcome,
+planning failure, and known or unknown operational failure. A missing host
+transaction is treated as an unknown result rather than success and requires
+configuration identity, service status, and apply-history inspection before
+retry. Profile names, transaction diagnostics, and recovery instructions render
+with markup disabled.
 
 A connection share URI is a credential, not ordinary profile metadata. Profile
 details and successful first apply show the public endpoint and a disclosure
@@ -482,8 +488,9 @@ to screens. Complete migration units now cover Settings and every
 preference-reset outcome, the Dashboard read-only shell and semantic
 recommendation, Profiles inventory, profile details and credential disclosure,
 the complete profile-edit journey, and profile pause/resume. Those migrated
-screen ranges contain no locale-authored text. Settings states that Chinese is
-fully supported and explains why other languages are withheld.
+screen ranges also include the complete profile-removal journey and contain no
+locale-authored text. Settings states that Chinese is fully supported and
+explains why other languages are withheld.
 Additional locale choices must not appear until every remaining user-visible
 string has moved into the catalog, so an operator never receives a partially
 translated safety workflow. Additional accessibility preferences require their

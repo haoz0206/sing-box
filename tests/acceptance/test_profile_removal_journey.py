@@ -1,3 +1,5 @@
+from typing import cast
+
 from textual.widgets import Button, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -23,10 +25,36 @@ from sb_manager.domain.installation import (
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
-from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.transactions.apply import (
+    ApplyOutcome,
+    ApplyTransactionResult,
+    CommitResult,
+    RollbackResult,
+)
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 EXPECTED_DASHBOARD_INSPECTIONS = 2
+
+
+class ProfileRemovalMarkerCatalog:
+    """Render markers across the nested profile-removal journey."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profile_removal.plan.title": "目录确认移除配置",
+            "profile_removal.result.draft.title": "目录草案已移除",
+            "profile_removal.result.applied.title": "目录配置已下线并移除",
+            "profile_removal.operational.title": "目录无法确认移除结果",
+            "profile_removal.operational.unexpected.details": "目录隐藏意外错误",
+            "profile_removal.operational.unknown.safety": "目录未知结果恢复指引",
+            "profile_removal.planning.title": "目录无法准备配置移除",
+            "profile_removal.planning.details": "目录隐藏计划错误",
+            "profile_removal.planning.safety": "目录计划恢复指引",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 def profile(status: ProfileStatus) -> ManagedProfile:
@@ -137,6 +165,42 @@ class ValidationFailingProfileRemover(RecordingProfileRemover):
         )
 
 
+class TransactionResultProfileRemover(RecordingProfileRemover):
+    def __init__(self, transaction: ApplyTransactionResult | None) -> None:
+        super().__init__(status=ProfileStatus.APPLIED)
+        self.transaction = transaction
+
+    def remove_profile(
+        self,
+        plan: ProfileRemovalPlan,
+        *,
+        confirmed: bool,
+    ) -> ProfileRemovalResult:
+        assert confirmed
+        return ProfileRemovalResult(
+            scope=ProfileRemovalScope.LIVE_CONFIGURATION,
+            committed_revision=None,
+            remaining_profile_count=0,
+            transaction=self.transaction,
+        )
+
+
+def failed_live_transaction(
+    outcome: ApplyOutcome,
+    *,
+    commit: CommitResult | None = None,
+    rollback: RollbackResult | None = None,
+) -> ApplyTransactionResult:
+    return ApplyTransactionResult(
+        outcome=outcome,
+        validation=ConfigValidationResult(valid=True, diagnostics="valid"),
+        runtime_refresh=None,
+        postcondition=None,
+        rollback=rollback,
+        commit=commit,
+    )
+
+
 class UnavailableProfileRemover(RecordingProfileRemover):
     def __init__(self) -> None:
         super().__init__(status=ProfileStatus.APPLIED)
@@ -213,6 +277,7 @@ def app_for(
     *,
     state_store: MemoryStateStore | None = None,
     host_diagnostics: HostDiagnostics | None = None,
+    copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
 ) -> ManagerApp:
     store = state_store or MemoryStateStore(installation(remover.status))
     return ManagerApp(
@@ -222,7 +287,97 @@ def app_for(
             profile_details_reader=FixedProfileDetailsReader(remover.status),
             profile_remover=remover,
         ),
+        interface_tools=ManagerAppInterfaceTools(copy_catalog=copy_catalog),
     )
+
+
+async def test_profile_removal_copy_catalog_flows_from_details_through_result() -> None:
+    app = app_for(
+        RecordingProfileRemover(),
+        copy_catalog=cast(CopyCatalog, ProfileRemovalMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+
+        assert app.screen.query_one("#profile-removal-title", Static).content == (
+            "目录确认移除配置"
+        )
+
+        await pilot.click("#confirm-profile-removal")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "目录草案已移除"
+        )
+
+
+async def test_profile_removal_copy_catalog_reaches_unknown_result() -> None:
+    app = app_for(
+        UnexpectedProfileRemover(),
+        copy_catalog=cast(CopyCatalog, ProfileRemovalMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-removal-error-title", Static).content == (
+            "目录无法确认移除结果"
+        )
+        assert app.screen.query_one("#profile-removal-error-details", Static).content == (
+            "目录隐藏意外错误"
+        )
+        assert app.screen.query_one("#profile-removal-error-safety", Static).content == (
+            "目录未知结果恢复指引"
+        )
+
+
+async def test_profile_removal_copy_catalog_reaches_planning_failure() -> None:
+    app = app_for(
+        UnexpectedPlanningProfileRemover(),
+        copy_catalog=cast(CopyCatalog, ProfileRemovalMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+
+        assert app.screen.query_one("#profile-removal-planning-error-title", Static).content == (
+            "目录无法准备配置移除"
+        )
+        assert (
+            app.screen.query_one("#profile-removal-planning-error-details", Static).content
+            == "目录隐藏计划错误"
+        )
+        assert (
+            app.screen.query_one("#profile-removal-planning-error-safety", Static).content
+            == "目录计划恢复指引"
+        )
+
+
+async def test_profile_removal_copy_catalog_reaches_live_result() -> None:
+    app = app_for(
+        RecordingProfileRemover(status=ProfileStatus.APPLIED),
+        copy_catalog=cast(CopyCatalog, ProfileRemovalMarkerCatalog()),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "目录配置已下线并移除"
+        )
 
 
 async def test_operator_reviews_draft_profile_removal_before_confirmation() -> None:
@@ -330,6 +485,154 @@ async def test_operator_confirms_applied_profile_shutdown_and_sees_healthy_resul
         )
         assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
             "新配置已通过校验，服务刷新和健康检查已完成。"
+        )
+
+
+async def test_missing_host_transaction_requires_identity_status_and_history_checks() -> None:
+    app = app_for(TransactionResultProfileRemover(None))
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "无法确认移除结果"
+        )
+        assert app.screen.query_one("#profile-removal-result-details", Static).content == (
+            "未收到可信的 host transaction。"
+        )
+        assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
+            "desired state 未提交，host transaction 结果未知。"
+            "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+        )
+
+
+async def test_precondition_failure_preserves_external_diagnostics_as_plain_text() -> None:
+    app = app_for(
+        TransactionResultProfileRemover(
+            failed_live_transaction(
+                ApplyOutcome.PRECONDITION_FAILED,
+                commit=CommitResult(
+                    success=False,
+                    diagnostics="[bold]fingerprint[/bold] changed",
+                ),
+            )
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+
+        details = app.screen.query_one("#profile-removal-result-details", Static)
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "服务器配置已变化，未移除"
+        )
+        assert details.content == "[bold]fingerprint[/bold] changed"
+        assert details.render().plain == details.content
+        assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
+            "本次尚未写入配置，请重新检查后再确认。"
+        )
+
+
+async def test_commit_failure_explains_that_runtime_was_not_refreshed() -> None:
+    app = app_for(
+        TransactionResultProfileRemover(
+            failed_live_transaction(
+                ApplyOutcome.COMMIT_FAILED,
+                commit=CommitResult(success=False, diagnostics="target replace denied"),
+            )
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "无法写入移除后的配置"
+        )
+        assert app.screen.query_one("#profile-removal-result-details", Static).content == (
+            "target replace denied"
+        )
+        assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
+            "尚未刷新服务，原有配置和 desired state 保持不变。"
+        )
+
+
+async def test_failed_runtime_refresh_reports_successful_rollback() -> None:
+    app = app_for(
+        TransactionResultProfileRemover(
+            failed_live_transaction(
+                ApplyOutcome.ROLLED_BACK,
+                rollback=RollbackResult(
+                    success=True,
+                    diagnostics="old configuration restored",
+                ),
+            )
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "移除失败，已自动回滚"
+        )
+        assert app.screen.query_one("#profile-removal-result-details", Static).content == (
+            "old configuration restored"
+        )
+        assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
+            "原有配置、服务和 desired state 已保留。"
+        )
+
+
+async def test_failed_rollback_renders_plain_text_manual_recovery_steps() -> None:
+    app = app_for(
+        TransactionResultProfileRemover(
+            failed_live_transaction(
+                ApplyOutcome.ROLLBACK_FAILED,
+                rollback=RollbackResult(
+                    success=False,
+                    diagnostics="[bold]rollback[/bold] restore failed",
+                    recovery_instructions=(
+                        "restore [bold]previous[/bold] configuration",
+                        "restart sing-box",
+                    ),
+                ),
+            )
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#view-profile-0")
+        await pilot.click("#remove-profile")
+        await pilot.click("#confirm-profile-removal")
+
+        details = app.screen.query_one("#profile-removal-result-details", Static)
+        first_step = app.screen.query_one("#profile-removal-recovery-step-0", Static)
+        assert app.screen.query_one("#profile-removal-result-title", Static).content == (
+            "回滚未完成，需要人工恢复"
+        )
+        assert details.content == "[bold]rollback[/bold] restore failed"
+        assert details.render().plain == details.content
+        assert app.screen.query_one("#profile-removal-result-safety", Static).content == (
+            "desired state 未提交。完成恢复前不要再次修改配置。"
+        )
+        assert first_step.content == "1. restore [bold]previous[/bold] configuration"
+        assert first_step.render().plain == first_step.content
+        assert app.screen.query_one("#profile-removal-recovery-step-1", Static).content == (
+            "2. restart sing-box"
         )
 
 

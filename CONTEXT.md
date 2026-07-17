@@ -63,7 +63,12 @@ _Avoid_: Downgrade install, manual symlink edit
 An operator-confirmed lifecycle transition that removes one exact profile from
 desired state. Removing a draft changes desired state only; removing an applied
 profile first transactionally applies the complete remaining managed
-configuration and commits desired state only after host success.
+configuration and commits desired state only after host success. Impact review,
+confirmation, progress, every typed transaction outcome, and recovery guidance
+come from one validated interface copy catalog. Profile values, typed
+diagnostics, and recovery instructions remain literal evidence with markup
+disabled; a missing or unexpected host result requires configuration-identity,
+service-status, and apply-history inspection before retry.
 _Avoid_: Delete inbound JSON, forget profile, unlink configuration
 
 **Profile edit**:

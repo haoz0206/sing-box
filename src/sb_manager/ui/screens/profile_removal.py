@@ -20,39 +20,71 @@ from sb_manager.application.profile_removal import (
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.messages import DashboardRefreshRequested
 
 
 class ProfileRemovalScreen(ConfirmedOperationScreen[None]):
     """Show exact removal impact before exposing the destructive action."""
 
-    def __init__(self, profile_remover: ProfileRemover, *, profile_id: str) -> None:
+    def __init__(
+        self,
+        profile_remover: ProfileRemover,
+        *,
+        profile_id: str,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.profile_remover = profile_remover
         self.plan: ProfileRemovalPlan = profile_remover.plan_removal(profile_id)
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         draft_only = self.plan.scope is ProfileRemovalScope.DESIRED_STATE_ONLY
         yield Header()
         with Vertical(id="profile-removal"):
-            yield Static("确认移除配置", id="profile-removal-title")
-            yield Static(f"配置：{self.plan.profile_name}", id="profile-removal-profile")
             yield Static(
-                (
-                    "只删除 manager 中的草案，不会修改 sing-box 配置或刷新服务。"
+                self.copy.text(UiText.PROFILE_REMOVAL_PLAN_TITLE),
+                id="profile-removal-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_PLAN_PROFILE,
+                    name=self.plan.profile_name,
+                ),
+                id="profile-removal-profile",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_PLAN_DRAFT_IMPACT
                     if draft_only
-                    else "将生成不含此配置的完整 sing-box 配置，校验并刷新服务。失败时自动回滚。"
+                    else UiText.PROFILE_REMOVAL_PLAN_LIVE_IMPACT
                 ),
                 id="profile-removal-impact",
+                markup=False,
             )
             yield Static(
-                f"移除后保留 {self.plan.remaining_profile_count} 个配置，"
-                f"其中 {self.plan.remaining_applied_count} 个已应用。",
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_PLAN_REMAINING,
+                    profiles=self.plan.remaining_profile_count,
+                    applied=self.plan.remaining_applied_count,
+                ),
                 id="profile-removal-remaining",
+                markup=False,
             )
-            yield Static("当前仅预览，尚未删除任何内容。", id="profile-removal-safety")
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_PLAN_SAFETY_PREVIEW),
+                id="profile-removal-safety",
+                markup=False,
+            )
             yield Button(
-                "确认移除草案" if draft_only else "确认下线并移除",
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_PLAN_CONFIRM_DRAFT
+                    if draft_only
+                    else UiText.PROFILE_REMOVAL_PLAN_CONFIRM_LIVE
+                ),
                 id="confirm-profile-removal",
                 variant="error",
             )
@@ -64,7 +96,7 @@ class ProfileRemovalScreen(ConfirmedOperationScreen[None]):
             return
         self.query_one("#confirm-profile-removal", Button).disabled = True
         self.query_one("#profile-removal-safety", Static).update(
-            "操作已确认，正在执行移除计划。完成前无法返回。"
+            self.copy.text(UiText.PROFILE_REMOVAL_PLAN_IN_PROGRESS)
         )
         self.execute_removal()
 
@@ -80,49 +112,66 @@ class ProfileRemovalScreen(ConfirmedOperationScreen[None]):
         ) as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileRemovalOperationalErrorScreen(str(error)),
+                ProfileRemovalOperationalErrorScreen(str(error), copy_catalog=self.copy),
             )
             return
         except Exception:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                ProfileRemovalOperationalErrorScreen(),
+                ProfileRemovalOperationalErrorScreen(copy_catalog=self.copy),
             )
             return
         self.app.call_from_thread(
             self.push_terminal_screen,
-            ProfileRemovalResultScreen(result),
+            ProfileRemovalResultScreen(result, copy_catalog=self.copy),
         )
 
 
 class ProfileRemovalResultScreen(Screen[None]):
     """Present the committed desired-state result of profile removal."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, result: ProfileRemovalResult) -> None:
+    def __init__(
+        self,
+        result: ProfileRemovalResult,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.result = result
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         draft_only = self.result.scope is ProfileRemovalScope.DESIRED_STATE_ONLY
         yield Header()
         with Vertical(id="profile-removal-result"):
             if draft_only:
-                yield Static("草案已移除", id="profile-removal-result-title")
                 yield Static(
-                    f"desired state 已提交 revision {self.result.committed_revision}。",
-                    id="profile-removal-result-details",
+                    self.copy.text(UiText.PROFILE_REMOVAL_RESULT_DRAFT_TITLE),
+                    id="profile-removal-result-title",
+                    markup=False,
                 )
                 yield Static(
-                    "未修改 sing-box 配置，也未刷新服务。",
+                    self.copy.text(
+                        UiText.PROFILE_REMOVAL_RESULT_REVISION,
+                        revision=self.result.committed_revision,
+                    ),
+                    id="profile-removal-result-details",
+                    markup=False,
+                )
+                yield Static(
+                    self.copy.text(UiText.PROFILE_REMOVAL_RESULT_DRAFT_SAFETY),
                     id="profile-removal-result-safety",
+                    markup=False,
                 )
             else:
                 yield from self._compose_live_result()
             if self.result.committed_revision is not None:
                 yield Button(
-                    "返回仪表盘",
+                    self.copy.text(UiText.PROFILE_REMOVAL_RESULT_RETURN_DASHBOARD),
                     id="profile-removal-return-dashboard",
                     variant="primary",
                 )
@@ -137,115 +186,194 @@ class ProfileRemovalResultScreen(Screen[None]):
     def _compose_live_result(self) -> ComposeResult:
         transaction = self.result.transaction
         if transaction is None:
-            yield Static("无法确认移除结果", id="profile-removal-result-title")
-            yield Static("未收到可信的 host transaction。", id="profile-removal-result-details")
             yield Static(
-                "desired state 未提交，请先检查服务状态。",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_DETAILS),
+                id="profile-removal-result-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_UNTRUSTED_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.APPLIED:
-            yield Static("配置已下线并移除", id="profile-removal-result-title")
             yield Static(
-                f"desired state 已提交 revision {self.result.committed_revision}。",
-                id="profile-removal-result-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_APPLIED_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
             )
             yield Static(
-                "新配置已通过校验，服务刷新和健康检查已完成。",
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_RESULT_REVISION,
+                    revision=self.result.committed_revision,
+                ),
+                id="profile-removal-result-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_APPLIED_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.VALIDATION_FAILED:
-            yield Static("配置校验失败，未移除", id="profile-removal-result-title")
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
+            )
             yield Static(
                 transaction.validation.diagnostics,
                 id="profile-removal-result-details",
+                markup=False,
             )
             yield Static(
-                "原有配置、服务和 desired state 均未改变。",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_VALIDATION_FAILED_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.PRECONDITION_FAILED:
-            yield Static("服务器配置已变化，未移除", id="profile-removal-result-title")
             yield Static(
-                transaction.commit.diagnostics
-                if transaction.commit is not None
-                else "live configuration 不再匹配已确认的版本",
-                id="profile-removal-result-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_FAILED_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
             )
             yield Static(
-                "本次尚未写入配置，请重新检查后再确认。",
+                (
+                    transaction.commit.diagnostics
+                    if transaction.commit is not None
+                    else self.copy.text(UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_FALLBACK)
+                ),
+                id="profile-removal-result-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_PRECONDITION_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
         if transaction.outcome is ApplyOutcome.COMMIT_FAILED:
-            yield Static("无法写入移除后的配置", id="profile-removal-result-title")
             yield Static(
-                transaction.commit.diagnostics
-                if transaction.commit is not None
-                else "配置提交失败",
-                id="profile-removal-result-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_COMMIT_FAILED_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
             )
             yield Static(
-                "尚未刷新服务，原有配置和 desired state 保持不变。",
+                (
+                    transaction.commit.diagnostics
+                    if transaction.commit is not None
+                    else self.copy.text(UiText.PROFILE_REMOVAL_RESULT_COMMIT_FALLBACK)
+                ),
+                id="profile-removal-result-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_COMMIT_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
         rollback = transaction.rollback
         if transaction.outcome is ApplyOutcome.ROLLED_BACK:
-            yield Static("移除失败，已自动回滚", id="profile-removal-result-title")
             yield Static(
-                rollback.diagnostics if rollback is not None else "旧配置已恢复。",
-                id="profile-removal-result-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_TITLE),
+                id="profile-removal-result-title",
+                markup=False,
             )
             yield Static(
-                "原有配置、服务和 desired state 已保留。",
+                (
+                    rollback.diagnostics
+                    if rollback is not None
+                    else self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_FALLBACK)
+                ),
+                id="profile-removal-result-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLED_BACK_SAFETY),
                 id="profile-removal-result-safety",
+                markup=False,
             )
             return
-        yield Static("回滚未完成，需要人工恢复", id="profile-removal-result-title")
         yield Static(
-            rollback.diagnostics if rollback is not None else "回滚状态未知",
-            id="profile-removal-result-details",
+            self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_TITLE),
+            id="profile-removal-result-title",
+            markup=False,
         )
         yield Static(
-            "desired state 未提交。完成恢复前不要再次修改配置。",
+            (
+                rollback.diagnostics
+                if rollback is not None
+                else self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_FALLBACK)
+            ),
+            id="profile-removal-result-details",
+            markup=False,
+        )
+        yield Static(
+            self.copy.text(UiText.PROFILE_REMOVAL_RESULT_ROLLBACK_UNKNOWN_SAFETY),
             id="profile-removal-result-safety",
+            markup=False,
         )
         if rollback is not None:
             for index, instruction in enumerate(rollback.recovery_instructions):
                 yield Static(
-                    f"{index + 1}. {instruction}",
+                    self.copy.text(
+                        UiText.PROFILE_REMOVAL_RESULT_RECOVERY_STEP,
+                        number=index + 1,
+                        instruction=instruction,
+                    ),
                     id=f"profile-removal-recovery-step-{index}",
+                    markup=False,
                 )
 
 
 class ProfileRemovalOperationalErrorScreen(Screen[None]):
     """Explain an unknown host result without claiming profile removal."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
 
-    def __init__(self, diagnostics: str | None = None) -> None:
+    def __init__(
+        self,
+        diagnostics: str | None = None,
+        *,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
         super().__init__()
         self.diagnostics = diagnostics
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-removal-error"):
-            yield Static("无法确认配置移除结果", id="profile-removal-error-title")
             yield Static(
-                self.diagnostics or "发生意外错误。底层错误未显示，以避免泄露敏感信息。",
-                id="profile-removal-error-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_OPERATIONAL_TITLE),
+                id="profile-removal-error-title",
+                markup=False,
             )
             yield Static(
-                (
-                    "desired state 未提交。请检查 sing-box 服务和 helper 日志后再决定是否重试。"
+                self.diagnostics
+                or self.copy.text(UiText.PROFILE_REMOVAL_OPERATIONAL_UNEXPECTED_DETAILS),
+                id="profile-removal-error-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_REMOVAL_OPERATIONAL_KNOWN_SAFETY
                     if self.diagnostics is not None
-                    else "服务器配置、服务和 desired state 的结果均未知。"
-                    "请先检查配置身份、服务状态和应用历史，再决定是否重试。"
+                    else UiText.PROFILE_REMOVAL_OPERATIONAL_UNKNOWN_SAFETY
                 ),
                 id="profile-removal-error-safety",
+                markup=False,
             )
         yield Footer()
 
@@ -253,18 +381,30 @@ class ProfileRemovalOperationalErrorScreen(Screen[None]):
 class ProfileRemovalPlanningErrorScreen(Screen[None]):
     """Report an unexpected read-only removal-planning failure safely."""
 
-    BINDINGS: ClassVar[list[BindingType]] = [("escape", "app.pop_screen", "返回")]
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+        super().__init__()
+        self.copy = copy_catalog
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="profile-removal-planning-error"):
-            yield Static("无法准备配置移除", id="profile-removal-planning-error-title")
             yield Static(
-                "读取配置移除计划时发生意外错误。底层错误未显示，以避免泄露敏感信息。",
-                id="profile-removal-planning-error-details",
+                self.copy.text(UiText.PROFILE_REMOVAL_PLANNING_TITLE),
+                id="profile-removal-planning-error-title",
+                markup=False,
             )
             yield Static(
-                "尚未执行任何操作。请返回配置列表，重新打开详情后再试。",
+                self.copy.text(UiText.PROFILE_REMOVAL_PLANNING_DETAILS),
+                id="profile-removal-planning-error-details",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.PROFILE_REMOVAL_PLANNING_SAFETY),
                 id="profile-removal-planning-error-safety",
+                markup=False,
             )
         yield Footer()
