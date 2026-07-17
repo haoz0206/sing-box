@@ -185,9 +185,13 @@ The task-oriented view of one desired-state snapshot that owns the complete
 profile inventory and its lifecycle entry points. The dashboard exposes only
 profile counts, one safest recommendation, and navigation into this workspace;
 ordinary return preserves the workspace context, while lifecycle success
-refreshes the snapshot through the dashboard.
+refreshes the snapshot through the dashboard. The inventory itself is read-only
+and states that every configuration change first presents a plan and requires
+explicit confirmation; its locale-specific status, port, row, and action copy
+comes from the validated interface copy catalog.
 _Avoid_: Full profile rows on the dashboard, cross-screen CSS event routing,
-stale inventory after mutation
+stale inventory after mutation, inventory buttons presented as immediate host
+effects
 
 **Network inventory**:
 A read-only projection of one desired-state revision into profile lifecycle,

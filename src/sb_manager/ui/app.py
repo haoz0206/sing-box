@@ -1700,6 +1700,7 @@ class ManagerApp(App[None]):
                 self.manager.get_installation(),
                 details_available=self.profile_details_reader is not None,
                 apply_available=self.profile_applier is not None,
+                copy_catalog=self.copy_catalog,
             )
         )
 

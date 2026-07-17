@@ -1,3 +1,5 @@
+from typing import cast
+
 from textual.widgets import Button, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -14,7 +16,21 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
-from sb_manager.ui.app import ManagerApp, ManagerAppHostTools
+from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
+from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+
+
+class ProfilesMarkerCatalog:
+    """Render markers for Profiles copy while delegating every established key."""
+
+    def text(self, key: UiText, /, **values: object) -> str:
+        markers = {
+            "profiles.title": "目录配置工作区",
+            "profiles.add": "目录添加配置",
+        }
+        if marker := markers.get(key.value):
+            return marker
+        return SIMPLIFIED_CHINESE.text(key, **values)
 
 
 def installation_with_two_profiles() -> ManagedInstallation:
@@ -85,6 +101,33 @@ async def test_dashboard_summary_opens_the_complete_profiles_workspace() -> None
             "平板 · Shadowsocks 2022 · 草案 · 自动选择端口"
         )
         assert str(app.screen.query_one("#add-profile", Button).label) == "添加配置"
+
+
+async def test_profiles_workspace_copy_comes_from_the_interface_catalog() -> None:
+    app = ManagerApp(
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfilesMarkerCatalog())
+        )
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.press("p")
+
+        assert app.screen.query_one("#profiles-workspace-title", Static).content == (
+            "目录配置工作区"
+        )
+        assert str(app.screen.query_one("#add-profile", Button).label) == "目录添加配置"
+
+
+async def test_profiles_workspace_explains_its_effect_boundary() -> None:
+    app = ManagerApp()
+
+    async with app.run_test() as pilot:
+        await pilot.press("p")
+
+        assert app.screen.query_one("#profiles-workspace-safety", Static).content == (
+            "当前清单只读。任何配置变更都会先显示计划，并在执行前要求明确确认。"
+        )
 
 
 async def test_empty_profiles_workspace_starts_the_guided_add_journey() -> None:

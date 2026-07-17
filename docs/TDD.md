@@ -377,7 +377,9 @@ Release gate adds:
   presentation plus on-demand core, service-log, and apply-history handoff; the
   profiles workspace must prove dashboard/inventory separation, capability-
   aware row actions, exact profile-ID handoff through one typed UI message,
-  `Esc` context preservation, and dashboard refresh after lifecycle success;
+  `Esc` context preservation, dashboard refresh after lifecycle success,
+  catalog injection for inventory copy, and an always-visible read-only,
+  plan-first, explicit-confirmation scope statement;
 - read-only Network workspace acceptance for empty and populated desired state,
   lifecycle-aware TCP/UDP listener intent, fixed and apply-time automatic ports,
   public addresses, explicit no-probe/no-firewall policy, contextual `n`

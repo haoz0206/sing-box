@@ -197,7 +197,12 @@ points for add, details, and draft apply. It receives one immutable snapshot and
 only renders actions whose application capabilities were injected. Row buttons
 are translated locally into one typed message carrying a stable action kind and,
 when required, a stable profile ID; the root application never listens to child
-screen CSS selectors. `Esc` from details returns to the workspace, while a
+screen CSS selectors. The inventory states that it is read-only and that every
+configuration change first presents a plan and requires explicit confirmation.
+Its title, task summary, safety statement, empty guidance, lifecycle/port
+labels, row template, and capability-aware actions render through the validated
+interface copy catalog; protocol names remain stable product identifiers.
+`Esc` from details returns to the workspace, while a
 successful lifecycle mutation uses the shared refresh message to discard stale
 child snapshots and return to a freshly recomposed dashboard.
 
@@ -912,7 +917,9 @@ Current implementation status (2026-07-17):
   subtitle, contextual bindings, read-only scope, probe states, counts,
   semantic recommendation summaries, stable action labels, navigation, and
   retry controls; the application recommendation module no longer owns
-  presentation-ready strings, and the UI discloses that no additional locale is
+  presentation-ready strings; the Profiles inventory workspace now renders its
+  task hierarchy, read-only safety boundary, rows, and capability-aware actions
+  through the catalog as well; the UI discloses that no additional locale is
   available until all remaining safety journeys have migrated;
 - dashboard observation continuity: lifecycle success and desired-state
   recovery use one UI refresh request that clears prior evidence, recomposes the
@@ -1056,7 +1063,9 @@ Current implementation status (2026-07-17):
   profiles workspace contains the complete inventory and capability-aware
   lifecycle entries. Cross-screen navigation uses typed action identity rather
   than selectors or translated labels; cancellation preserves context and
-  lifecycle success refreshes the desired-state snapshot.
+  lifecycle success refreshes the desired-state snapshot. Opening the inventory
+  is explicitly read-only, and configuration changes remain plan-first and
+  confirmation-bound.
 - The Network workspace separates declared network intent from observed host
   evidence, shows every profile's lifecycle/transport/port/public-address
   meaning, and cannot probe or mutate DNS, sockets, reachability, or firewalls

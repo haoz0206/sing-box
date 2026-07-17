@@ -45,6 +45,7 @@ exercised whenever the application imports the production catalog.
 
 This is the first complete journey, not a claim that the entire TUI is ready
 for another locale. The Dashboard status shell and semantic recommendations
-have since moved into the same catalog, but Profiles, Network, Operations,
-Diagnostics, guided forms, and their application-provided operator messages
-must migrate before a language selector or second catalog can be accepted.
+and the Profiles inventory workspace have since moved into the same catalog,
+but Profile lifecycle screens, Network, Operations, Diagnostics, guided forms,
+and their application-provided operator messages must migrate before a language
+selector or second catalog can be accepted.

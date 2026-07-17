@@ -77,6 +77,19 @@ class UiText(str, Enum):
     DASHBOARD_REFRESH_CERTIFICATES = "dashboard.refresh_certificates"
     DASHBOARD_ADOPT_CONFIGURATION = "dashboard.adopt_configuration"
     DASHBOARD_EMPTY_GUIDANCE = "dashboard.empty.guidance"
+    PROFILES_TITLE = "profiles.title"
+    PROFILES_SUMMARY = "profiles.summary"
+    PROFILES_SAFETY = "profiles.safety"
+    PROFILES_EMPTY = "profiles.empty"
+    PROFILES_PORT_AUTOMATIC = "profiles.port.automatic"
+    PROFILES_PORT_FIXED = "profiles.port.fixed"
+    PROFILES_STATUS_ACTIVE = "profiles.status.active"
+    PROFILES_STATUS_PAUSED = "profiles.status.paused"
+    PROFILES_STATUS_DRAFT = "profiles.status.draft"
+    PROFILES_ROW = "profiles.row"
+    PROFILES_VIEW_DETAILS = "profiles.view_details"
+    PROFILES_APPLY_DRAFT = "profiles.apply_draft"
+    PROFILES_ADD = "profiles.add"
     SETTINGS_TITLE = "settings.title"
     SETTINGS_BINDING = "settings.binding"
     SETTINGS_OPEN = "settings.open"
@@ -133,6 +146,8 @@ _EXPECTED_FIELDS.update(
         UiText.DASHBOARD_PROFILE_SUMMARY: frozenset({"active", "paused", "drafts"}),
         UiText.DASHBOARD_RECOMMENDATION: frozenset({"summary"}),
         UiText.DASHBOARD_RECOMMENDATION_REVIEW_DRAFTS: frozenset({"count"}),
+        UiText.PROFILES_PORT_FIXED: frozenset({"port"}),
+        UiText.PROFILES_ROW: frozenset({"name", "protocol", "status", "port"}),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
         UiText.SETTINGS_PERSISTENCE_SAVED: frozenset({"label"}),
@@ -248,6 +263,21 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.DASHBOARD_REFRESH_CERTIFICATES: "重新检查证书",
         UiText.DASHBOARD_ADOPT_CONFIGURATION: "检查并接管现有配置",
         UiText.DASHBOARD_EMPTY_GUIDANCE: ("从一个引导式配置开始。应用前你会看到完整变更计划。"),
+        UiText.PROFILES_TITLE: "配置工作区",
+        UiText.PROFILES_SUMMARY: "浏览 desired state 中的完整配置，并从这里开始生命周期操作。",
+        UiText.PROFILES_SAFETY: (
+            "当前清单只读。任何配置变更都会先显示计划，并在执行前要求明确确认。"
+        ),
+        UiText.PROFILES_EMPTY: "尚未创建代理配置。先说明使用目的，再选择合适的协议。",
+        UiText.PROFILES_PORT_AUTOMATIC: "自动选择端口",
+        UiText.PROFILES_PORT_FIXED: "端口 {port}",
+        UiText.PROFILES_STATUS_ACTIVE: "在线",
+        UiText.PROFILES_STATUS_PAUSED: "已暂停",
+        UiText.PROFILES_STATUS_DRAFT: "草案",
+        UiText.PROFILES_ROW: "{name} · {protocol} · {status} · {port}",
+        UiText.PROFILES_VIEW_DETAILS: "查看详情",
+        UiText.PROFILES_APPLY_DRAFT: "应用草案",
+        UiText.PROFILES_ADD: "添加配置",
         UiText.SETTINGS_TITLE: "设置",
         UiText.SETTINGS_BINDING: "设置",
         UiText.SETTINGS_OPEN: "打开设置",

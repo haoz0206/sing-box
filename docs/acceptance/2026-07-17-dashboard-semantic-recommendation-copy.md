@@ -55,4 +55,7 @@ is a test seam.
 ## Next migration boundary
 
 Migrate the Profiles workspace's complete safety journey into the validated
-catalog before considering another locale.
+catalog before considering another locale. The subsequent
+[Profiles workspace copy acceptance](2026-07-17-profiles-workspace-copy.md)
+completes the inventory workspace; its lifecycle confirmation screens remain
+separate migration slices.
