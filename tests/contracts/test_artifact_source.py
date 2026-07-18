@@ -1,4 +1,5 @@
 import hashlib
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -9,8 +10,10 @@ from sb_manager.seams.artifact_source import (
     ArtifactIntegrityError,
     ArtifactTrustError,
     CoreArtifactRequest,
+    CoreArtifactTrustMode,
     CoreRelease,
     CoreReleaseChannel,
+    PlannedCoreArtifact,
     VerifiedCoreArtifact,
 )
 
@@ -29,6 +32,69 @@ class FakeHttpClient:
     def download(self, url: str, destination: Path) -> None:
         self.downloads.append((url, destination))
         destination.write_bytes(self._payload)
+
+
+def planned_artifact(
+    *,
+    trust_mode: CoreArtifactTrustMode = CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+    immutable: bool = True,
+    prerelease: bool = False,
+) -> PlannedCoreArtifact:
+    version = "1.14.0-alpha.47" if prerelease else "1.13.14"
+    asset_name = f"sing-box-{version}-linux-amd64.tar.gz"
+    return PlannedCoreArtifact(
+        version=version,
+        architecture=ArtifactArchitecture.AMD64,
+        asset_name=asset_name,
+        download_url=(
+            f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{asset_name}"
+        ),
+        sha256="a" * 64,
+        trust_mode=trust_mode,
+        release_immutable=immutable,
+        prerelease=prerelease,
+    )
+
+
+def test_planned_artifact_accepts_consistent_immutable_evidence() -> None:
+    artifact = planned_artifact(prerelease=True)
+    assert artifact.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE
+    assert artifact.release_immutable is True
+    assert artifact.prerelease is True
+
+
+def test_planned_artifact_accepts_digest_pinned_stable_evidence() -> None:
+    artifact = planned_artifact(
+        trust_mode=CoreArtifactTrustMode.DIGEST_PINNED_STABLE,
+        immutable=False,
+    )
+    assert artifact.sha256 == "a" * 64
+
+
+@pytest.mark.parametrize(
+    ("trust_mode", "immutable", "prerelease"),
+    (
+        (CoreArtifactTrustMode.IMMUTABLE_RELEASE, False, False),
+        (CoreArtifactTrustMode.DIGEST_PINNED_STABLE, True, False),
+        (CoreArtifactTrustMode.DIGEST_PINNED_STABLE, False, True),
+    ),
+)
+def test_planned_artifact_rejects_inconsistent_trust_evidence(
+    trust_mode: CoreArtifactTrustMode,
+    immutable: bool,
+    prerelease: bool,
+) -> None:
+    with pytest.raises(ValueError, match="trust evidence"):
+        planned_artifact(
+            trust_mode=trust_mode,
+            immutable=immutable,
+            prerelease=prerelease,
+        )
+
+
+def test_planned_artifact_rejects_an_invalid_digest() -> None:
+    with pytest.raises(ValueError, match="SHA-256"):
+        replace(planned_artifact(), sha256="not-a-digest")
 
 
 def test_latest_stable_channel_resolves_exact_immutable_release_without_downloading() -> None:

@@ -25,6 +25,18 @@ class ArtifactTrustError(RuntimeError):
     """Release metadata does not satisfy the accepted trust policy."""
 
 
+class MutablePrereleaseArtifactError(ArtifactTrustError):
+    """A prerelease cannot use the mutable Stable fallback."""
+
+
+class ArtifactDigestUnavailableError(ArtifactTrustError):
+    """Official metadata has no usable SHA-256 for the expected asset."""
+
+
+class ArtifactMetadataChangedError(ArtifactTrustError):
+    """Upstream evidence no longer matches the operator-reviewed plan."""
+
+
 class ArtifactIntegrityError(RuntimeError):
     """Downloaded bytes do not match trusted release metadata."""
 
@@ -71,9 +83,45 @@ class CoreReleaseSource(Protocol):
     def latest(self, channel: CoreReleaseChannel) -> CoreRelease: ...
 
 
+class CoreArtifactTrustMode(str, Enum):
+    """Release-level guarantee used to bind one reviewed artifact."""
+
+    IMMUTABLE_RELEASE = "immutable-release"
+    DIGEST_PINNED_STABLE = "digest-pinned-stable"
+
+
+@dataclass(frozen=True, slots=True)
+class PlannedCoreArtifact:
+    """Exact official artifact evidence frozen before operator confirmation."""
+
+    version: str
+    architecture: ArtifactArchitecture
+    asset_name: str
+    download_url: str
+    sha256: str
+    trust_mode: CoreArtifactTrustMode
+    release_immutable: bool
+    prerelease: bool
+
+    def __post_init__(self) -> None:
+        CoreArtifactRequest(version=self.version, architecture=self.architecture)
+        if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
+            raise ValueError("Planned artifact SHA-256 is invalid")
+        trust_is_consistent = (
+            self.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE
+            and self.release_immutable
+        ) or (
+            self.trust_mode is CoreArtifactTrustMode.DIGEST_PINNED_STABLE
+            and not self.release_immutable
+            and not self.prerelease
+        )
+        if not trust_is_consistent:
+            raise ValueError("Planned artifact trust evidence is inconsistent")
+
+
 @dataclass(frozen=True, slots=True)
 class VerifiedCoreArtifact:
-    """Archive whose bytes match immutable release metadata."""
+    """Archive whose bytes match frozen artifact evidence."""
 
     version: str
     architecture: ArtifactArchitecture
