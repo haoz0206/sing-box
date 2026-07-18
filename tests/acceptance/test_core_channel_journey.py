@@ -1,5 +1,8 @@
+import asyncio
 from pathlib import Path
+from threading import Event
 
+from textual.pilot import Pilot
 from textual.widgets import Button, Static
 
 from sb_manager.application.core_update import (
@@ -19,6 +22,9 @@ from sb_manager.seams.artifact_source import (
     PlannedCoreArtifact,
 )
 from sb_manager.ui.app import ManagerApp
+from sb_manager.ui.screens.core_channels import CoreChannelSelectionScreen
+
+EXPECTED_PLANNING_ATTEMPTS = 2
 
 
 class NeverCalledExactUpdater:
@@ -178,6 +184,45 @@ class UnexpectedRetainedPreviewChannels(RetainedPreviewChannels):
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
         self.executions.append((plan, confirmed))
         raise RuntimeError("token=private-core-channel-switch-error")
+
+
+class BlockingPlanningChannels(AlreadyCurrentChannels):
+    def __init__(self) -> None:
+        super().__init__()
+        self.planning_started = Event()
+        self.release_planning = Event()
+        self.planning_returned = Event()
+
+    def plan(self, request: PlanCoreChannelRequest) -> CoreChannelPlan:
+        self.planning_started.set()
+        if not self.release_planning.wait(timeout=2):
+            raise RuntimeError("planning test release timed out")
+        plan = super().plan(request)
+        self.planning_returned.set()
+        return plan
+
+
+class FailsOncePlanningChannels(AlreadyCurrentChannels):
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempts = 0
+
+    def plan(self, request: PlanCoreChannelRequest) -> CoreChannelPlan:
+        self.attempts += 1
+        if self.attempts == 1:
+            raise RuntimeError("token=private-core-channel-planning-error")
+        return super().plan(request)
+
+
+async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
+    assert await asyncio.to_thread(event.wait, timeout)
+
+
+async def open_channel_selection(app: ManagerApp, pilot: Pilot[None]) -> CoreChannelSelectionScreen:
+    await pilot.click("#open-operations")
+    await pilot.click("#manage-core-channels")
+    assert isinstance(app.screen, CoreChannelSelectionScreen)
+    return app.screen
 
 
 async def test_operator_sees_stable_already_current_without_a_confirmation_action() -> None:
@@ -369,3 +414,144 @@ async def test_unexpected_retained_switch_result_is_unknown_and_not_disclosed() 
         assert len(app.screen.query("#confirm-core-channel")) == 0
         rendered_text = "\n".join(str(widget.content) for widget in app.screen.query(Static))
         assert "private-core-channel-switch-error" not in rendered_text
+
+
+async def test_leaving_channel_selection_discards_stale_planning_completion() -> None:
+    channels = BlockingPlanningChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        await open_channel_selection(app, pilot)
+        await pilot.click("#inspect-stable-channel")
+        await wait_for_thread_event(channels.planning_started)
+
+        await pilot.press("escape")
+        channels.release_planning.set()
+        await wait_for_thread_event(channels.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert not app.screen.query("#core-channel-current")
+        assert not app.screen.query("#core-channel-plan")
+        assert not app.screen.query("#core-channel-planning-error")
+
+
+async def test_channel_planning_completion_waits_for_help_and_is_consumed_once() -> None:
+    channels = BlockingPlanningChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        await open_channel_selection(app, pilot)
+        await pilot.click("#inspect-stable-channel")
+        await wait_for_thread_event(channels.planning_started)
+
+        await pilot.press("f1")
+        channels.release_planning.set()
+        await wait_for_thread_event(channels.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#keyboard-help")
+        assert not app.screen.query("#core-channel-current")
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.screen.query_one("#core-channel-current")
+
+        await pilot.press("escape")
+        await pilot.pause()
+        assert isinstance(app.screen, CoreChannelSelectionScreen)
+        assert not app.screen.query_one("#inspect-stable-channel", Button).disabled
+        assert not app.screen.query_one("#inspect-preview-channel", Button).disabled
+
+        await pilot.pause()
+        assert isinstance(app.screen, CoreChannelSelectionScreen)
+
+
+async def test_channel_plan_return_restores_controls_and_allows_another_plan() -> None:
+    channels = AlreadyCurrentChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        await open_channel_selection(app, pilot)
+        await pilot.click("#inspect-stable-channel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.press("escape")
+
+        assert isinstance(app.screen, CoreChannelSelectionScreen)
+        assert not app.screen.query_one("#inspect-stable-channel", Button).disabled
+        assert not app.screen.query_one("#inspect-preview-channel", Button).disabled
+
+        await pilot.click("#inspect-preview-channel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-channel-current-title", Static).content == (
+            "Preview 已是当前版本"
+        )
+        assert [request.channel for request in channels.requests] == [
+            CoreReleaseChannel.STABLE,
+            CoreReleaseChannel.PREVIEW,
+        ]
+
+
+async def test_channel_planning_error_return_restores_controls_and_allows_retry() -> None:
+    channels = FailsOncePlanningChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        await open_channel_selection(app, pilot)
+        await pilot.click("#inspect-stable-channel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-channel-planning-error")
+        await pilot.press("escape")
+
+        assert isinstance(app.screen, CoreChannelSelectionScreen)
+        assert not app.screen.query_one("#inspect-stable-channel", Button).disabled
+        assert not app.screen.query_one("#inspect-preview-channel", Button).disabled
+
+        await pilot.click("#inspect-stable-channel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-channel-current")
+        assert channels.attempts == EXPECTED_PLANNING_ATTEMPTS
+
+
+async def test_superseded_channel_planning_result_cannot_open_an_obsolete_plan() -> None:
+    channels = AlreadyCurrentChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        selection = await open_channel_selection(app, pilot)
+        obsolete_plan = channels.plan(
+            PlanCoreChannelRequest(
+                channel=CoreReleaseChannel.STABLE,
+                architecture=ArtifactArchitecture.AMD64,
+            )
+        )
+        selection._planning_generation = 2
+
+        selection._show_plan(1, obsolete_plan)
+        await pilot.pause()
+
+        assert app.screen is selection
+        assert not app.screen.query("#core-channel-current")

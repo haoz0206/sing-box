@@ -1315,9 +1315,7 @@ Current implementation status (2026-07-18):
   states before recomposing the dashboard;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
-- pending: resolution of the latest Stable artifact-trust conflict described in
-  `docs/SUPPORT.md`, plus execution of the host harness on every supported host
-  family.
+- pending: execution of the host harness on every supported host family.
 
 ## 13. Release acceptance criteria
 

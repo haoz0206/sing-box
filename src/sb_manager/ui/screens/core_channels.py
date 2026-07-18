@@ -2,7 +2,7 @@
 
 from typing import ClassVar, cast
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import ComposeResult
 from textual.binding import BindingType
 from textual.containers import Vertical
@@ -23,6 +23,8 @@ from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
 from sb_manager.ui.screens.core_update import CoreUpdateErrorScreen, CoreUpdateResultScreen
+
+_ChannelPlanningOutcome = CoreChannelPlan | None
 
 
 def _channel_label(channel: CoreReleaseChannel) -> str:
@@ -304,6 +306,9 @@ class CoreChannelSelectionScreen(Screen[None]):
         super().__init__()
         self.core_channels = core_channels
         self.copy = copy_catalog
+        self._planning_generation = 0
+        self._completed_planning_generation: int | None = None
+        self._deferred_planning_outcome: tuple[int, _ChannelPlanningOutcome] | None = None
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -371,16 +376,20 @@ class CoreChannelSelectionScreen(Screen[None]):
             return
         self.query_one("#inspect-stable-channel", Button).disabled = True
         self.query_one("#inspect-preview-channel", Button).disabled = True
+        self._planning_generation += 1
+        generation = self._planning_generation
+        self._deferred_planning_outcome = None
         self.query_one("#core-channel-progress", Static).update(
             self.copy.text(UiText.CORE_CHANNEL_LOADING, channel=_channel_label(channel))
         )
-        self.prepare_plan(channel, architecture)
+        self.prepare_plan(channel, architecture, generation)
 
     @work(thread=True, exclusive=True)
     def prepare_plan(
         self,
         channel: CoreReleaseChannel,
         architecture: ArtifactArchitecture,
+        generation: int,
     ) -> None:
         try:
             plan = self.core_channels.plan(
@@ -388,14 +397,61 @@ class CoreChannelSelectionScreen(Screen[None]):
             )
         except Exception:
             self.app.call_from_thread(
-                self.app.push_screen,
-                CoreChannelPlanningErrorScreen(self.copy),
+                self._show_planning_error,
+                generation,
             )
             return
-        self.app.call_from_thread(self._show_plan, plan)
+        self.app.call_from_thread(self._show_plan, generation, plan)
 
-    def _show_plan(self, plan: CoreChannelPlan) -> None:
-        if plan.kind is CoreChannelPlanKind.ALREADY_CURRENT:
-            self.app.push_screen(CoreChannelCurrentScreen(plan, self.copy))
+    def _planning_is_relevant(self, generation: int) -> bool:
+        return (
+            generation == self._planning_generation
+            and generation != self._completed_planning_generation
+            and self in self.app.screen_stack
+        )
+
+    def _deliver_or_defer_planning(
+        self,
+        generation: int,
+        outcome: _ChannelPlanningOutcome,
+    ) -> None:
+        if not self._planning_is_relevant(generation):
             return
-        self.app.push_screen(CoreChannelPlanScreen(self.core_channels, plan, self.copy))
+        if self.app.screen is not self:
+            self._deferred_planning_outcome = (generation, outcome)
+            return
+        self._consume_planning_outcome(generation, outcome)
+
+    def _consume_planning_outcome(
+        self,
+        generation: int,
+        outcome: _ChannelPlanningOutcome,
+    ) -> None:
+        if not self._planning_is_relevant(generation) or self.app.screen is not self:
+            return
+        self._completed_planning_generation = generation
+        self._deferred_planning_outcome = None
+        self.query_one("#inspect-stable-channel", Button).disabled = False
+        self.query_one("#inspect-preview-channel", Button).disabled = False
+        self.query_one("#core-channel-progress", Static).update("")
+        if outcome is None:
+            self.app.push_screen(CoreChannelPlanningErrorScreen(self.copy))
+            return
+        if outcome.kind is CoreChannelPlanKind.ALREADY_CURRENT:
+            self.app.push_screen(CoreChannelCurrentScreen(outcome, self.copy))
+            return
+        self.app.push_screen(CoreChannelPlanScreen(self.core_channels, outcome, self.copy))
+
+    @on(events.ScreenResume)
+    def resume_deferred_planning(self) -> None:
+        deferred = self._deferred_planning_outcome
+        if deferred is None:
+            return
+        self._deferred_planning_outcome = None
+        self._deliver_or_defer_planning(*deferred)
+
+    def _show_planning_error(self, generation: int) -> None:
+        self._deliver_or_defer_planning(generation, None)
+
+    def _show_plan(self, generation: int, plan: CoreChannelPlan) -> None:
+        self._deliver_or_defer_planning(generation, plan)
