@@ -2,6 +2,7 @@
 
 Status: Accepted  
 Date: 2026-07-16
+Amended: 2026-07-18
 
 ## Context
 
@@ -43,15 +44,19 @@ repository. Acquisition follows these rules:
    flags, and `CoreArtifactTrustMode`. Execution re-reads the release metadata
    and rejects any difference from that frozen evidence with instructions to
    create and review a new plan.
-7. Downloaded bytes are hashed and compared with constant-time equality before
-   any archive member is read or executable is run.
-8. Staging reads only regular files below the archive's single expected root.
-   It never calls unrestricted `extractall`, and rejects links, absolute paths,
-   traversal, duplicate core binaries, and a missing core binary.
-9. The staged `sing-box` executable must self-report the requested version
-   before it can cross the privileged installation seam.
-10. Acquisition and staging run without root. A later minimal privileged seam
-   performs the atomic host replacement from a verified staged manifest.
+7. The unprivileged manager downloads the archive, hashes its bytes, and uses
+   constant-time equality against the frozen SHA-256. It does not extract or
+   execute the archive.
+8. The root-only, no-network helper re-copies and re-hashes the incoming archive
+   before staging it. Staging reads only regular files below the archive's
+   single expected root. It never calls unrestricted `extractall`, and rejects
+   links, absolute paths, traversal, duplicate core binaries, and a missing
+   core binary.
+9. Inside the helper boundary, the staged `sing-box` executable must self-report
+   the requested version before atomic activation can proceed.
+10. Network metadata inspection, download, and the first SHA-256 check remain
+    unprivileged. Safe extraction, version self-verification, manifest creation,
+    and atomic host replacement remain inside the minimal privileged helper.
 
 The application plan represents prerelease compatibility risk with a stable
 `CoreUpdateWarning` identity. The Textual presentation adapter renders that
@@ -74,8 +79,9 @@ requires fixture and host evidence before adding another enum member.
 - Mutable Stable releases without an exact official URL or API digest, and all
   mutable prereleases, are intentionally unsupported by the network adapter.
 - The manager cannot silently follow upstream prereleases.
-- Privilege is not required for network access, parsing, hashing, extraction,
-  or binary inspection.
+- Privilege is not required for network metadata access, download, or the
+  manager's SHA-256 check. The no-network helper independently re-hashes and
+  owns extraction, binary inspection, manifest creation, and host replacement.
 - Core-update wording changes remain local to the interface copy catalog, while
   warning and failure classification remain testable through application and
   Textual interfaces.

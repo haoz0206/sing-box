@@ -62,9 +62,10 @@ The real configuration integration check is also opt in. Point
 .venv/bin/pytest -q -m integration
 ```
 
-The official artifact path has a separate network authorization. This example
-acquires, hashes, safely stages, self-verifies, atomically activates, and rolls
-back the current pre-release in an isolated root:
+The official artifact path has a separate network authorization. In this
+example the unprivileged side acquires and hashes the archive, then the
+root-only no-network helper re-copies, re-hashes, safely stages, self-verifies,
+atomically activates, and rolls back the current pre-release in an isolated root:
 
 ```bash
 SB_MANAGER_ARTIFACT_DOWNLOAD=download \
@@ -131,8 +132,9 @@ scheduled for removal in 1.16, so a version-capability projection is required
 before either supported channel reaches 1.16.
 
 Artifact trust remains a separate release gate. On 2026-07-18 the opt-in
-official-artifact acceptance passed download, exact digest verification, safe
-staging, isolated activation, and rollback for both current discoveries:
+official-artifact acceptance passed unprivileged download and exact digest
+verification plus helper-side re-hashing, safe staging, isolated activation,
+and rollback for both current discoveries:
 
 | Channel | Observed version | Trust mode | Official amd64 SHA-256 |
 |---|---|---|---|

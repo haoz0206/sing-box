@@ -831,7 +831,8 @@ minimum prerelease policy. `PlannedCoreArtifact` freezes the exact version,
 architecture, asset name, official URL, API SHA-256, immutable/prerelease flags,
 and trust mode inside `CoreUpdatePlan`. Execution re-inspects metadata for
 whole-value equality before downloading and hashes the downloaded bytes against
-the frozen digest. The subsequent activation seam safely stages the archive and
+the frozen digest without extracting or executing it. The root-only, no-network
+helper then re-copies and re-hashes the incoming archive, safely stages it, and
 self-verifies its version before atomic replacement.
 The `CoreArtifactSource` protocol makes the two phases explicit:
 `inspect(CoreArtifactRequest) -> PlannedCoreArtifact` is read-only, while
@@ -843,11 +844,12 @@ Textual thread workers and return UI changes to the application thread. A
 generation identity discards superseded exact-version results, while a
 temporarily covered form defers its result until screen resume. Download and
 helper execution also remain off the UI thread. A planning or acquisition
-failure before the helper starts is non-mutating and the active core remains
-unchanged. Once the helper has started, a helper failure or unclassified
-exception is conservatively an unknown activation result because it may have
-occurred before or after the atomic switch; the TUI withholds immediate retry
-and directs the operator to read-only identity and health evidence. Stable
+failure before entering the activation boundary is non-mutating and the active
+core remains unchanged. After the request enters that boundary, a helper launch
+failure, helper failure, or unclassified exception is conservatively an unknown
+activation result: the helper may never have started, or the host may already
+have changed. The TUI withholds immediate retry and directs the operator to
+read-only identity and health evidence. Stable
 digest-pinned plans expose the complete SHA-256, trust mode, and warning before
 confirmation. Typed diagnostics stay literal and use non-markup widgets.
 
@@ -862,8 +864,10 @@ screen-owned network calls. Its interface reports exact discovered channel
 releases, the active manager release, retained switch candidates, and one typed
 plan kind: already current, acquire and activate, or switch retained. An
 acquisition plan embeds the complete `PlannedCoreArtifact` and freezes all
-identities before confirmation. Already-current and retained-switch plans use
-only local manifest identities and contain no network artifact component.
+identities before confirmation. Channel discovery and plan creation require
+upstream network access. Once generated, already-current and retained-switch
+plans use only local manifest identities; their review and execution contain no
+network artifact component and perform no upstream access.
 Retained switching crosses a separate no-network privileged operation that
 accepts only a manager-catalogued relative target; acquisition continues to use
 the exact-version ADR-0003 path.

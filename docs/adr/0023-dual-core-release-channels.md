@@ -2,6 +2,7 @@
 
 Status: Accepted  
 Date: 2026-07-17
+Amended: 2026-07-18
 
 ## Context
 
@@ -28,8 +29,9 @@ and the software manual, not constants embedded in production policy.
    asset URL and API SHA-256. Preview resolves a published, non-draft,
    immutable release with `prerelease=true`; mutable Preview artifacts remain
    rejected.
-3. Discovery is read-only. It returns one exact version and channel identity;
-   it never downloads, installs, activates, or edits desired state.
+3. Discovery is read-only but requires upstream network access. It returns one
+   exact version and channel identity; it never downloads an artifact, installs,
+   activates, or edits desired state.
 4. A later acquisition plan embeds a `PlannedCoreArtifact`, freezing the
    discovered exact version, architecture, asset name, official URL, SHA-256,
    trust mode, release flags, warning identities, and observed
@@ -50,8 +52,9 @@ and the software manual, not constants embedded in production policy.
    match the directory identity and a self-verifying `sing-box` binary before
    the release is listed. Pre-manifest distributions may remain active but are
    not silently promoted to retained switch candidates.
-   Current and retained-switch plans use only these local manifest identities;
-   they do not contain upstream acquisition components or perform network I/O.
+   After network-backed channel discovery has generated them, already-current
+   and retained-switch plans use only these local manifest identities. Reviewing
+   and executing those frozen plans perform no download or upstream access.
 7. The TUI must distinguish update, already-current, and retained-release
    switch plans. Confirmed switching is non-returning until typed terminal
    evidence is available, and an unclassified post-confirmation failure remains
@@ -67,10 +70,10 @@ and the software manual, not constants embedded in production policy.
   while making their different trust floors explicit.
 - The preview channel can currently select an alpha release without calling it
   a beta artifact.
-- Offline switching is possible only after an exact release has been installed
-  and catalogued by the manager.
+- The channel entry and its planning step still require network discovery. A
+  separate local-only entry would be required to promise fully offline switching.
 - Existing pre-manifest distributions remain usable but require exact
-  reacquisition before they become trusted offline switch candidates.
+  reacquisition before they become trusted retained-switch candidates.
 - Release discovery, installed-release inspection, network acquisition, and
   privileged switching remain separate seams with distinct failure evidence.
 
