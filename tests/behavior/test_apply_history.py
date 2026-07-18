@@ -205,6 +205,30 @@ def test_failed_apply_history_redacts_persisted_material_and_remains_actionable(
     assert "[已脱敏]" in report.entries[0].diagnostics
 
 
+def test_first_apply_history_redacts_generic_snell_psk_assignment() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    store = MemoryApplyHistoryStore()
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=RecordingConfigurationApplier(
+            validation_failed_result(f"snell rejected psk={secret}")
+        ),
+        history_store=store,
+        state_store=MemoryStateStore(),
+        clock=lambda: datetime(2026, 7, 18, 8, 30, tzinfo=timezone.utc),
+        attempt_id_factory=lambda: "attempt-snell-001",
+    )
+
+    applier.apply(
+        {"inbounds": [{"type": "snell", "psk": secret}], "outbounds": []},
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+
+    entry = store.recent(limit=1)[0]
+    assert entry.diagnostics == "snell rejected psk=[已脱敏]"
+    assert entry.redacted_occurrences == 1
+    assert secret not in entry.diagnostics
+
+
 def test_apply_history_diagnostics_are_bounded_before_persistence() -> None:
     now = datetime(2026, 7, 17, 8, 30, tzinfo=timezone.utc)
     store = MemoryApplyHistoryStore()

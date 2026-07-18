@@ -14,7 +14,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
-from sb_manager.domain.protocol_material import RealityMaterial, TuicMaterial
+from sb_manager.domain.protocol_material import RealityMaterial, SnellV6Material, TuicMaterial
 from sb_manager.seams.runtime_logs import RuntimeLogCapture
 
 REQUESTED_LOG_LIMIT = 7
@@ -116,6 +116,41 @@ def test_recent_logs_are_bounded_sanitized_and_redact_persisted_and_generic_secr
     ):
         assert secret not in rendered
     assert "safe-public-key" not in rendered
+
+
+def test_recent_logs_redact_persisted_snell_psk_without_an_assignment_label() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="Snell preview",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                protocol_material=SnellV6Material(psk=secret),
+            ),
+        ),
+    )
+    service = ServiceLogService(
+        state_store=MemoryStateStore(installation),
+        log_source=FixedRuntimeLogSource(
+            RuntimeLogCapture(
+                available=True,
+                source_label="systemd journal",
+                lines=(f"snell handshake rejected {secret}",),
+            )
+        ),
+    )
+
+    report = service.read_recent()
+
+    assert report.lines == ("snell handshake rejected [已脱敏]",)
+    assert report.redacted_occurrences == 1
+    assert secret not in report.lines[0]
 
 
 def test_empty_and_unavailable_log_sources_remain_distinct_and_diagnostics_are_redacted() -> None:

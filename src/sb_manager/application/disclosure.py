@@ -8,6 +8,7 @@ from sb_manager.domain.protocol_material import (
     Hysteria2Material,
     RealityMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
@@ -21,7 +22,7 @@ REDACTION_MARKER = "[已脱敏]"
 _ANSI_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|[@-_])")
 _URI_USERINFO = re.compile(r"(?i)(\b[a-z][a-z0-9+.-]*://)([^@\s/]+)@")
 _SENSITIVE_ASSIGNMENT = re.compile(
-    r"(?i)([\"']?\b(?:password|passwd|secret|token|(?:access|refresh)[_ -]?token|"
+    r"(?i)([\"']?\b(?:password|passwd|psk|secret|token|(?:access|refresh)[_ -]?token|"
     r"auth(?:entication|orization)?|credential|api[_ -]?key|private[_ -]?key|uuid|"
     r"short[_ -]?id)\b[\"']?\s*[:=]\s*)"
     r"(?:\"[^\"]*\"|'[^']*'|(?:(?:Bearer|Basic)\s+)?[^\s,;&}]+)"
@@ -77,6 +78,8 @@ def persisted_secrets(installation: ManagedInstallation) -> tuple[str, ...]:
             (ShadowsocksMaterial, Hysteria2Material, TrojanMaterial, AnyTlsMaterial),
         ):
             candidates = (material.password,)
+        elif isinstance(material, SnellV6Material):
+            candidates = (material.psk,)
         elif isinstance(material, TuicMaterial):
             candidates = (material.user_uuid, material.password)
         elif isinstance(material, (VlessMaterial, VmessMaterial)):
