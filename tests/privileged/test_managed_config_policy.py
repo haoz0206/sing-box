@@ -19,6 +19,23 @@ from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTranspor
 ACME_DIRECTORY = Path("/var/lib/sing-box-manager/acme")
 
 
+def snell_document() -> dict[str, object]:
+    return {
+        "inbounds": [
+            {
+                "type": "snell",
+                "tag": "profile-7",
+                "listen": "::",
+                "listen_port": 18443,
+                "version": 6,
+                "psk": "0123456789ab",
+                "mode": "default",
+            }
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+
+
 def write_fake_sing_box(tmp_path: Path) -> Path:
     binary = tmp_path / "sing-box"
     binary.write_text(
@@ -101,6 +118,107 @@ def test_every_product_generated_protocol_is_inside_privileged_policy(
     ManagedConfigurationPolicy().validate(
         generated_document(tmp_path, protocol, transport=transport)
     )
+
+
+def test_bounded_snell_v6_is_inside_privileged_policy() -> None:
+    ManagedConfigurationPolicy().validate(snell_document())
+
+
+def test_snell_psk_accepts_the_maximum_ascii_length() -> None:
+    document = snell_document()
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    inbound["psk"] = "a" * 255
+
+    ManagedConfigurationPolicy().validate(document)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("version", 5),
+        ("version", True),
+        ("version", "6"),
+        ("mode", "unshaped"),
+        ("mode", "unsafe-raw"),
+        ("mode", 6),
+    ),
+)
+def test_snell_version_and_mode_are_exact(field: str, value: object) -> None:
+    document = snell_document()
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    inbound[field] = value
+
+    with pytest.raises(
+        PrivilegedInputError,
+        match=r"^Managed snell version or mode is invalid$",
+    ):
+        ManagedConfigurationPolicy().validate(document)
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "missing"),
+    (
+        ("version", None, True),
+        ("psk", None, True),
+        ("mode", None, True),
+        ("users", [], False),
+        ("userkey", "unsafe", False),
+        ("tls", {"enabled": True}, False),
+        ("transport", {"type": "tcp"}, False),
+        ("sniff", True, False),
+    ),
+)
+def test_snell_fields_are_exact(field: str, value: object, missing: bool) -> None:
+    document = snell_document()
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    if missing:
+        inbound.pop(field)
+    else:
+        inbound[field] = value
+
+    with pytest.raises(PrivilegedInputError, match="Managed snell inbound fields"):
+        ManagedConfigurationPolicy().validate(document)
+
+
+@pytest.mark.parametrize(
+    ("psk", "message"),
+    (
+        ("a" * 11, "Managed snell psk length is invalid"),
+        ("a" * 256, "Managed snell psk length is invalid"),
+        ("密钥不应泄露", "Managed snell psk must be ASCII"),
+        ("", "Managed snell psk length is invalid"),
+        (None, "Managed snell psk length is invalid"),
+        (123, "Managed snell psk length is invalid"),
+    ),
+)
+def test_snell_psk_is_bounded_ascii_without_secret_disclosure(
+    psk: object,
+    message: str,
+) -> None:
+    document = snell_document()
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    inbound["psk"] = psk
+
+    with pytest.raises(PrivilegedInputError) as captured:
+        ManagedConfigurationPolicy().validate(document)
+
+    assert str(captured.value) == message
+    assert captured.value.__cause__ is None
+    assert captured.value.__context__ is None
+    if isinstance(psk, str) and psk:
+        assert psk not in str(captured.value)
 
 
 def test_unknown_top_level_capability_is_rejected(tmp_path: Path) -> None:

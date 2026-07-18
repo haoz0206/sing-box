@@ -9,6 +9,9 @@ from sb_manager.privileged.errors import PrivilegedInputError
 
 MAX_MANAGED_INBOUNDS = 128
 MAX_LISTEN_PORT = 65535
+SNELL_V6_VERSION = 6
+MIN_SNELL_PSK_BYTES = 12
+MAX_SNELL_PSK_BYTES = 255
 PROFILE_TAG_PATTERN = re.compile(r"profile-[1-9][0-9]*")
 TRUSTED_TLS_DIRECTORY = Path("/etc/sing-box-manager/tls")
 ACME_DATA_DIRECTORY = Path("/var/lib/sing-box-manager/acme")
@@ -125,6 +128,7 @@ class ManagedConfigurationPolicy:
         if inbound_type == "vmess":
             return self._validate_vmess(inbound)
         validators = {
+            "snell": self._validate_snell,
             "shadowsocks": self._validate_shadowsocks,
             "hysteria2": self._validate_hysteria2,
             "trojan": self._validate_password_tls,
@@ -135,6 +139,32 @@ class ManagedConfigurationPolicy:
         if validator is None:
             raise PrivilegedInputError(f"Unsupported managed inbound type: {inbound_type}")
         return validator(inbound)
+
+    def _validate_snell(
+        self,
+        inbound: dict[str, object],
+    ) -> tuple[str, int, tuple[str, str] | None]:
+        tag, port = self._validate_common(
+            inbound,
+            inbound_type="snell",
+            fields={"type", "tag", "listen", "listen_port", "version", "psk", "mode"},
+        )
+        try:
+            version = self._integer(inbound["version"], role="snell version")
+        except PrivilegedInputError as error:
+            raise PrivilegedInputError("Managed snell version or mode is invalid") from error
+        mode = inbound["mode"]
+        if version != SNELL_V6_VERSION or not isinstance(mode, str) or mode != "default":
+            raise PrivilegedInputError("Managed snell version or mode is invalid")
+        psk = inbound["psk"]
+        if not isinstance(psk, str) or not psk:
+            raise PrivilegedInputError("Managed snell psk length is invalid")
+        if not psk.isascii():
+            raise PrivilegedInputError("Managed snell psk must be ASCII")
+        encoded_psk = psk.encode("ascii")
+        if not MIN_SNELL_PSK_BYTES <= len(encoded_psk) <= MAX_SNELL_PSK_BYTES:
+            raise PrivilegedInputError("Managed snell psk length is invalid")
+        return tag, port, None
 
     def _validate_common(
         self,

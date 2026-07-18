@@ -34,6 +34,23 @@ def managed_document() -> dict[str, object]:
     }
 
 
+def invalid_snell_document() -> dict[str, object]:
+    return {
+        "inbounds": [
+            {
+                "type": "snell",
+                "tag": "profile-7",
+                "listen": "::",
+                "listen_port": 18443,
+                "version": 6,
+                "psk": "0123456789ab",
+                "mode": "unsafe-raw",
+            }
+        ],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+
+
 class HealthyRuntime:
     def __init__(self) -> None:
         self.calls: list[str] = []
@@ -205,6 +222,23 @@ def test_configuration_outside_managed_subset_is_rejected_before_host_transactio
 
     assert not install_policy.config_path.exists()
     assert list(install_policy.working_directory.iterdir()) == []
+
+
+def test_invalid_snell_is_rejected_before_host_transaction(tmp_path: Path) -> None:
+    install_policy = policy(tmp_path, core_binary=validator_binary(tmp_path, valid=True))
+    sha256 = write_incoming_config(install_policy, invalid_snell_document())
+
+    with pytest.raises(
+        PrivilegedInputError,
+        match=r"^Managed snell version or mode is invalid$",
+    ):
+        PrivilegedConfigApplyService(
+            policy=install_policy,
+            runtime=RuntimeThatMustNotBeCalled(),
+        ).apply_config(ApplyConfigRequest(sha256=sha256))
+
+    assert not install_policy.config_path.exists()
+    assert not any(install_policy.working_directory.rglob("*"))
 
 
 def test_duplicate_json_fields_are_rejected_before_policy_evaluation(tmp_path: Path) -> None:
