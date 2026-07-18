@@ -1,3 +1,5 @@
+import asyncio
+from threading import Event, get_ident
 from typing import cast
 
 from textual.widgets import Button, Static
@@ -7,6 +9,7 @@ from sb_manager.application.manager import Manager
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
+    ProfileApplyPlan,
 )
 from sb_manager.application.profile_details import ProfileDetails
 from sb_manager.domain.installation import (
@@ -72,9 +75,42 @@ class FixedProfileDetailsReader:
         )
 
 
-class NeverCalledProfileApplier:
+class PlanningOnlyProfileApplier:
+    def __init__(self) -> None:
+        self.planned_profile_ids: list[str] = []
+        self.planning_thread_ids: list[int] = []
+
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planned_profile_ids.append(profile_id)
+        self.planning_thread_ids.append(get_ident())
+        return ProfileApplyPlan(
+            profile_id=profile_id,
+            profile_name="平板",
+            expected_revision=2,
+            observed_core_version="1.14.0-alpha.47",
+        )
+
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         raise AssertionError("opening draft confirmation must not apply a profile")
+
+
+class BlockingPlanningOnlyProfileApplier(PlanningOnlyProfileApplier):
+    def __init__(self) -> None:
+        super().__init__()
+        self.planning_started = Event()
+        self.release_planning = Event()
+        self.planning_returned = Event()
+
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planning_started.set()
+        assert self.release_planning.wait(timeout=1)
+        plan = super().plan_profile(profile_id)
+        self.planning_returned.set()
+        return plan
+
+
+async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
+    assert await asyncio.to_thread(event.wait, timeout)
 
 
 async def test_dashboard_summary_opens_the_complete_profiles_workspace() -> None:
@@ -177,9 +213,10 @@ async def test_operator_opens_profile_details_and_returns_to_the_workspace() -> 
 
 
 async def test_operator_reviews_one_exact_draft_from_the_profiles_workspace() -> None:
+    profile_applier = PlanningOnlyProfileApplier()
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation_with_two_profiles())),
-        profile_applier=NeverCalledProfileApplier(),
+        profile_applier=profile_applier,
     )
 
     async with app.run_test() as pilot:
@@ -189,9 +226,56 @@ async def test_operator_reviews_one_exact_draft_from_the_profiles_workspace() ->
         assert str(app.screen.query_one("#apply-profile-1", Button).label) == "应用草案"
 
         await pilot.click("#apply-profile-1")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
 
         assert app.screen.query_one("#apply-confirm-profile", Static).content == "配置：平板"
+        assert profile_applier.planned_profile_ids == ["profile-tablet"]
 
         await pilot.press("escape")
 
         assert app.screen.query_one("#profiles-workspace-title", Static).content == "配置工作区"
+
+
+async def test_profiles_workspace_plans_draft_apply_off_the_ui_thread() -> None:
+    ui_thread_id = get_ident()
+    profile_applier = PlanningOnlyProfileApplier()
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation_with_two_profiles())),
+        profile_applier=profile_applier,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#apply-profile-1")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert profile_applier.planning_thread_ids
+        assert profile_applier.planning_thread_ids[0] != ui_thread_id
+        assert app.screen.query_one("#apply-confirm-profile", Static).content == "配置：平板"
+
+
+async def test_leaving_profiles_workspace_discards_stale_draft_apply_plan() -> None:
+    profile_applier = BlockingPlanningOnlyProfileApplier()
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation_with_two_profiles())),
+        profile_applier=profile_applier,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-profiles")
+        await pilot.click("#apply-profile-1")
+        await wait_for_thread_event(profile_applier.planning_started)
+
+        assert app.screen.query_one("#apply-profile-1", Button).disabled
+        await pilot.press("escape")
+        profile_applier.release_planning.set()
+        await wait_for_thread_event(profile_applier.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert not app.screen.query("#apply-confirmation")
+        assert app.screen.query_one("#profile-summary", Static).content == (
+            "配置：1 在线 · 0 已暂停 · 1 草案"
+        )

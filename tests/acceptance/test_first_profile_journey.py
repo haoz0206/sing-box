@@ -432,6 +432,12 @@ class IncompatibleProfileApplyPlanner(RecordingProfileApplier):
         )
 
 
+class UnexpectedProfileApplyPlanner(RecordingProfileApplier):
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planned_profile_ids.append(profile_id)
+        raise RuntimeError("psk=private-saved-draft-planning-error")
+
+
 class RollbackFailingProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
@@ -1995,11 +2001,15 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
             "审阅并应用草案"
         )
         await pilot.click("#dashboard-primary-action")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
 
         assert app.screen.query_one("#apply-confirm-profile", Static).content == (
             "配置：待应用手机"
         )
         await pilot.click("#confirm-apply")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
 
         assert profile_applier.planned_profile_ids == ["saved-draft"]
         assert profile_applier.requests == [
@@ -2010,6 +2020,82 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
                 expected_core_version="1.14.0-alpha.47",
             )
         ]
+
+
+async def test_dashboard_draft_apply_planning_incompatibility_is_typed_and_safe() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="saved-snell-draft",
+                profile_name="Surge 手机",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+            ),
+        ),
+    )
+    profile_applier = IncompatibleProfileApplyPlanner()
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_applier=profile_applier,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#protocol-compatibility-observed", Static).content == (
+            "当前核心：1.13.9"
+        )
+        assert app.screen.query_one("#protocol-compatibility-safety", Static).content == (
+            "草案仍保留; 未修改 managed configuration 或运行中的服务。"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "snell-v6 requires" not in rendered
+        assert profile_applier.requests == []
+        assert app.manager.get_installation().profiles[0].status is ProfileStatus.DRAFT
+
+
+async def test_dashboard_draft_apply_unexpected_planning_failure_preserves_draft() -> None:
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="saved-draft",
+                profile_name="待应用手机",
+                protocol=ProtocolKind.VLESS_REALITY,
+                listen_port=4433,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+            ),
+        ),
+    )
+    profile_applier = UnexpectedProfileApplyPlanner()
+    app = ManagerApp(
+        manager=Manager(state_store=MemoryStateStore(installation)),
+        profile_applier=profile_applier,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#profile-planning-error-title", Static).content == (
+            "无法准备配置计划"
+        )
+        assert app.screen.query_one("#profile-planning-error-safety", Static).content == (
+            "草案仍保留; 尚未应用配置，也未修改 managed configuration 或运行中的服务。"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-saved-draft-planning-error" not in rendered
+        assert profile_applier.requests == []
+        assert app.manager.get_installation().profiles[0].status is ProfileStatus.DRAFT
 
 
 async def test_changed_live_configuration_is_reported_without_claiming_a_rollback() -> None:

@@ -6,6 +6,7 @@ from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Static
 
 from sb_manager.adapters.memory_state import MemoryStateStore
@@ -46,6 +47,7 @@ from sb_manager.application.manager import (
 from sb_manager.application.network_inventory import build_network_inventory
 from sb_manager.application.profile_apply import (
     ProfileApplier,
+    ProfileApplyPlan,
 )
 from sb_manager.application.profile_availability import (
     ProfileAvailabilityManager,
@@ -66,6 +68,7 @@ from sb_manager.application.profile_recommendation import (
 from sb_manager.application.profile_removal import (
     ProfileRemover,
 )
+from sb_manager.application.protocol_compatibility import ProtocolCompatibilityError
 from sb_manager.application.service_logs import ServiceLogReader
 from sb_manager.application.state_recovery import (
     RecoveryAvailability,
@@ -97,6 +100,8 @@ from sb_manager.ui.screens.profile_creation import (
     GUIDED_PROFILES_BY_VARIANT,
     ApplyConfirmationScreen,
     GuidedProfileScreen,
+    ProfilePlanningUnexpectedErrorScreen,
+    ProtocolCompatibilityErrorScreen,
 )
 from sb_manager.ui.screens.profile_details import (
     ProfileDetailsCapabilities,
@@ -281,6 +286,7 @@ class ManagerApp(App[None]):
         self._host_diagnostics_failed = False
         self._host_readiness_failed = False
         self._certificate_diagnostics_failed = False
+        self._saved_draft_apply_planning_generation = 0
 
     def _inspect_state_recovery(
         self,
@@ -996,12 +1002,140 @@ class ManagerApp(App[None]):
             return
         if profile.status is not ProfileStatus.DRAFT:
             return
-        plan = self.profile_applier.plan_profile(profile.profile_id)
+        origin_screen = self.screen
+        origin_button = self._saved_draft_apply_origin_button(profile.profile_id)
+        if origin_button is None:
+            return
+        self._saved_draft_apply_planning_generation += 1
+        generation = self._saved_draft_apply_planning_generation
+        origin_button.disabled = True
+        self._plan_saved_draft_apply_worker(
+            profile.profile_id,
+            generation,
+            origin_screen,
+            origin_button,
+        )
+
+    def _saved_draft_apply_origin_button(self, profile_id: str) -> Button | None:
+        for candidate in self.screen.query(".apply-profile-action"):
+            if isinstance(candidate, Button) and candidate.name == profile_id:
+                return candidate
+        dashboard_actions = self.screen.query("#dashboard-primary-action")
+        if dashboard_actions and isinstance(dashboard_actions.first(), Button):
+            return dashboard_actions.first(Button)
+        return None
+
+    @work(thread=True, exclusive=True)
+    def _plan_saved_draft_apply_worker(
+        self,
+        profile_id: str,
+        generation: int,
+        origin_screen: Screen[None],
+        origin_button: Button,
+    ) -> None:
+        assert self.profile_applier is not None
+        try:
+            plan = self.profile_applier.plan_profile(profile_id)
+        except ProtocolCompatibilityError as error:
+            self.call_from_thread(
+                self._show_saved_draft_apply_compatibility_error,
+                generation,
+                origin_screen,
+                origin_button,
+                error,
+            )
+            return
+        except Exception:
+            self.call_from_thread(
+                self._show_saved_draft_apply_planning_error,
+                generation,
+                origin_screen,
+                origin_button,
+            )
+            return
+        self.call_from_thread(
+            self._show_saved_draft_apply_confirmation,
+            generation,
+            origin_screen,
+            origin_button,
+            plan,
+        )
+
+    def _current_saved_draft_apply_planning(
+        self,
+        generation: int,
+        origin_screen: Screen[None],
+        origin_button: Button,
+    ) -> bool:
+        return (
+            generation == self._saved_draft_apply_planning_generation
+            and origin_screen.is_mounted
+            and origin_button.is_mounted
+            and self.screen is origin_screen
+        )
+
+    def _show_saved_draft_apply_confirmation(
+        self,
+        generation: int,
+        origin_screen: Screen[None],
+        origin_button: Button,
+        plan: ProfileApplyPlan,
+    ) -> None:
+        if not self._current_saved_draft_apply_planning(
+            generation,
+            origin_screen,
+            origin_button,
+        ):
+            return
+        origin_button.disabled = False
+        assert self.profile_applier is not None
         self.push_screen(
             ApplyConfirmationScreen(
                 plan,
                 self.profile_applier,
                 copy_catalog=self.copy_catalog,
+            )
+        )
+
+    def _show_saved_draft_apply_compatibility_error(
+        self,
+        generation: int,
+        origin_screen: Screen[None],
+        origin_button: Button,
+        error: ProtocolCompatibilityError,
+    ) -> None:
+        if not self._current_saved_draft_apply_planning(
+            generation,
+            origin_screen,
+            origin_button,
+        ):
+            return
+        origin_button.disabled = False
+        self.push_screen(
+            ProtocolCompatibilityErrorScreen(
+                error,
+                self.copy_catalog,
+                draft_exists=True,
+            )
+        )
+
+    def _show_saved_draft_apply_planning_error(
+        self,
+        generation: int,
+        origin_screen: Screen[None],
+        origin_button: Button,
+    ) -> None:
+        if not self._current_saved_draft_apply_planning(
+            generation,
+            origin_screen,
+            origin_button,
+        ):
+            return
+        origin_button.disabled = False
+        self.push_screen(
+            ProfilePlanningUnexpectedErrorScreen(
+                self.copy_catalog,
+                draft_exists=True,
             )
         )
 

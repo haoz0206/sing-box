@@ -791,6 +791,7 @@ class UiText(str, Enum):
     PROFILE_CREATION_PLANNING_ERROR_TITLE = "profile_creation.planning_error.title"
     PROFILE_CREATION_PLANNING_ERROR_DETAILS = "profile_creation.planning_error.details"
     PROFILE_CREATION_PLANNING_ERROR_SAFETY = "profile_creation.planning_error.safety"
+    PROFILE_CREATION_PLANNING_ERROR_SAFETY_APPLY = "profile_creation.planning_error.safety_apply"
     PROFILE_CREATION_COMPATIBILITY_TITLE = "profile_creation.compatibility.title"
     PROFILE_CREATION_COMPATIBILITY_CHANGED_TITLE = "profile_creation.compatibility.changed.title"
     PROFILE_CREATION_COMPATIBILITY_PROTOCOL = "profile_creation.compatibility.protocol"
@@ -2062,6 +2063,9 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY: (
             "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。"
+        ),
+        UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY_APPLY: (
+            "草案仍保留; 尚未应用配置，也未修改 managed configuration 或运行中的服务。"
         ),
         UiText.PROFILE_CREATION_COMPATIBILITY_TITLE: "当前核心无法使用 {protocol}",
         UiText.PROFILE_CREATION_COMPATIBILITY_CHANGED_TITLE: "核心版本在规划后发生变化",

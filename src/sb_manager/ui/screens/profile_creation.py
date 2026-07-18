@@ -636,7 +636,12 @@ class DraftSavedScreen(Screen[None]):
         if not self._current_apply_planning(generation):
             return
         self._restore_apply_button()
-        self.app.push_screen(ProfilePlanningUnexpectedErrorScreen(self.copy))
+        self.app.push_screen(
+            ProfilePlanningUnexpectedErrorScreen(
+                self.copy,
+                draft_exists=True,
+            )
+        )
 
     def _show_apply_confirmation(self, generation: int, plan: ProfileApplyPlan) -> None:
         if not self._current_apply_planning(generation):
@@ -931,9 +936,15 @@ class ProfilePlanningUnexpectedErrorScreen(Screen[None]):
         ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
     ]
 
-    def __init__(self, copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE) -> None:
+    def __init__(
+        self,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+        *,
+        draft_exists: bool = False,
+    ) -> None:
         super().__init__()
         self.copy = copy_catalog
+        self.draft_exists = draft_exists
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -949,7 +960,11 @@ class ProfilePlanningUnexpectedErrorScreen(Screen[None]):
                 markup=False,
             )
             yield Static(
-                self.copy.text(UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY),
+                self.copy.text(
+                    UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY_APPLY
+                    if self.draft_exists
+                    else UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY
+                ),
                 id="profile-planning-error-safety",
                 markup=False,
             )
