@@ -20,22 +20,21 @@ class ConnectionShareApp(App[None]):
 
 
 @pytest.mark.parametrize(
-    ("kind_name", "label", "content"),
+    ("payload_kind", "label", "content"),
     (
-        ("URI", "连接 URI", "vless://credential-bearing-uri"),
+        (ConnectionPayloadKind.URI, "连接 URI", "vless://credential-bearing-uri"),
         (
-            "SURGE_POLICY",
+            ConnectionPayloadKind.SURGE_POLICY,
             "Surge 策略",
             "snell = snell, vpn.example.com, 443, psk=credential-bearing-policy",
         ),
     ),
 )
 async def test_connection_payload_requires_explicit_reveal_and_can_be_hidden_again(
-    kind_name: str,
+    payload_kind: ConnectionPayloadKind,
     label: str,
     content: str,
 ) -> None:
-    payload_kind = getattr(ConnectionPayloadKind, kind_name)
     connection_info = ProfileConnectionInfo(
         server_address="vpn.example.com",
         server_port=443,

@@ -1,5 +1,7 @@
 """Explicit, one-page disclosure of credential-bearing connection payloads."""
 
+from typing import NoReturn
+
 from textual import on
 from textual.app import ComposeResult
 from textual.widget import Widget
@@ -7,6 +9,10 @@ from textual.widgets import Button, Label, Static, TextArea
 
 from sb_manager.protocols.catalog import ConnectionPayloadKind, ProfileConnectionInfo
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+
+
+def _assert_never(value: NoReturn) -> NoReturn:
+    raise AssertionError(f"Unhandled connection payload kind: {value!r}")
 
 
 class ConnectionSharePanel(Widget):
@@ -81,6 +87,9 @@ class ConnectionSharePanel(Widget):
         )
 
     def _payload_label_key(self) -> UiText:
-        if self._connection_info.payload.kind is ConnectionPayloadKind.URI:
+        payload_kind = self._connection_info.payload.kind
+        if payload_kind is ConnectionPayloadKind.URI:
             return UiText.CONNECTION_SHARE_LABEL_URI
-        return UiText.CONNECTION_SHARE_LABEL_SURGE_POLICY
+        if payload_kind is ConnectionPayloadKind.SURGE_POLICY:
+            return UiText.CONNECTION_SHARE_LABEL_SURGE_POLICY
+        return _assert_never(payload_kind)  # type: ignore[unreachable]

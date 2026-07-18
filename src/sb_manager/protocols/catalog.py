@@ -87,6 +87,8 @@ class ConnectionPayload:
     content: str
 
     def __post_init__(self) -> None:
+        if not isinstance(self.kind, ConnectionPayloadKind):
+            raise ValueError("Unsupported connection payload kind")
         if not self.content:
             raise ValueError("Connection payload cannot be empty")
 

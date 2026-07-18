@@ -90,6 +90,14 @@ def test_connection_payload_rejects_empty_content() -> None:
         )
 
 
+def test_connection_payload_rejects_unknown_runtime_kind() -> None:
+    with pytest.raises(ValueError, match="Unsupported connection payload kind"):
+        ConnectionPayload(
+            kind="unknown",  # type: ignore[arg-type]
+            content="credential-bearing-payload",
+        )
+
+
 def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
     catalog = ProtocolCatalog(
         (ShadowsocksHandler(material_source=FixedShadowsocksMaterialSource()),)
