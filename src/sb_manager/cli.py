@@ -33,6 +33,7 @@ from sb_manager.adapters.secure_random import SecureRandomSource
 from sb_manager.adapters.shadowsocks_material import SecureShadowsocksMaterialSource
 from sb_manager.adapters.sing_box_core_status import SingBoxCoreStatusInspector
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
+from sb_manager.adapters.snell_material import SecureSnellV6MaterialSource
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.adapters.systemd_logs import SystemdJournalLogSource
 from sb_manager.adapters.systemd_runtime import SystemdRuntime
@@ -77,6 +78,7 @@ from sb_manager.protocols.catalog import (
     ProtocolCatalog,
     RealityHandler,
     ShadowsocksHandler,
+    SnellV6Handler,
     TrojanHandler,
     TuicHandler,
     VlessTlsHandler,
@@ -165,6 +167,9 @@ def create_protocol_catalog(
             ),
             ShadowsocksHandler(
                 material_source=SecureShadowsocksMaterialSource(random_source=random_source)
+            ),
+            SnellV6Handler(
+                material_source=SecureSnellV6MaterialSource(random_source=random_source)
             ),
             Hysteria2Handler(
                 material_source=SecureHysteria2MaterialSource(random_source=random_source),

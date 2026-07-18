@@ -19,6 +19,7 @@ from sb_manager.domain.protocol_material import (
     ProtocolMaterial,
     RealityMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
@@ -59,6 +60,11 @@ class TaggedShadowsocksMaterialData(TypedDict):
     password: str
 
 
+class TaggedSnellV6MaterialData(TypedDict):
+    kind: Literal["snell-v6"]
+    psk: str
+
+
 class TaggedHysteria2MaterialData(TypedDict):
     kind: Literal["hysteria2"]
     password: str
@@ -93,6 +99,7 @@ class TaggedVmessMaterialData(TypedDict):
 ProtocolMaterialData = (
     TaggedRealityMaterialData
     | TaggedShadowsocksMaterialData
+    | TaggedSnellV6MaterialData
     | TaggedHysteria2MaterialData
     | TaggedTrojanMaterialData
     | TaggedAnyTlsMaterialData
@@ -320,6 +327,11 @@ class JsonFileStateStore:
                 kind="shadowsocks-2022",
                 password=material.password,
             )
+        elif isinstance(material, SnellV6Material):
+            data = TaggedSnellV6MaterialData(
+                kind="snell-v6",
+                psk=material.psk,
+            )
         elif isinstance(material, Hysteria2Material):
             data = TaggedHysteria2MaterialData(
                 kind="hysteria2",
@@ -369,6 +381,8 @@ class JsonFileStateStore:
             )
         elif data["kind"] == "shadowsocks-2022":
             material = ShadowsocksMaterial(password=data["password"])
+        elif data["kind"] == "snell-v6":
+            material = SnellV6Material(psk=data["psk"])
         elif data["kind"] == "hysteria2":
             material = Hysteria2Material(password=data["password"])
         elif data["kind"] == "trojan":

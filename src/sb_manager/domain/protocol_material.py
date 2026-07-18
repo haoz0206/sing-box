@@ -1,7 +1,10 @@
 """Persisted protocol-specific material carried by managed profiles."""
 
+import re
 from dataclasses import dataclass
 from typing import TypeAlias
+
+SNELL_V6_PSK_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +23,17 @@ class ShadowsocksMaterial:
     """Generated pre-shared key for one Shadowsocks 2022 profile."""
 
     password: str
+
+
+@dataclass(frozen=True, slots=True)
+class SnellV6Material:
+    """Generated pre-shared key for one managed Snell v6 profile."""
+
+    psk: str
+
+    def __post_init__(self) -> None:
+        if SNELL_V6_PSK_PATTERN.fullmatch(self.psk) is None:
+            raise ValueError("Managed Snell v6 PSK must be 43 URL-safe characters")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +82,7 @@ class VmessMaterial:
 ProtocolMaterial: TypeAlias = (
     RealityMaterial
     | ShadowsocksMaterial
+    | SnellV6Material
     | Hysteria2Material
     | TrojanMaterial
     | AnyTlsMaterial

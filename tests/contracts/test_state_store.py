@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import cast
 
@@ -16,6 +17,7 @@ from sb_manager.domain.protocol_material import (
     Hysteria2Material,
     ProtocolMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
@@ -128,6 +130,66 @@ def test_json_state_store_round_trips_tagged_shadowsocks_material(tmp_path: Path
     JsonFileStateStore(state_path).save(expected)
 
     assert JsonFileStateStore(state_path).load() == expected
+
+
+def test_json_state_store_round_trips_tagged_snell_v6_material(tmp_path: Path) -> None:
+    state_path = tmp_path / "state.json"
+    material = SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+    expected = ManagedInstallation(
+        schema_version=1,
+        revision=2,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="Snell preview",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                protocol_material=material,
+                server_address="proxy.example.com",
+            ),
+        ),
+    )
+
+    JsonFileStateStore(state_path).save(expected)
+
+    assert JsonFileStateStore(state_path).load() == expected
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert payload["profiles"][0]["protocol_material"] == {
+        "kind": "snell-v6",
+        "psk": material.psk,
+    }
+
+
+def test_json_state_store_rejects_malformed_tagged_snell_v6_material() -> None:
+    payload = {
+        "schema_version": 1,
+        "revision": 2,
+        "profiles": [
+            {
+                "profile_id": "profile-7",
+                "profile_name": "Snell preview",
+                "protocol": "snell-v6",
+                "listen_port": 18443,
+                "port_selection": "fixed",
+                "status": "applied",
+                "enabled": True,
+                "reality_material": None,
+                "protocol_material": {"kind": "snell-v6", "psk": "too-short"},
+                "server_address": "proxy.example.com",
+                "tls_intent": None,
+                "transport_intent": None,
+            }
+        ],
+        "expected_config_sha256": None,
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="Managed Snell v6 PSK must be 43 URL-safe characters",
+    ):
+        JsonFileStateStore.load_payload(json.dumps(payload).encode())
 
 
 def test_json_state_store_migrates_legacy_reality_material(tmp_path: Path) -> None:

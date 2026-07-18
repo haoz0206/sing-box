@@ -43,6 +43,22 @@ def test_operator_can_plan_a_reality_profile_without_host_changes() -> None:
     )
 
 
+def test_operator_can_plan_snell_v6_without_tls_or_transport_choices() -> None:
+    plan = Manager().plan_profile(
+        PlanProfileRequest(
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=18443,
+            server_address="proxy.example.com",
+        )
+    )
+
+    assert plan.protocol is ProtocolKind.SNELL_V6
+    assert plan.generated_values == (GeneratedValue.SNELL_PSK,)
+    assert plan.tls_intent is None
+    assert plan.transport_intent is None
+
+
 def test_operator_is_told_when_a_profile_name_is_missing() -> None:
     manager = Manager()
 

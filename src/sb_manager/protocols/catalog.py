@@ -11,6 +11,7 @@ from sb_manager.domain.protocol_material import (
     Hysteria2Material,
     RealityMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
@@ -36,6 +37,11 @@ from sb_manager.protocols.shadowsocks import (
     ShadowsocksInboundSpec,
     ShadowsocksProtocol,
 )
+from sb_manager.protocols.snell import (
+    SnellV6ConnectionSpec,
+    SnellV6InboundSpec,
+    SnellV6Protocol,
+)
 from sb_manager.protocols.trojan import (
     TrojanConnectionSpec,
     TrojanInboundSpec,
@@ -56,6 +62,7 @@ from sb_manager.seams.anytls_material import AnyTlsMaterialSource
 from sb_manager.seams.hysteria2_material import Hysteria2MaterialSource
 from sb_manager.seams.reality_material import RealityMaterialSource
 from sb_manager.seams.shadowsocks_material import ShadowsocksMaterialSource
+from sb_manager.seams.snell_material import SnellV6MaterialSource
 from sb_manager.seams.trojan_material import TrojanMaterialSource
 from sb_manager.seams.tuic_material import TuicMaterialSource
 from sb_manager.seams.vless_material import VlessMaterialSource
@@ -680,6 +687,62 @@ class ShadowsocksHandler:
                 payload=ConnectionPayload(
                     kind=ConnectionPayloadKind.URI,
                     content=specific.share_uri,
+                ),
+            )
+        return MaterializedProfile(
+            profile=applied_profile,
+            inbound=inbound,
+            connection_info=connection_info,
+        )
+
+
+class SnellV6Handler:
+    """Own Snell v6 material, inbound, and Surge connection behavior."""
+
+    kind = ProtocolKind.SNELL_V6
+
+    def __init__(self, *, material_source: SnellV6MaterialSource) -> None:
+        self._material_source = material_source
+
+    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+        material = profile.protocol_material
+        if material is None:
+            if profile.status is ProfileStatus.APPLIED:
+                raise IncompleteAppliedProfileError(profile.profile_id)
+            material = self._material_source.generate()
+        if not isinstance(material, SnellV6Material):
+            raise ProtocolMaterialMismatchError(profile.profile_id)
+
+        applied_profile = replace(
+            profile,
+            listen_port=listen_port,
+            status=ProfileStatus.APPLIED,
+            protocol_material=material,
+        )
+        protocol = SnellV6Protocol()
+        inbound = protocol.build_inbound(
+            SnellV6InboundSpec(
+                tag=profile.profile_id,
+                listen_port=listen_port,
+                psk=material.psk,
+            )
+        )
+        connection_info = None
+        if profile.server_address is not None:
+            specific = protocol.build_connection_info(
+                SnellV6ConnectionSpec(
+                    profile_id=profile.profile_id,
+                    server_address=profile.server_address,
+                    server_port=listen_port,
+                    psk=material.psk,
+                )
+            )
+            connection_info = ProfileConnectionInfo(
+                server_address=specific.server_address,
+                server_port=specific.server_port,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.SURGE_POLICY,
+                    content=specific.surge_policy,
                 ),
             )
         return MaterializedProfile(

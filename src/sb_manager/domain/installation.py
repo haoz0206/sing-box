@@ -20,6 +20,7 @@ class ProtocolKind(str, Enum):
     TUIC = "tuic"
     VLESS_TLS = "vless-tls"
     VMESS_TLS = "vmess-tls"
+    SNELL_V6 = "snell-v6"
 
 
 class PortSelection(str, Enum):

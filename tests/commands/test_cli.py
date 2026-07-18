@@ -45,11 +45,13 @@ from sb_manager.domain.installation import (
 from sb_manager.domain.protocol_material import (
     AnyTlsMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
     VmessMaterial,
 )
+from sb_manager.protocols.catalog import ConnectionPayloadKind
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
@@ -725,6 +727,48 @@ def test_cli_composes_a_complete_shadowsocks_apply_path(tmp_path: Path) -> None:
     inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
     assert inbound["type"] == "shadowsocks"
     assert inbound["password"] == profile.protocol_material.password
+
+
+def test_cli_composes_a_complete_snell_v6_apply_path(tmp_path: Path) -> None:
+    app, state_path, config_path = _create_isolated_app(tmp_path)
+    listen_port = SocketPortSource().choose_available()
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=listen_port,
+            server_address="proxy.example.com",
+        )
+    )
+    app.manager.save_profile_draft(plan)
+
+    assert app.profile_applier is not None
+    result = app.profile_applier.apply_profile(
+        ApplyProfileRequest(
+            profile_id="profile-1",
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert result.connection_info is not None
+    assert result.connection_info.payload.kind is ConnectionPayloadKind.SURGE_POLICY
+    profile = JsonFileStateStore(state_path).load().profiles[0]
+    assert isinstance(profile.protocol_material, SnellV6Material)
+    assert result.connection_info.payload.content == (
+        "Snell-50135a426adc = snell, proxy.example.com, "
+        f"{listen_port}, psk={profile.protocol_material.psk}, version=6"
+    )
+    inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
+    assert inbound == {
+        "type": "snell",
+        "tag": "profile-1",
+        "listen": "::",
+        "listen_port": listen_port,
+        "version": 6,
+        "psk": profile.protocol_material.psk,
+        "mode": "default",
+    }
 
 
 def test_cli_composes_a_complete_hysteria2_acme_apply_path(tmp_path: Path) -> None:

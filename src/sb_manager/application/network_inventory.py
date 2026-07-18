@@ -22,6 +22,7 @@ class NetworkProfileState(str, Enum):
 _TRANSPORTS_BY_PROTOCOL: dict[ProtocolKind, tuple[ListenerTransport, ...]] = {
     ProtocolKind.VLESS_REALITY: (ListenerTransport.TCP,),
     ProtocolKind.SHADOWSOCKS: (ListenerTransport.TCP,),
+    ProtocolKind.SNELL_V6: (ListenerTransport.TCP,),
     ProtocolKind.HYSTERIA2: (ListenerTransport.UDP,),
     ProtocolKind.TROJAN: (ListenerTransport.TCP,),
     ProtocolKind.ANYTLS: (ListenerTransport.TCP,),

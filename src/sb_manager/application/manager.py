@@ -30,6 +30,7 @@ class GeneratedValue(str, Enum):
     REALITY_KEY_PAIR = "reality-key-pair"
     SERVER_NAME = "server-name"
     SHADOWSOCKS_KEY = "shadowsocks-key"
+    SNELL_PSK = "snell-psk"
     HYSTERIA2_PASSWORD = "hysteria2-password"
     TROJAN_PASSWORD = "trojan-password"
     ANYTLS_PASSWORD = "anytls-password"
@@ -64,6 +65,7 @@ GENERATED_VALUES_BY_PROTOCOL: dict[ProtocolKind, tuple[GeneratedValue, ...]] = {
         GeneratedValue.SERVER_NAME,
     ),
     ProtocolKind.SHADOWSOCKS: (GeneratedValue.SHADOWSOCKS_KEY,),
+    ProtocolKind.SNELL_V6: (GeneratedValue.SNELL_PSK,),
     ProtocolKind.HYSTERIA2: (
         GeneratedValue.HYSTERIA2_PASSWORD,
         GeneratedValue.TLS_CERTIFICATE,

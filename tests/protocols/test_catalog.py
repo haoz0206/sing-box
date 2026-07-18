@@ -11,6 +11,7 @@ from sb_manager.domain.protocol_material import (
     Hysteria2Material,
     RealityMaterial,
     ShadowsocksMaterial,
+    SnellV6Material,
     TrojanMaterial,
     TuicMaterial,
     VlessMaterial,
@@ -21,9 +22,12 @@ from sb_manager.protocols.catalog import (
     ConnectionPayload,
     ConnectionPayloadKind,
     Hysteria2Handler,
+    IncompleteAppliedProfileError,
     ProtocolCatalog,
+    ProtocolMaterialMismatchError,
     RealityHandler,
     ShadowsocksHandler,
+    SnellV6Handler,
     TrojanHandler,
     TuicHandler,
     VlessTlsHandler,
@@ -32,10 +36,21 @@ from sb_manager.protocols.catalog import (
 from sb_manager.tls.catalog import AcmeTlsHandler, AcmeTlsIntent, TlsCatalog
 from sb_manager.transports.catalog import TransportCatalog, WebSocketTransportIntent
 
+SNELL_LISTEN_PORT = 18443
+
 
 class FixedShadowsocksMaterialSource:
     def generate(self) -> ShadowsocksMaterial:
         return ShadowsocksMaterial(password="8JCsPssfgS8tiRwiMlhARg==")
+
+
+class FixedSnellV6MaterialSource:
+    def __init__(self) -> None:
+        self.generate_calls = 0
+
+    def generate(self) -> SnellV6Material:
+        self.generate_calls += 1
+        return SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
 
 
 class FixedRealityMaterialSource:
@@ -140,6 +155,80 @@ def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
         "ss://MjAyMi1ibGFrZTMtYWVzLTEyOC1nY206OEpDc1Bzc2ZnUzh0aVJ3aU1saEFSZz09"
         "@vpn.example.com:8443#%E5%A4%87%E7%94%A8"
     )
+
+
+def test_catalog_generates_and_idempotently_reuses_complete_snell_v6_material() -> None:
+    source = FixedSnellV6MaterialSource()
+    catalog = ProtocolCatalog((SnellV6Handler(material_source=source),))
+    profile = ManagedProfile(
+        profile_id="profile-7",
+        profile_name="operator display name",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=None,
+        port_selection=PortSelection.AUTOMATIC,
+        status=ProfileStatus.DRAFT,
+        server_address="proxy.example.com",
+    )
+
+    materialized = catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
+    repeated = catalog.materialize(materialized.profile, listen_port=SNELL_LISTEN_PORT)
+
+    assert source.generate_calls == 1
+    assert repeated.profile == materialized.profile
+    assert materialized.profile.protocol_material == SnellV6Material(
+        psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    )
+    assert materialized.profile.status is ProfileStatus.APPLIED
+    assert materialized.profile.listen_port == SNELL_LISTEN_PORT
+    assert materialized.inbound == {
+        "type": "snell",
+        "tag": "profile-7",
+        "listen": "::",
+        "listen_port": SNELL_LISTEN_PORT,
+        "version": 6,
+        "psk": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        "mode": "default",
+    }
+    assert materialized.connection_info is not None
+    assert materialized.connection_info.payload == ConnectionPayload(
+        kind=ConnectionPayloadKind.SURGE_POLICY,
+        content=(
+            "Snell-c4ec5a290311 = snell, proxy.example.com, 18443, "
+            "psk=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8, version=6"
+        ),
+    )
+    assert "operator display name" not in materialized.connection_info.payload.content
+
+
+def test_catalog_rejects_applied_snell_v6_profile_missing_material() -> None:
+    catalog = ProtocolCatalog((SnellV6Handler(material_source=FixedSnellV6MaterialSource()),))
+    profile = ManagedProfile(
+        profile_id="profile-7",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=SNELL_LISTEN_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+
+    with pytest.raises(IncompleteAppliedProfileError, match="profile-7"):
+        catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
+
+
+def test_catalog_rejects_cross_protocol_material_for_snell_v6() -> None:
+    catalog = ProtocolCatalog((SnellV6Handler(material_source=FixedSnellV6MaterialSource()),))
+    profile = ManagedProfile(
+        profile_id="profile-7",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=SNELL_LISTEN_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        protocol_material=ShadowsocksMaterial(password="wrong-protocol-material"),
+    )
+
+    with pytest.raises(ProtocolMaterialMismatchError, match="profile-7"):
+        catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
 
 
 def test_catalog_materializes_a_complete_reality_profile() -> None:
