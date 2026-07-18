@@ -230,6 +230,29 @@ Existing installed manifests already store artifact digests, so no persistent-da
 
 Each slice should produce a focused, reviewable commit once its tests and documentation are coherent. No slice may relax the privileged-helper boundary.
 
+## Development Orchestration and Cost Policy
+
+Implementation uses subagent-driven development after this design and its implementation plan are approved. The controller keeps architectural ownership and gives each implementer the complete task text and only the context needed for that slice. Implementers run sequentially in the shared worktree so that two agents never edit overlapping production state concurrently.
+
+Every slice follows the same quality sequence:
+
+1. a fresh implementer writes the failing test, implements the smallest compliant change, runs focused verification, self-reviews, and creates a focused commit;
+2. a fresh specification reviewer checks the commit against the complete slice requirements;
+3. the same implementer fixes every specification gap, followed by re-review;
+4. only after specification approval, a fresh code-quality reviewer checks maintainability, safety, tests, and repository conventions;
+5. the implementer fixes every quality issue, followed by re-review;
+6. the controller accepts the slice only when both reviews are clean.
+
+Model capacity is selected by task complexity rather than using the highest tier universally:
+
+- highest available reasoning tier: architecture decisions, trust-boundary changes, security-sensitive review, final cross-slice review, and ambiguous debugging;
+- standard tier: multi-file integration, adapter/application coordination, and non-trivial failure handling;
+- medium or lower tier, including `5.6 sol medium` when selectable: isolated tests, clearly specified one- or two-file implementation, documentation synchronization, fixture maintenance, and other mechanical work.
+
+If the orchestration interface does not expose an explicit model selector, the controller cannot guarantee a concrete model tier; it still minimizes context and scopes each mechanical task so the platform can use the least capable suitable agent. A `BLOCKED` or `DONE_WITH_CONCERNS` result is never retried unchanged: the controller supplies missing context, narrows the task, or escalates reasoning capacity according to the reported cause.
+
+Read-only analysis or review may run concurrently when it cannot race with edits. Production implementation remains serial, and no reviewer edits the implementation under review. This preserves deterministic commits and clear ownership while still reducing context and model cost.
+
 ## Acceptance Criteria
 
 - The latest official Stable can be planned when `immutable=false` only through `DIGEST_PINNED_STABLE`.
