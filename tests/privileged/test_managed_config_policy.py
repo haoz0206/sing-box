@@ -71,20 +71,23 @@ def generated_document(  # noqa: PLR0913 - compact product-catalog fixture build
             email="operator@example.com",
             data_directory=ACME_DIRECTORY,
         )
-    materialized = create_protocol_catalog(
+    catalog = create_protocol_catalog(
         sing_box_binary=write_fake_sing_box(tmp_path),
         reality_server_name="www.cloudflare.com",
-    ).materialize(
-        ManagedProfile(
-            profile_id=profile_id,
-            profile_name="安全入口",
-            protocol=protocol,
-            listen_port=listen_port,
-            port_selection=PortSelection.FIXED,
-            status=ProfileStatus.DRAFT,
-            tls_intent=tls_intent,
-            transport_intent=transport,
-        ),
+    )
+    profile = ManagedProfile(
+        profile_id=profile_id,
+        profile_name="安全入口",
+        protocol=protocol,
+        listen_port=listen_port,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+        tls_intent=tls_intent,
+        transport_intent=transport,
+    )
+    profile = catalog.prepare_draft(profile)
+    materialized = catalog.materialize(
+        profile,
         listen_port=listen_port,
     )
     document: dict[str, object] = {
