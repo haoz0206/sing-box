@@ -5,22 +5,42 @@ from threading import Event
 from textual.pilot import Pilot
 from textual.widgets import Button, Static
 
+from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.core_update import (
     CoreChannelPlan,
     CoreChannelPlanKind,
+    CoreChannelService,
     CoreUpdatePlan,
     CoreUpdateResult,
+    CoreUpdateService,
     CoreUpdateWarning,
     PlanCoreChannelRequest,
     PlanCoreUpdateRequest,
 )
-from sb_manager.artifacts.installation import CoreActivation, CoreReleaseIdentity
+from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
+from sb_manager.artifacts.installation import (
+    CoreActivation,
+    CoreReleaseIdentity,
+    InstalledCoreRelease,
+)
+from sb_manager.domain.installation import (
+    ManagedInstallation,
+    ManagedProfile,
+    PortSelection,
+    ProfileStatus,
+    ProtocolKind,
+)
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
+    CoreArtifactRequest,
     CoreArtifactTrustMode,
+    CoreRelease,
     CoreReleaseChannel,
     PlannedCoreArtifact,
+    VerifiedCoreArtifact,
 )
+from sb_manager.seams.core_activator import CoreActivationRequest
+from sb_manager.seams.core_switcher import CoreSwitchRequest
 from sb_manager.ui.app import ManagerApp
 from sb_manager.ui.screens.core_channels import CoreChannelSelectionScreen
 
@@ -220,6 +240,98 @@ class FailsOncePlanningChannels(AlreadyCurrentChannels):
         return super().plan(request)
 
 
+class JourneyCoreSource:
+    def __init__(self) -> None:
+        self.release_channels: list[CoreReleaseChannel] = []
+        self.inspect_requests: list[CoreArtifactRequest] = []
+        self.acquire_calls: list[tuple[PlannedCoreArtifact, Path]] = []
+
+    def latest(self, channel: CoreReleaseChannel) -> CoreRelease:
+        self.release_channels.append(channel)
+        return CoreRelease(
+            channel=CoreReleaseChannel.STABLE,
+            version="1.13.14",
+            prerelease=False,
+        )
+
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
+        self.inspect_requests.append(request)
+        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
+        return PlannedCoreArtifact(
+            version=request.version,
+            architecture=request.architecture,
+            asset_name=asset_name,
+            download_url=f"https://example.invalid/{asset_name}",
+            sha256="a" * 64,
+            trust_mode=CoreArtifactTrustMode.DIGEST_PINNED_STABLE,
+            release_immutable=False,
+            prerelease=False,
+        )
+
+    def acquire(
+        self,
+        artifact: PlannedCoreArtifact,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        self.acquire_calls.append((artifact, destination_directory))
+        raise AssertionError("an incompatible channel review must not acquire an artifact")
+
+
+class JourneyCoreInventory:
+    def list_installed(self) -> tuple[InstalledCoreRelease, ...]:
+        return (
+            InstalledCoreRelease(
+                version="1.14.0-alpha.47",
+                architecture=ArtifactArchitecture.AMD64,
+                source_sha256="b" * 64,
+                distribution_directory=Path("/opt/sing-box-manager/core/versions/preview"),
+                target="versions/preview",
+                active=True,
+            ),
+            InstalledCoreRelease(
+                version="1.13.14",
+                architecture=ArtifactArchitecture.AMD64,
+                source_sha256="a" * 64,
+                distribution_directory=Path("/opt/sing-box-manager/core/versions/stable"),
+                target="versions/stable",
+                active=False,
+            ),
+        )
+
+
+class JourneyCoreController:
+    def __init__(self) -> None:
+        self.activations: list[CoreActivationRequest] = []
+        self.switches: list[CoreSwitchRequest] = []
+
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
+        self.activations.append(request)
+        raise AssertionError("an incompatible channel review must not activate a core")
+
+    def switch_core(self, request: CoreSwitchRequest) -> CoreActivation:
+        self.switches.append(request)
+        raise AssertionError("an incompatible channel review must not switch cores")
+
+
+def installation_with_active_snell() -> ManagedInstallation:
+    return ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="private-snell",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=8388,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                enabled=True,
+            ),
+        ),
+    )
+
+
 async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
     assert await asyncio.to_thread(event.wait, timeout)
 
@@ -229,6 +341,46 @@ async def open_channel_selection(app: ManagerApp, pilot: Pilot[None]) -> CoreCha
     await pilot.click("#manage-core-channels")
     assert isinstance(app.screen, CoreChannelSelectionScreen)
     return app.screen
+
+
+async def test_applied_snell_rejects_retained_stable_before_acquire_or_switch(
+    tmp_path: Path,
+) -> None:
+    state_store = MemoryStateStore(installation_with_active_snell())
+    compatibility = ProtocolCompatibilityPolicy()
+    source = JourneyCoreSource()
+    controller = JourneyCoreController()
+    updater = CoreUpdateService(
+        artifact_source=source,
+        core_activator=controller,
+        incoming_directory=tmp_path / "incoming",
+        state_store=state_store,
+        compatibility=compatibility,
+    )
+    channels = CoreChannelService(
+        release_source=source,
+        core_inventory=JourneyCoreInventory(),
+        core_updater=updater,
+        core_switcher=controller,
+        state_store=state_store,
+        compatibility=compatibility,
+    )
+    app = ManagerApp(core_updater=updater, core_channel_manager=channels)
+
+    async with app.run_test() as pilot:
+        await open_channel_selection(app, pilot)
+        await pilot.click("#inspect-stable-channel")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-channel-planning-error")
+        assert not app.screen.query("#core-channel-plan")
+
+    assert source.release_channels == [CoreReleaseChannel.STABLE]
+    assert source.inspect_requests == []
+    assert source.acquire_calls == []
+    assert controller.activations == []
+    assert controller.switches == []
 
 
 async def test_operator_sees_stable_already_current_without_a_confirmation_action() -> None:

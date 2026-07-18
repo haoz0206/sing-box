@@ -6,20 +6,32 @@ from typing import cast
 from textual.pilot import Pilot
 from textual.widgets import Button, Footer, Input, Static
 
+from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.core_update import (
     CorePrereleaseConsentRequiredError,
     CoreUpdatePlan,
     CoreUpdateResult,
+    CoreUpdateService,
     CoreUpdateWarning,
     PlanCoreUpdateRequest,
 )
+from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
 from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.domain.installation import (
+    ManagedInstallation,
+    ManagedProfile,
+    PortSelection,
+    ProfileStatus,
+    ProtocolKind,
+)
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
+    CoreArtifactRequest,
     CoreArtifactTrustMode,
     PlannedCoreArtifact,
+    VerifiedCoreArtifact,
 )
-from sb_manager.seams.core_activator import CoreActivationError
+from sb_manager.seams.core_activator import CoreActivationError, CoreActivationRequest
 from sb_manager.ui.app import ManagerApp, ManagerAppInterfaceTools
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
@@ -163,6 +175,62 @@ class BlockingPlanningCoreUpdater(RecordingCoreUpdater):
         return plan
 
 
+class JourneyArtifactSource:
+    def __init__(self) -> None:
+        self.inspect_requests: list[CoreArtifactRequest] = []
+        self.acquire_calls: list[tuple[PlannedCoreArtifact, Path]] = []
+
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
+        self.inspect_requests.append(request)
+        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
+        return PlannedCoreArtifact(
+            version=request.version,
+            architecture=request.architecture,
+            asset_name=asset_name,
+            download_url=f"https://example.invalid/{asset_name}",
+            sha256=STABLE_SHA256,
+            trust_mode=CoreArtifactTrustMode.DIGEST_PINNED_STABLE,
+            release_immutable=False,
+            prerelease=False,
+        )
+
+    def acquire(
+        self,
+        artifact: PlannedCoreArtifact,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        self.acquire_calls.append((artifact, destination_directory))
+        raise AssertionError("an incompatible review must not acquire an artifact")
+
+
+class JourneyCoreActivator:
+    def __init__(self) -> None:
+        self.requests: list[CoreActivationRequest] = []
+
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
+        self.requests.append(request)
+        raise AssertionError("an incompatible review must not activate a core")
+
+
+def installation_with_active_snell() -> ManagedInstallation:
+    return ManagedInstallation(
+        schema_version=1,
+        revision=7,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="private-snell",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=8388,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.APPLIED,
+                enabled=True,
+            ),
+        ),
+    )
+
+
 async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
     assert await asyncio.to_thread(event.wait, timeout)
 
@@ -175,6 +243,36 @@ async def open_core_form(pilot: Pilot[None]) -> None:
 def test_core_artifact_copy_mappings_are_exhaustive() -> None:
     assert set(WARNING_COPY) == set(CoreUpdateWarning)
     assert set(TRUST_COPY) == set(CoreArtifactTrustMode)
+
+
+async def test_applied_snell_rejects_stable_review_before_artifact_acquisition(
+    tmp_path: Path,
+) -> None:
+    artifacts = JourneyArtifactSource()
+    activator = JourneyCoreActivator()
+    updater = CoreUpdateService(
+        artifact_source=artifacts,
+        core_activator=activator,
+        incoming_directory=tmp_path / "incoming",
+        state_store=MemoryStateStore(installation_with_active_snell()),
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await open_core_form(pilot)
+        await pilot.click("#core-version")
+        await pilot.press(*STABLE_VERSION)
+        await pilot.click("#preview-core-update")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-planning-error")
+        assert not app.screen.query("#core-update-plan")
+
+    assert artifacts.inspect_requests == []
+    assert artifacts.acquire_calls == []
+    assert activator.requests == []
 
 
 async def open_core_plan(
