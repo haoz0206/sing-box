@@ -142,6 +142,38 @@ class MissingPreviewChannels(RetainedPreviewChannels):
         )
 
 
+class MissingStableChannels(MissingPreviewChannels):
+    def plan(self, request: PlanCoreChannelRequest) -> CoreChannelPlan:
+        self.requests.append(request)
+        return CoreChannelPlan(
+            kind=CoreChannelPlanKind.ACQUIRE_AND_ACTIVATE,
+            channel=CoreReleaseChannel.STABLE,
+            version="1.13.14",
+            architecture=request.architecture,
+            prerelease=False,
+            requires_confirmation=True,
+            target=None,
+            expected_active=None,
+            exact_update=CoreUpdatePlan(
+                artifact=PlannedCoreArtifact(
+                    version="1.13.14",
+                    architecture=request.architecture,
+                    asset_name="sing-box-1.13.14-linux-amd64.tar.gz",
+                    download_url=(
+                        "https://github.com/SagerNet/sing-box/releases/download/"
+                        "v1.13.14/sing-box-1.13.14-linux-amd64.tar.gz"
+                    ),
+                    sha256="f" * 64,
+                    trust_mode=CoreArtifactTrustMode.DIGEST_PINNED_STABLE,
+                    release_immutable=False,
+                    prerelease=False,
+                ),
+                mutates_host=False,
+                warnings=(CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,),
+            ),
+        )
+
+
 class UnexpectedRetainedPreviewChannels(RetainedPreviewChannels):
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
         self.executions.append((plan, confirmed))
@@ -204,6 +236,22 @@ async def test_operator_confirms_an_offline_switch_to_retained_preview() -> None
         assert app.screen.query_one("#core-channel-plan-action", Static).content == (
             "操作：切换到已安装版本 (无需下载)"
         )
+        assert app.screen.query_one("#core-channel-plan-target-sha256", Static).content == (
+            f"目标制品 SHA-256：{'b' * 64}"
+        )
+        assert app.screen.query_one("#core-channel-plan-active-sha256", Static).content == (
+            f"当前制品 SHA-256：{'a' * 64}"
+        )
+        assert app.screen.query_one("#core-channel-plan-prerelease-warning", Static).content == (
+            "这是预发布核心; 仅在接受兼容性风险时继续。"
+        )
+        assert app.screen.query_one("#core-channel-plan-safety", Static).content == (
+            "当前仅预览; 确认后 helper 只切换已验证的 retained release，不访问网络。"
+        )
+        assert len(app.screen.query("#core-channel-plan-asset")) == 0
+        assert len(app.screen.query("#core-channel-plan-sha256")) == 0
+        assert len(app.screen.query("#core-channel-plan-trust")) == 0
+        assert len(app.screen.query("#core-channel-warning-0")) == 0
         assert str(app.screen.query_one("#confirm-core-channel", Button).label) == ("确认离线切换")
 
         await pilot.click("#confirm-core-channel")
@@ -234,12 +282,23 @@ async def test_operator_confirms_acquisition_for_a_missing_preview_release() -> 
         assert app.screen.query_one("#core-channel-plan-action", Static).content == (
             "操作：下载、校验并激活精确版本"
         )
-        assert app.screen.query_one("#core-channel-plan-prerelease-warning", Static).content == (
+        assert app.screen.query_one("#core-channel-plan-asset", Static).content == (
+            "发行资产：sing-box-1.14.0-alpha.46-linux-amd64.tar.gz"
+        )
+        assert app.screen.query_one("#core-channel-plan-sha256", Static).content == (
+            f"制品 SHA-256：{'b' * 64}"
+        )
+        assert app.screen.query_one("#core-channel-plan-trust", Static).content == (
+            "信任方式：上游 immutable release"
+        )
+        assert app.screen.query_one("#core-channel-warning-0", Static).content == (
             "这是预发布核心; 仅在接受兼容性风险时继续。"
         )
+        assert len(app.screen.query("#core-channel-plan-prerelease-warning")) == 0
         assert str(app.screen.query_one("#confirm-core-channel", Button).label) == (
             "确认下载并激活"
         )
+        assert channels.executions == []
 
         await pilot.click("#confirm-core-channel")
         await pilot.pause()
@@ -249,6 +308,38 @@ async def test_operator_confirms_acquisition_for_a_missing_preview_release() -> 
         )
         assert len(channels.executions) == 1
         assert channels.executions[0][0].kind is CoreChannelPlanKind.ACQUIRE_AND_ACTIVATE
+        assert channels.executions[0][1] is True
+
+
+async def test_operator_reviews_digest_pinned_stable_acquisition_before_confirming() -> None:
+    channels = MissingStableChannels()
+    app = ManagerApp(
+        core_updater=NeverCalledExactUpdater(),
+        core_channel_manager=channels,
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#open-operations")
+        await pilot.click("#manage-core-channels")
+        await pilot.click("#inspect-stable-channel")
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-channel-plan-asset", Static).content == (
+            "发行资产：sing-box-1.13.14-linux-amd64.tar.gz"
+        )
+        assert app.screen.query_one("#core-channel-plan-sha256", Static).content == (
+            f"制品 SHA-256：{'f' * 64}"
+        )
+        assert app.screen.query_one("#core-channel-plan-trust", Static).content == (
+            "信任方式：Stable 摘要冻结"
+        )
+        assert app.screen.query_one("#core-channel-warning-0", Static).content == (
+            "上游 Stable release 可变；本次操作只接受上方已冻结的 SHA-256。"  # noqa: RUF001
+        )
+        assert str(app.screen.query_one("#confirm-core-channel", Button).label) == (
+            "确认下载并激活"
+        )
+        assert channels.executions == []
 
 
 async def test_unexpected_retained_switch_result_is_unknown_and_not_disclosed() -> None:
