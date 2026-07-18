@@ -4,6 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import TypeAlias
 
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -197,6 +198,7 @@ class ProfilePlan:
     server_address: str | None = None
     tls_intent: TlsIntent | None = None
     transport_intent: TransportIntent | None = None
+    observed_core_version: str | None = None
 
 
 class Manager:
@@ -208,11 +210,15 @@ class Manager:
         mutation_lock: ApplyLock | None = None,
         acme_data_directory: Path = Path("/var/lib/sing-box-manager/acme"),
         trusted_tls_directory: Path = Path("/etc/sing-box-manager/tls"),
+        core_compatibility: ActiveCoreProtocolCompatibility | None = None,
     ) -> None:
         self._state_store = state_store
         self._mutation_lock = mutation_lock
         self._acme_data_directory = acme_data_directory
         self._trusted_tls_directory = trusted_tls_directory
+        self._core_compatibility = core_compatibility or ActiveCoreProtocolCompatibility(
+            inspector=None
+        )
 
     def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
         issues: list[ValidationIssue] = []
@@ -235,6 +241,7 @@ class Manager:
         if issues:
             raise PlanValidationError(tuple(issues))
 
+        observed_core_version = self._core_compatibility.require_protocol(request.protocol)
         base_revision = self._state_store.load().revision if self._state_store is not None else 0
         generated_values = GENERATED_VALUES_BY_PROTOCOL[request.protocol]
         if isinstance(request.tls, OperatorFileTlsRequest):
@@ -289,6 +296,7 @@ class Manager:
                     else None
                 )
             ),
+            observed_core_version=observed_core_version,
         )
 
     def _is_trusted_tls_path(self, path: Path) -> bool:

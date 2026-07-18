@@ -68,6 +68,7 @@ from sb_manager.application.profile_cloning import ProfileCloningService
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.application.service_logs import ServiceLogService
 from sb_manager.application.state_recovery import StateRecoveryService
 from sb_manager.artifacts.installation import CoreInstallationCatalog
@@ -307,7 +308,12 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
     mutation_lock = FileApplyLock(
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
-    manager = Manager(state_store=state_store, mutation_lock=mutation_lock)
+    core_inspector = SingBoxCoreStatusInspector(binary=sing_box_binary)
+    manager = Manager(
+        state_store=state_store,
+        mutation_lock=mutation_lock,
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=core_inspector),
+    )
     runtime_kind = RuntimeKind(arguments.runtime)
     runtime = create_runtime(
         runtime_kind=runtime_kind,
@@ -378,7 +384,7 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         access_mode=access_mode,
         config_inspector=config_inspector,
         privileged_inspector=privileged_config_inspector,
-        core_inspector=SingBoxCoreStatusInspector(binary=sing_box_binary),
+        core_inspector=core_inspector,
     )
     certificate_diagnostics = CertificateDiagnosticsService(source=certificate_source)
     return ManagerApp(

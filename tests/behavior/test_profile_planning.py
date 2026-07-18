@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.manager import (
     AcmeTlsRequest,
     GeneratedValue,
@@ -13,7 +14,13 @@ from sb_manager.application.manager import (
     ValidationIssue,
     ValidationIssueCode,
 )
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionUnknown,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.domain.installation import PortSelection, ProtocolKind
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 
 
@@ -43,8 +50,30 @@ def test_operator_can_plan_a_reality_profile_without_host_changes() -> None:
     )
 
 
+class StubCoreStatusInspector:
+    def __init__(self, observation: CoreStatusObservation) -> None:
+        self.observation = observation
+        self.calls = 0
+
+    def inspect(self) -> CoreStatusObservation:
+        self.calls += 1
+        return self.observation
+
+
+def _compatibility_guard(version: str) -> ActiveCoreProtocolCompatibility:
+    return ActiveCoreProtocolCompatibility(
+        inspector=StubCoreStatusInspector(
+            CoreStatusObservation(
+                available=True,
+                version=version,
+                diagnostics=f"sing-box version {version}",
+            )
+        )
+    )
+
+
 def test_operator_can_plan_snell_v6_without_tls_or_transport_choices() -> None:
-    plan = Manager().plan_profile(
+    plan = Manager(core_compatibility=_compatibility_guard("1.14.0-alpha.47")).plan_profile(
         PlanProfileRequest(
             profile_name="Snell preview",
             protocol=ProtocolKind.SNELL_V6,
@@ -54,9 +83,91 @@ def test_operator_can_plan_snell_v6_without_tls_or_transport_choices() -> None:
     )
 
     assert plan.protocol is ProtocolKind.SNELL_V6
+    assert plan.observed_core_version == "1.14.0-alpha.47"
     assert plan.generated_values == (GeneratedValue.SNELL_PSK,)
     assert plan.tls_intent is None
     assert plan.transport_intent is None
+
+
+def test_stable_core_rejects_snell_before_a_draft_or_generated_secret_exists() -> None:
+    state_store = MemoryStateStore()
+    manager = Manager(
+        state_store=state_store,
+        core_compatibility=_compatibility_guard("1.13.14"),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore) as caught:
+        manager.plan_profile(
+            PlanProfileRequest(
+                profile_name="Snell stable",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+            )
+        )
+
+    assert str(caught.value) == ("snell-v6 requires 1.14.0-alpha.38; observed 1.13.14")
+    assert state_store.load().profiles == ()
+    assert "psk" not in str(caught.value).lower()
+
+
+def test_unknown_core_rejects_snell_before_a_draft_exists() -> None:
+    state_store = MemoryStateStore()
+    manager = Manager(state_store=state_store)
+
+    with pytest.raises(CoreVersionUnknown):
+        manager.plan_profile(
+            PlanProfileRequest(
+                profile_name="Snell unknown",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+            )
+        )
+
+    assert state_store.load().profiles == ()
+
+
+def test_existing_protocol_planning_never_inspects_the_core() -> None:
+    inspector = StubCoreStatusInspector(
+        CoreStatusObservation(
+            available=False,
+            version=None,
+            diagnostics="core unavailable",
+        )
+    )
+    manager = Manager(core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector))
+
+    plan = manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="Reality",
+            protocol=ProtocolKind.VLESS_REALITY,
+            listen_port=443,
+        )
+    )
+
+    assert plan.observed_core_version is None
+    assert inspector.calls == 0
+
+
+def test_form_validation_finishes_before_core_inspection() -> None:
+    inspector = StubCoreStatusInspector(
+        CoreStatusObservation(
+            available=True,
+            version="1.14.0-alpha.47",
+            diagnostics="sing-box version 1.14.0-alpha.47",
+        )
+    )
+    manager = Manager(core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector))
+
+    with pytest.raises(PlanValidationError):
+        manager.plan_profile(
+            PlanProfileRequest(
+                profile_name=" ",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+            )
+        )
+
+    assert inspector.calls == 0
 
 
 def test_operator_is_told_when_a_profile_name_is_missing() -> None:

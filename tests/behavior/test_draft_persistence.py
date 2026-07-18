@@ -9,6 +9,7 @@ from sb_manager.application.manager import (
     PlanProfileRequest,
     StateRevisionConflictError,
 )
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -16,6 +17,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.seams.core_status import CoreStatusObservation
 
 
 class TrackingMutationLock:
@@ -26,6 +28,15 @@ class TrackingMutationLock:
     def acquire(self) -> Iterator[None]:
         self.acquisitions += 1
         yield
+
+
+class PreviewCoreInspector:
+    def inspect(self) -> CoreStatusObservation:
+        return CoreStatusObservation(
+            available=True,
+            version="1.14.0-alpha.47",
+            diagnostics="sing-box version 1.14.0-alpha.47",
+        )
 
 
 def test_operator_can_save_and_retrieve_a_profile_draft() -> None:
@@ -82,3 +93,32 @@ def test_manager_rejects_a_plan_based_on_a_stale_revision() -> None:
         first_manager.save_profile_draft(stale_plan)
 
     assert (caught.value.expected, caught.value.actual) == (0, 1)
+
+
+def test_snell_draft_persistence_does_not_persist_core_observation() -> None:
+    state_store = MemoryStateStore()
+    manager = Manager(
+        state_store=state_store,
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=PreviewCoreInspector()),
+    )
+    plan = manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=18443,
+        )
+    )
+
+    manager.save_profile_draft(plan)
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    assert state_store.load().profiles == (
+        ManagedProfile(
+            profile_id="profile-1",
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=18443,
+            port_selection=PortSelection.FIXED,
+            status=ProfileStatus.DRAFT,
+        ),
+    )

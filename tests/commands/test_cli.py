@@ -3,6 +3,7 @@ from pathlib import Path
 
 from pytest import MonkeyPatch
 
+import sb_manager.cli as cli_module
 from sb_manager.adapters.json_file_state import JsonFileStateStore
 from sb_manager.adapters.socket_ports import SocketPortSource
 from sb_manager.application.apply_history import ApplyHistoryCondition
@@ -53,6 +54,7 @@ from sb_manager.domain.protocol_material import (
 )
 from sb_manager.protocols.catalog import ConnectionPayloadKind
 from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.ui.app import ManagerApp
@@ -60,6 +62,7 @@ from sb_manager.ui.app import ManagerApp
 EXPECTED_APPLIED_REVISION = 2
 EXPECTED_REMOVED_REVISION = 3
 EXPECTED_RECOVERY_BACKUP_REVISION = 3
+EXPECTED_SHARED_CORE_INSPECTIONS = 2
 
 
 def _write_fake_sing_box(tmp_path: Path) -> Path:
@@ -198,6 +201,50 @@ def test_cli_composes_the_tui_with_a_persistent_state_store(tmp_path: Path) -> N
     app.manager.save_profile_draft(plan)
 
     assert JsonFileStateStore(state_path).load().profiles[0].profile_name == "手机"
+
+
+def test_cli_reuses_one_core_inspector_for_planning_and_readiness(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    class CountingCoreStatusInspector:
+        def __init__(self, *, binary: str | Path) -> None:
+            self.binary = binary
+            self.calls = 0
+            inspectors.append(self)
+
+        def inspect(self) -> CoreStatusObservation:
+            self.calls += 1
+            return CoreStatusObservation(
+                available=True,
+                version="1.14.0-alpha.47",
+                diagnostics="sing-box version 1.14.0-alpha.47",
+            )
+
+    inspectors: list[CountingCoreStatusInspector] = []
+    monkeypatch.setattr(cli_module, "SingBoxCoreStatusInspector", CountingCoreStatusInspector)
+    app = create_app(
+        [
+            "--state-file",
+            str(tmp_path / "state.json"),
+            "--sing-box-binary",
+            str(tmp_path / "sing-box"),
+        ]
+    )
+
+    plan = app.manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=18443,
+        )
+    )
+    assert app.host_readiness is not None
+    app.host_readiness.inspect()
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    assert len(inspectors) == 1
+    assert inspectors[0].calls == EXPECTED_SHARED_CORE_INSPECTIONS
 
 
 def test_cli_uses_only_an_absolute_xdg_interface_preference_root(
