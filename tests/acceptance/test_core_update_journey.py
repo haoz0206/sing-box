@@ -300,6 +300,10 @@ async def test_operator_can_preview_an_exact_core_update_without_mutation() -> N
         assert app.screen.query_one("#core-update-form-title", Static).content == (
             "安装或升级 sing-box 核心"
         )
+        assert app.screen.query_one("#core-update-form-guidance", Static).content == (
+            "只接受官方精确版本；Stable 优先使用 immutable release，上游可变时会冻结 "  # noqa: RUF001
+            "SHA-256 供审阅；Preview 只接受 immutable release。"  # noqa: RUF001
+        )
         assert app.screen.query_one("#core-version", Input).placeholder == (
             "精确版本，例如 1.14.0-alpha.45"
         )
@@ -351,6 +355,7 @@ async def test_exact_version_planning_is_non_blocking_and_shows_full_digest() ->
         )
 
         updater.release_planning.set()
+        await app.workers.wait_for_complete()
         await pilot.pause()
 
         assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
@@ -373,6 +378,7 @@ async def test_leaving_exact_version_form_discards_stale_planning_completion() -
 
         await pilot.press("escape")
         updater.release_planning.set()
+        await app.workers.wait_for_complete()
         await pilot.pause()
 
         assert not app.screen.query("#core-update-plan")

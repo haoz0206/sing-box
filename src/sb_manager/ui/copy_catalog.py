@@ -1728,7 +1728,8 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CORE_UPDATE_FORM_TITLE: "安装或升级 sing-box 核心",
         UiText.CORE_UPDATE_OPEN: "安装或升级 sing-box 核心",
         UiText.CORE_UPDATE_FORM_GUIDANCE: (
-            "只接受官方精确版本; Stable 使用已冻结摘要审查，Preview 只接受 immutable release。"
+            "只接受官方精确版本；Stable 优先使用 immutable release，上游可变时会冻结 "  # noqa: RUF001
+            "SHA-256 供审阅；Preview 只接受 immutable release。"  # noqa: RUF001
         ),
         UiText.CORE_UPDATE_FORM_VERSION_LABEL: "精确版本",
         UiText.CORE_UPDATE_FORM_VERSION_PLACEHOLDER: "精确版本，例如 1.14.0-alpha.45",
