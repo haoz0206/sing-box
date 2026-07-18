@@ -1,13 +1,19 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.core_update import (
+    CoreChannelPlan,
     CoreChannelPlanKind,
     CoreChannelPlanningError,
+    CoreChannelPlanValidationError,
     CoreChannelService,
     CoreDesiredStateChangedError,
+    CoreUpdatePlan,
     CoreUpdateService,
     PlanCoreChannelRequest,
 )
@@ -15,7 +21,11 @@ from sb_manager.application.protocol_compatibility import (
     CoreTargetIncompatibleWithDesiredState,
     ProtocolCompatibilityPolicy,
 )
-from sb_manager.artifacts.installation import CoreActivation, InstalledCoreRelease
+from sb_manager.artifacts.installation import (
+    CoreActivation,
+    CoreReleaseIdentity,
+    InstalledCoreRelease,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -48,6 +58,31 @@ class FixedReleaseSource:
     def latest(self, channel: CoreReleaseChannel) -> CoreRelease:
         self.channels.append(channel)
         return self.release
+
+
+class ImmediateApplyLock:
+    def __init__(self) -> None:
+        self.entries = 0
+
+    @contextmanager
+    def acquire(self) -> Iterator[None]:
+        self.entries += 1
+        yield
+
+
+class RecordingStateStore(MemoryStateStore):
+    def __init__(self, initial: ManagedInstallation) -> None:
+        super().__init__(initial)
+        self.load_calls = 0
+        self.save_calls: list[ManagedInstallation] = []
+
+    def load(self) -> ManagedInstallation:
+        self.load_calls += 1
+        return super().load()
+
+    def save(self, installation: ManagedInstallation) -> None:
+        self.save_calls.append(installation)
+        super().save(installation)
 
 
 class FixedCoreInventory:
@@ -212,6 +247,7 @@ def test_channel_plan_records_the_loaded_desired_state_revision() -> None:
             ManagedInstallation(schema_version=1, revision=PLAN_REVISION, profiles=())
         ),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     plan = channels.plan(
@@ -249,6 +285,7 @@ def test_stable_channel_reports_already_current_without_download_or_switch() -> 
         core_switcher=UnexpectedCoreSwitcher(),
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     plan = channels.plan(
@@ -285,6 +322,7 @@ def test_channel_discovery_rejects_a_release_from_a_different_channel() -> None:
         core_switcher=UnexpectedCoreSwitcher(),
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     with pytest.raises(CoreChannelPlanningError, match="requested stable"):
@@ -320,6 +358,7 @@ def test_channel_discovery_rejects_an_inconsistent_prerelease_classification(
         core_switcher=UnexpectedCoreSwitcher(),
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     with pytest.raises(CoreChannelPlanningError, match="prerelease classification"):
@@ -358,6 +397,7 @@ def test_preview_channel_switches_to_a_retained_release_without_acquisition() ->
         ),
     )
     switcher = RecordingCoreSwitcher()
+    apply_lock = ImmediateApplyLock()
     channels = CoreChannelService(
         release_source=source,
         core_inventory=inventory,
@@ -365,6 +405,7 @@ def test_preview_channel_switches_to_a_retained_release_without_acquisition() ->
         core_switcher=switcher,
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=apply_lock,
     )
 
     plan = channels.plan(
@@ -386,6 +427,7 @@ def test_preview_channel_switches_to_a_retained_release_without_acquisition() ->
             expected_active=plan.expected_active,
         )
     ]
+    assert apply_lock.entries == 1
     assert result.activation.version == "1.14.0-alpha.46"
 
 
@@ -413,6 +455,7 @@ def test_missing_preview_channel_acquires_and_activates_the_discovered_exact_rel
     activator = RecordingCoreActivator()
     state_store = MemoryStateStore()
     compatibility = ProtocolCompatibilityPolicy()
+    apply_lock = ImmediateApplyLock()
     channels = CoreChannelService(
         release_source=release_source,
         core_inventory=inventory,
@@ -422,10 +465,12 @@ def test_missing_preview_channel_acquires_and_activates_the_discovered_exact_rel
             incoming_directory=tmp_path / "incoming",
             state_store=state_store,
             compatibility=compatibility,
+            apply_lock=apply_lock,
         ),
         core_switcher=UnexpectedCoreSwitcher(),
         state_store=state_store,
         compatibility=compatibility,
+        apply_lock=apply_lock,
     )
 
     plan = channels.plan(
@@ -459,6 +504,7 @@ def test_missing_preview_channel_acquires_and_activates_the_discovered_exact_rel
             sha256="c" * 64,
         )
     ]
+    assert apply_lock.entries == 1
     assert result.activation.version == "1.14.0-alpha.46"
 
 
@@ -477,6 +523,7 @@ def test_retained_stable_channel_is_blocked_by_an_applied_snell_profile() -> Non
         core_switcher=switcher,
         state_store=MemoryStateStore(snell_installation()),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     with pytest.raises(CoreTargetIncompatibleWithDesiredState) as captured:
@@ -524,6 +571,7 @@ def test_retained_preview_channel_allows_an_applied_snell_profile() -> None:
         core_switcher=switcher,
         state_store=MemoryStateStore(snell_installation()),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
 
     plan = channels.plan(
@@ -554,6 +602,7 @@ def test_fresh_retained_stable_plan_succeeds_after_snell_is_paused() -> None:
         core_switcher=switcher,
         state_store=store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
     store.save(snell_installation(revision=CHANGED_REVISION, enabled=False))
 
@@ -587,6 +636,7 @@ def test_retained_switch_rechecks_target_compatibility_before_privileged_switch(
         core_switcher=switcher,
         state_store=store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
     plan = channels.plan(
         PlanCoreChannelRequest(
@@ -620,6 +670,7 @@ def test_stale_retained_switch_stops_before_compatibility_and_privileged_switch(
         core_switcher=switcher,
         state_store=store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
     )
     plan = channels.plan(
         PlanCoreChannelRequest(
@@ -634,4 +685,157 @@ def test_stale_retained_switch_stops_before_compatibility_and_privileged_switch(
 
     assert captured.value.expected == INITIAL_REVISION
     assert captured.value.actual == CHANGED_REVISION
+    assert switcher.requests == []
+
+
+def test_forged_retained_plan_is_rejected_before_state_or_privileged_switch() -> None:
+    release_source = FixedReleaseSource(
+        CoreRelease(
+            channel=CoreReleaseChannel.PREVIEW,
+            version="1.14.0-alpha.47",
+            prerelease=True,
+        )
+    )
+    inventory = FixedCoreInventory()
+    state_store = RecordingStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    switcher = RecordingCoreSwitcher()
+    channels = CoreChannelService(
+        release_source=release_source,
+        core_inventory=inventory,
+        core_updater=UnexpectedCoreUpdater(),
+        core_switcher=switcher,
+        state_store=state_store,
+        compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=ImmediateApplyLock(),
+    )
+    forged = CoreChannelPlan(
+        kind=CoreChannelPlanKind.SWITCH_RETAINED,
+        channel=CoreReleaseChannel.PREVIEW,
+        version="1.14.0-alpha.47",
+        architecture=ArtifactArchitecture.AMD64,
+        prerelease=True,
+        requires_confirmation=True,
+        target=CoreReleaseIdentity(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="a" * 64,
+        ),
+        expected_active=CoreReleaseIdentity(
+            version="1.14.0-alpha.47",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="b" * 64,
+        ),
+        exact_update=None,
+        expected_state_revision=INITIAL_REVISION,
+    )
+
+    with pytest.raises(CoreChannelPlanValidationError):
+        channels.execute(forged, confirmed=True)
+
+    assert state_store.load_calls == 0
+    assert state_store.save_calls == []
+    assert release_source.channels == []
+    assert inventory.calls == 0
+    assert switcher.requests == []
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"version": "1.13.14"},
+        {"architecture": ArtifactArchitecture.ARM64},
+        {"prerelease": False},
+        {"channel": CoreReleaseChannel.STABLE},
+        {"expected_state_revision": CHANGED_REVISION},
+        {
+            "target": CoreReleaseIdentity(
+                version="1.14.0-alpha.47",
+                architecture=ArtifactArchitecture.AMD64,
+                source_sha256="c" * 64,
+            )
+        },
+    ),
+    ids=("version", "architecture", "prerelease", "channel", "revision", "target"),
+)
+def test_forged_acquisition_plan_is_rejected_before_state_or_external_seams(
+    tmp_path: Path,
+    changes: dict[str, object],
+) -> None:
+    state_store = RecordingStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    artifacts = RecordingArtifactSource()
+    activator = RecordingCoreActivator()
+    apply_lock = ImmediateApplyLock()
+    updater = CoreUpdateService(
+        artifact_source=artifacts,
+        core_activator=activator,
+        incoming_directory=tmp_path / "incoming",
+        state_store=state_store,
+        compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=apply_lock,
+    )
+    exact_update = CoreUpdatePlan(
+        artifact=PlannedCoreArtifact(
+            version="1.14.0-alpha.47",
+            architecture=ArtifactArchitecture.AMD64,
+            asset_name="sing-box-1.14.0-alpha.47-linux-amd64.tar.gz",
+            download_url="https://example.invalid/sing-box-preview.tar.gz",
+            sha256="c" * 64,
+            trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+            release_immutable=True,
+            prerelease=True,
+        ),
+        mutates_host=False,
+        warnings=(),
+        expected_state_revision=INITIAL_REVISION,
+    )
+    valid = CoreChannelPlan(
+        kind=CoreChannelPlanKind.ACQUIRE_AND_ACTIVATE,
+        channel=CoreReleaseChannel.PREVIEW,
+        version=exact_update.version,
+        architecture=exact_update.architecture,
+        prerelease=exact_update.allow_prerelease,
+        requires_confirmation=True,
+        target=None,
+        expected_active=CoreReleaseIdentity(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="a" * 64,
+        ),
+        exact_update=exact_update,
+        expected_state_revision=exact_update.expected_state_revision,
+    )
+    forged = replace(valid, **changes)
+    release_source = FixedReleaseSource(
+        CoreRelease(
+            channel=CoreReleaseChannel.PREVIEW,
+            version=exact_update.version,
+            prerelease=True,
+        )
+    )
+    inventory = FixedCoreInventory()
+    switcher = RecordingCoreSwitcher()
+    channels = CoreChannelService(
+        release_source=release_source,
+        core_inventory=inventory,
+        core_updater=updater,
+        core_switcher=switcher,
+        state_store=state_store,
+        compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=apply_lock,
+    )
+
+    with pytest.raises(CoreChannelPlanValidationError):
+        channels.execute(forged, confirmed=True)
+
+    assert state_store.load_calls == 0
+    assert state_store.save_calls == []
+    assert release_source.channels == []
+    assert inventory.calls == 0
+    assert artifacts.inspect_requests == []
+    assert artifacts.acquisitions == []
+    assert activator.requests == []
     assert switcher.requests == []

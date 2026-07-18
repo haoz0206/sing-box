@@ -383,6 +383,7 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         incoming_directory=arguments.privileged_incoming_dir,
         state_store=state_store,
         compatibility=protocol_compatibility,
+        apply_lock=mutation_lock,
     )
     core_channels = CoreChannelService(
         release_source=core_artifacts,
@@ -391,6 +392,7 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         core_switcher=core_controller,
         state_store=state_store,
         compatibility=protocol_compatibility,
+        apply_lock=mutation_lock,
     )
     host_diagnostics = RuntimeHostDiagnostics(runtime=runtime)
     host_readiness = HostReadinessService(

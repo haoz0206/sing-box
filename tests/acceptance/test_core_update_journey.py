@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -204,6 +206,12 @@ class JourneyArtifactSource:
         raise AssertionError("an incompatible review must not acquire an artifact")
 
 
+class JourneyApplyLock:
+    @contextmanager
+    def acquire(self) -> Iterator[None]:
+        yield
+
+
 class JourneyCoreActivator:
     def __init__(self) -> None:
         self.requests: list[CoreActivationRequest] = []
@@ -256,6 +264,7 @@ async def test_applied_snell_rejects_stable_review_before_artifact_acquisition(
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(installation_with_active_snell()),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=JourneyApplyLock(),
     )
     app = ManagerApp(core_updater=updater)
 

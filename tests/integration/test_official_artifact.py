@@ -59,6 +59,7 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
         incoming_directory=policy.incoming_directory,
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=FileApplyLock(tmp_path / "core-update.apply.lock"),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(

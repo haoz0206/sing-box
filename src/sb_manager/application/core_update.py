@@ -11,6 +11,7 @@ from sb_manager.artifacts.installation import (
     CoreReleaseIdentity,
     InstalledCoreRelease,
 )
+from sb_manager.seams.apply_lock import ApplyLock
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
@@ -111,7 +112,7 @@ class CoreUpdater(Protocol):
 class CoreUpdateService:
     """Keep discovery and host mutation behind a confirmed exact-version plan."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - six explicit lifecycle seams
         self,
         *,
         artifact_source: CoreArtifactSource,
@@ -119,12 +120,14 @@ class CoreUpdateService:
         incoming_directory: Path,
         state_store: StateStore,
         compatibility: ProtocolCompatibilityPolicy,
+        apply_lock: ApplyLock,
     ) -> None:
         self._artifact_source = artifact_source
         self._core_activator = core_activator
         self._incoming_directory = incoming_directory
         self._state_store = state_store
         self._compatibility = compatibility
+        self._apply_lock = apply_lock
 
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
         installation = self._state_store.load()
@@ -171,6 +174,10 @@ class CoreUpdateService:
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
         if not confirmed:
             raise CoreUpdateConfirmationRequiredError("Core update requires explicit confirmation")
+        with self._apply_lock.acquire():
+            return self._execute_confirmed(plan)
+
+    def _execute_confirmed(self, plan: CoreUpdatePlan) -> CoreUpdateResult:
         installation = self._state_store.load()
         if installation.revision != plan.expected_state_revision:
             raise CoreDesiredStateChangedError(
@@ -213,6 +220,10 @@ class CoreChannelPlanningError(RuntimeError):
     """Channel discovery and installed state did not produce one safe plan."""
 
 
+class CoreChannelPlanValidationError(CoreChannelPlanningError):
+    """Frozen channel-plan fields do not describe one coherent exact action."""
+
+
 @dataclass(frozen=True, slots=True)
 class PlanCoreChannelRequest:
     """Operator-selected release policy and the managed host architecture."""
@@ -248,7 +259,7 @@ class CoreChannelManager(Protocol):
 class CoreChannelService:
     """Choose one exact channel action without putting policy in the TUI."""
 
-    def __init__(  # noqa: PLR0913 - channel orchestration has six explicit seams
+    def __init__(  # noqa: PLR0913 - channel orchestration has seven explicit seams
         self,
         *,
         release_source: CoreReleaseSource,
@@ -257,6 +268,7 @@ class CoreChannelService:
         core_switcher: CoreSwitcher,
         state_store: StateStore,
         compatibility: ProtocolCompatibilityPolicy,
+        apply_lock: ApplyLock,
     ) -> None:
         self._release_source = release_source
         self._core_inventory = core_inventory
@@ -264,6 +276,7 @@ class CoreChannelService:
         self._core_switcher = core_switcher
         self._state_store = state_store
         self._compatibility = compatibility
+        self._apply_lock = apply_lock
 
     def plan(self, request: PlanCoreChannelRequest) -> CoreChannelPlan:
         installation = self._state_store.load()
@@ -343,30 +356,86 @@ class CoreChannelService:
                 raise CoreUpdateConfirmationRequiredError(
                     "Core channel switch requires confirmation"
                 )
-            if plan.target is None or plan.expected_active is None:
-                raise CoreChannelPlanningError("Retained switch plan is missing exact identities")
-            installation = self._state_store.load()
-            if installation.revision != plan.expected_state_revision:
-                raise CoreDesiredStateChangedError(
-                    expected=plan.expected_state_revision,
-                    actual=installation.revision,
-                )
-            self._compatibility.require_profiles_supported(
-                installation.profiles,
-                target_version=plan.version,
-            )
-            activation = self._core_switcher.switch_core(
-                CoreSwitchRequest(
-                    target=plan.target,
-                    expected_active=plan.expected_active,
-                )
-            )
-            return CoreUpdateResult(activation=activation)
+            self._validate_retained_plan(plan)
+            assert plan.target is not None
+            assert plan.expected_active is not None
+            with self._apply_lock.acquire():
+                return self._execute_retained(plan)
         if plan.kind is CoreChannelPlanKind.ACQUIRE_AND_ACTIVATE:
-            if plan.exact_update is None:
-                raise CoreChannelPlanningError("Acquisition plan is missing exact update evidence")
+            self._validate_acquisition_plan(plan)
+            assert plan.exact_update is not None
             return self._core_updater.execute(plan.exact_update, confirmed=confirmed)
         raise CoreChannelPlanningError(f"Channel plan {plan.kind.value} has no host action")
+
+    def _execute_retained(self, plan: CoreChannelPlan) -> CoreUpdateResult:
+        assert plan.target is not None
+        assert plan.expected_active is not None
+        installation = self._state_store.load()
+        if installation.revision != plan.expected_state_revision:
+            raise CoreDesiredStateChangedError(
+                expected=plan.expected_state_revision,
+                actual=installation.revision,
+            )
+        self._compatibility.require_profiles_supported(
+            installation.profiles,
+            target_version=plan.version,
+        )
+        activation = self._core_switcher.switch_core(
+            CoreSwitchRequest(
+                target=plan.target,
+                expected_active=plan.expected_active,
+            )
+        )
+        return CoreUpdateResult(activation=activation)
+
+    @classmethod
+    def _validate_retained_plan(cls, plan: CoreChannelPlan) -> None:
+        target = plan.target
+        expected_active = plan.expected_active
+        if (
+            not plan.requires_confirmation
+            or target is None
+            or expected_active is None
+            or plan.exact_update is not None
+            or plan.version != target.version
+            or plan.architecture is not target.architecture
+            or plan.architecture is not expected_active.architecture
+            or not cls._channel_matches_prerelease(plan)
+        ):
+            raise CoreChannelPlanValidationError("Retained channel plan evidence is inconsistent")
+
+    @classmethod
+    def _validate_acquisition_plan(cls, plan: CoreChannelPlan) -> None:
+        exact_update = plan.exact_update
+        if (
+            not plan.requires_confirmation
+            or plan.target is not None
+            or exact_update is None
+            or plan.version != exact_update.version
+            or plan.architecture is not exact_update.architecture
+            or plan.prerelease is not exact_update.allow_prerelease
+            or plan.expected_state_revision != exact_update.expected_state_revision
+            or (
+                plan.expected_active is not None
+                and plan.architecture is not plan.expected_active.architecture
+            )
+            or not cls._channel_matches_prerelease(plan)
+            or cls._version_is_prerelease(exact_update.version) is not exact_update.allow_prerelease
+        ):
+            raise CoreChannelPlanValidationError(
+                "Acquisition channel plan evidence is inconsistent"
+            )
+
+    @classmethod
+    def _channel_matches_prerelease(cls, plan: CoreChannelPlan) -> bool:
+        return (
+            plan.prerelease is (plan.channel is CoreReleaseChannel.PREVIEW)
+            and cls._version_is_prerelease(plan.version) is plan.prerelease
+        )
+
+    @staticmethod
+    def _version_is_prerelease(version: str) -> bool:
+        return "-" in version.partition("+")[0]
 
     @staticmethod
     def _one_matching_release(

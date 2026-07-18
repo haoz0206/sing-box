@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from threading import Event
 
@@ -278,6 +280,12 @@ class JourneyCoreSource:
         raise AssertionError("an incompatible channel review must not acquire an artifact")
 
 
+class JourneyApplyLock:
+    @contextmanager
+    def acquire(self) -> Iterator[None]:
+        yield
+
+
 class JourneyCoreInventory:
     def list_installed(self) -> tuple[InstalledCoreRelease, ...]:
         return (
@@ -350,12 +358,14 @@ async def test_applied_snell_rejects_retained_stable_before_acquire_or_switch(
     compatibility = ProtocolCompatibilityPolicy()
     source = JourneyCoreSource()
     controller = JourneyCoreController()
+    apply_lock = JourneyApplyLock()
     updater = CoreUpdateService(
         artifact_source=source,
         core_activator=controller,
         incoming_directory=tmp_path / "incoming",
         state_store=state_store,
         compatibility=compatibility,
+        apply_lock=apply_lock,
     )
     channels = CoreChannelService(
         release_source=source,
@@ -364,6 +374,7 @@ async def test_applied_snell_rejects_retained_stable_before_acquire_or_switch(
         core_switcher=controller,
         state_store=state_store,
         compatibility=compatibility,
+        apply_lock=apply_lock,
     )
     app = ManagerApp(core_updater=updater, core_channel_manager=channels)
 

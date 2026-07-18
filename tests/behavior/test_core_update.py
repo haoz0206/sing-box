@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -24,6 +26,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.seams.apply_lock import ApplyLockUnavailableError
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
@@ -112,6 +115,61 @@ class FailingArtifactSource(RecordingArtifactSource):
         raise OSError("network unavailable")
 
 
+class NonReentrantApplyLock:
+    def __init__(self) -> None:
+        self.held = False
+        self.blocked_attempts = 0
+
+    @contextmanager
+    def acquire(self) -> Iterator[None]:
+        if self.held:
+            self.blocked_attempts += 1
+            raise ApplyLockUnavailableError(Path("/tmp/test-core-update.apply.lock"))
+        self.held = True
+        try:
+            yield
+        finally:
+            self.held = False
+
+
+class MutatingArtifactSource(RecordingArtifactSource):
+    def __init__(self, *, state_store: MemoryStateStore, apply_lock: NonReentrantApplyLock) -> None:
+        super().__init__()
+        self._state_store = state_store
+        self._apply_lock = apply_lock
+        self.mutation_attempted = False
+        self.mutation_blocked = False
+
+    def acquire(
+        self,
+        artifact: PlannedCoreArtifact,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        self.mutation_attempted = True
+        try:
+            with self._apply_lock.acquire():
+                self._state_store.save(snell_installation(revision=CHANGED_REVISION))
+        except ApplyLockUnavailableError:
+            self.mutation_blocked = True
+        return super().acquire(artifact, destination_directory=destination_directory)
+
+
+class StateAwareCoreActivator(RecordingCoreActivator):
+    def __init__(self, *, state_store: MemoryStateStore) -> None:
+        super().__init__()
+        self._state_store = state_store
+        self.incompatible_requests: list[CoreActivationRequest] = []
+
+    def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
+        if ProtocolCompatibilityPolicy().blocking_profiles(
+            self._state_store.load().profiles,
+            target_version=request.version,
+        ):
+            self.incompatible_requests.append(request)
+        return super().activate_core(request)
+
+
 def test_core_update_plan_records_the_loaded_desired_state_revision(tmp_path: Path) -> None:
     source = RecordingArtifactSource()
     state_store = MemoryStateStore(
@@ -123,6 +181,7 @@ def test_core_update_plan_records_the_loaded_desired_state_revision(tmp_path: Pa
         incoming_directory=tmp_path / "incoming",
         state_store=state_store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
 
     plan = core_updates.plan(
@@ -156,6 +215,7 @@ def service(
             incoming_directory=tmp_path / "incoming",
             state_store=MemoryStateStore(),
             compatibility=ProtocolCompatibilityPolicy(),
+            apply_lock=NonReentrantApplyLock(),
         ),
         source,
         activator,
@@ -283,6 +343,7 @@ def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(
@@ -333,6 +394,7 @@ def test_exact_stable_update_is_blocked_by_an_applied_snell_profile(
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(snell_installation()),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
 
     with pytest.raises(CoreTargetIncompatibleWithDesiredState) as captured:
@@ -368,6 +430,7 @@ def test_inactive_snell_does_not_block_an_exact_stable_update(
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(snell_installation(status=status, enabled=enabled)),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
 
     plan = core_updates.plan(
@@ -388,6 +451,7 @@ def test_exact_preview_update_allows_an_applied_snell_profile(tmp_path: Path) ->
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(snell_installation()),
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
 
     plan = core_updates.plan(
@@ -414,6 +478,7 @@ def test_core_update_rejects_a_changed_desired_state_before_acquisition(
         incoming_directory=tmp_path / "incoming",
         state_store=store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(
@@ -446,6 +511,7 @@ def test_core_update_rechecks_target_compatibility_before_acquisition(
         incoming_directory=tmp_path / "incoming",
         state_store=store,
         compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=NonReentrantApplyLock(),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(
@@ -460,6 +526,41 @@ def test_core_update_rechecks_target_compatibility_before_acquisition(
         core_updates.execute(plan, confirmed=True)
 
     assert source.acquisitions == []
+
+
+def test_confirmed_update_holds_apply_lock_through_acquisition_and_activation(
+    tmp_path: Path,
+) -> None:
+    store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    apply_lock = NonReentrantApplyLock()
+    source = MutatingArtifactSource(state_store=store, apply_lock=apply_lock)
+    activator = StateAwareCoreActivator(state_store=store)
+    core_updates = CoreUpdateService(
+        artifact_source=source,
+        core_activator=activator,
+        incoming_directory=tmp_path / "incoming",
+        state_store=store,
+        compatibility=ProtocolCompatibilityPolicy(),
+        apply_lock=apply_lock,
+    )
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+
+    core_updates.execute(plan, confirmed=True)
+
+    assert source.mutation_attempted
+    assert source.mutation_blocked
+    assert apply_lock.blocked_attempts == 1
+    assert store.load().profiles == ()
+    assert activator.incompatible_requests == []
+    assert len(activator.requests) == 1
 
 
 def test_build_metadata_hyphen_does_not_make_a_stable_version_prerelease(tmp_path: Path) -> None:

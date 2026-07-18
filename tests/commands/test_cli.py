@@ -275,10 +275,13 @@ def test_cli_shares_desired_state_and_protocol_policy_across_core_lifecycle(
     assert app.core_updater is not None
     assert app.core_channel_manager is not None
     state_store = vars(app.manager)["_state_store"]
+    apply_lock = vars(app.manager)["_mutation_lock"]
     updater_policy = vars(app.core_updater)["_compatibility"]
 
     assert vars(app.core_updater)["_state_store"] is state_store
+    assert vars(app.core_updater)["_apply_lock"] is apply_lock
     assert vars(app.core_channel_manager)["_state_store"] is state_store
+    assert vars(app.core_channel_manager)["_apply_lock"] is apply_lock
     assert vars(app.core_channel_manager)["_compatibility"] is updater_policy
     assert vars(app.core_channel_manager)["_core_updater"] is app.core_updater
 
