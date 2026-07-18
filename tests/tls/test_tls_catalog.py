@@ -14,7 +14,7 @@ from sb_manager.tls.catalog import (
 )
 
 
-def test_catalog_materializes_a_shared_acme_certificate_provider(tmp_path: Path) -> None:
+def test_catalog_materializes_inline_acme_for_stable_and_preview(tmp_path: Path) -> None:
     catalog = TlsCatalog((AcmeTlsHandler(),))
     intent = AcmeTlsIntent(
         server_name="vpn.example.com",
@@ -28,18 +28,13 @@ def test_catalog_materializes_a_shared_acme_certificate_provider(tmp_path: Path)
         server={
             "enabled": True,
             "server_name": "vpn.example.com",
-            "certificate_provider": "tls-profile-3",
-        },
-        certificate_providers=(
-            {
-                "type": "acme",
-                "tag": "tls-profile-3",
+            "acme": {
                 "domain": ["vpn.example.com"],
                 "email": "operator@example.com",
                 "data_directory": str(tmp_path / "acme"),
-                "key_type": "p256",
             },
-        ),
+        },
+        certificate_providers=(),
         client=TlsClientPolicy(
             server_name="vpn.example.com",
             insecure=False,

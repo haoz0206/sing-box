@@ -111,7 +111,7 @@ def test_unknown_top_level_capability_is_rejected(tmp_path: Path) -> None:
         ManagedConfigurationPolicy().validate(document)
 
 
-def test_multiple_profiles_and_exact_acme_providers_are_allowed(tmp_path: Path) -> None:
+def test_multiple_profiles_with_inline_acme_are_allowed(tmp_path: Path) -> None:
     shadowsocks = generated_document(tmp_path, ProtocolKind.SHADOWSOCKS)
     hysteria2 = generated_document(
         tmp_path,
@@ -121,14 +121,11 @@ def test_multiple_profiles_and_exact_acme_providers_are_allowed(tmp_path: Path) 
     )
     shadow_inbounds = shadowsocks["inbounds"]
     hysteria_inbounds = hysteria2["inbounds"]
-    providers = hysteria2["certificate_providers"]
     assert isinstance(shadow_inbounds, list)
     assert isinstance(hysteria_inbounds, list)
-    assert isinstance(providers, list)
     document: dict[str, object] = {
         "inbounds": [*shadow_inbounds, *hysteria_inbounds],
         "outbounds": [{"type": "direct", "tag": "direct"}],
-        "certificate_providers": providers,
     }
 
     ManagedConfigurationPolicy().validate(document)
@@ -146,15 +143,35 @@ def test_unknown_inbound_field_is_rejected(tmp_path: Path) -> None:
         ManagedConfigurationPolicy().validate(document)
 
 
-def test_acme_provider_cannot_select_a_root_write_directory(tmp_path: Path) -> None:
+def test_inline_acme_cannot_select_a_root_write_directory(tmp_path: Path) -> None:
     document = generated_document(tmp_path, ProtocolKind.HYSTERIA2)
-    providers = document["certificate_providers"]
-    assert isinstance(providers, list)
-    provider = providers[0]
-    assert isinstance(provider, dict)
-    provider["data_directory"] = "/root/.ssh"
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    tls = inbound["tls"]
+    assert isinstance(tls, dict)
+    acme = tls["acme"]
+    assert isinstance(acme, dict)
+    acme["data_directory"] = "/root/.ssh"
 
-    with pytest.raises(PrivilegedInputError, match="ACME data directory"):
+    with pytest.raises(PrivilegedInputError, match="inline ACME data directory"):
+        ManagedConfigurationPolicy().validate(document)
+
+
+def test_inline_acme_domain_must_match_tls_server_name(tmp_path: Path) -> None:
+    document = generated_document(tmp_path, ProtocolKind.TROJAN)
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    tls = inbound["tls"]
+    assert isinstance(tls, dict)
+    acme = tls["acme"]
+    assert isinstance(acme, dict)
+    acme["domain"] = ["attacker.example.com"]
+
+    with pytest.raises(PrivilegedInputError, match="inline ACME domain"):
         ManagedConfigurationPolicy().validate(document)
 
 

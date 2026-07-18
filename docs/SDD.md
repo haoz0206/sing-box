@@ -802,8 +802,14 @@ adapters. Application code never calls their commands directly.
 ### 7.6 TLS adapters
 
 The TLS seam supports Caddy-managed certificates, sing-box ACME where supported,
-and operator-provided certificates. Self-signed credentials are allowed only for
-protocols and workflows that explicitly communicate client verification needs.
+and operator-provided certificates. ADR-0024 defines the current Stable/Preview
+compatibility window: the ACME adapter emits the exact inline `tls.acme` subset
+accepted by both sing-box 1.13 and 1.14, and the privileged policy independently
+allowlists its domain, email, and fixed data directory. Configuration projection
+must gain explicit version-capability selection before either supported channel
+reaches sing-box 1.16, where inline ACME is scheduled for removal. Self-signed
+credentials are allowed only for protocols and workflows that explicitly
+communicate client verification needs.
 
 ### 7.7 Artifact adapters
 
@@ -1058,12 +1064,13 @@ Current implementation status (2026-07-17):
   is non-disclosing and exposes the advanced path on the same recovery page;
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
   AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
-- shared TLS strategies: the guided TUI supports sing-box 1.14 ACME certificate
-  providers and an advanced root-managed certificate-file workflow constrained
-  to `/etc/sing-box-manager/tls`;
+- shared TLS strategies: the guided TUI emits the strictly allowlisted inline
+  ACME subset shared by the current sing-box 1.13/1.14 compatibility window and
+  supports an advanced root-managed certificate-file workflow constrained to
+  `/etc/sing-box-manager/tls`;
 - release integration: product-generated configurations for every supported
   protocol and the VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
-  against official 1.14.0-alpha.45;
+  against official Stable 1.13.14 and Preview 1.14.0-alpha.47;
 - release harness: a read-only systemd/OpenRC acceptance plan prints recovery
   actions and an authorization value bound to the exact runtime and service;
   execution refuses an unhealthy precondition, refreshes once, and requires a
@@ -1276,8 +1283,9 @@ Current implementation status (2026-07-17):
   states before recomposing the dashboard;
 - pending privileged work: live systemd/OpenRC execution on approved,
   recoverable target hosts;
-- pending: the stable sing-box 1.14 release and execution of that harness on
-  every supported host family.
+- pending: resolution of the latest Stable artifact-trust conflict described in
+  `docs/SUPPORT.md`, plus execution of the host harness on every supported host
+  family.
 
 ## 13. Release acceptance criteria
 

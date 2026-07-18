@@ -769,16 +769,12 @@ def test_cli_composes_a_complete_hysteria2_acme_apply_path(tmp_path: Path) -> No
     assert result.connection_info.share_uri.startswith("hysteria2://")
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["type"] == "hysteria2"
-    assert document["certificate_providers"] == [
-        {
-            "type": "acme",
-            "tag": "tls-profile-1",
-            "domain": ["vpn.example.com"],
-            "email": "operator@example.com",
-            "data_directory": str(tmp_path / "acme"),
-            "key_type": "p256",
-        }
-    ]
+    assert "certificate_providers" not in document
+    assert document["inbounds"][0]["tls"]["acme"] == {
+        "domain": ["vpn.example.com"],
+        "email": "operator@example.com",
+        "data_directory": str(tmp_path / "acme"),
+    }
 
 
 def test_cli_composes_a_complete_trojan_acme_apply_path(tmp_path: Path) -> None:
@@ -814,7 +810,7 @@ def test_cli_composes_a_complete_trojan_acme_apply_path(tmp_path: Path) -> None:
     assert isinstance(profile.protocol_material, TrojanMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["type"] == "trojan"
-    assert document["certificate_providers"][0]["tag"] == "tls-profile-1"
+    assert document["inbounds"][0]["tls"]["acme"]["domain"] == ["vpn.example.com"]
 
 
 def test_cli_composes_a_complete_anytls_acme_apply_path(tmp_path: Path) -> None:
@@ -850,7 +846,7 @@ def test_cli_composes_a_complete_anytls_acme_apply_path(tmp_path: Path) -> None:
     assert isinstance(profile.protocol_material, AnyTlsMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["type"] == "anytls"
-    assert document["certificate_providers"][0]["tag"] == "tls-profile-1"
+    assert document["inbounds"][0]["tls"]["acme"]["domain"] == ["vpn.example.com"]
 
 
 def test_cli_composes_a_complete_tuic_acme_apply_path(tmp_path: Path) -> None:
@@ -920,7 +916,7 @@ def test_cli_composes_a_complete_vless_tls_websocket_apply_path(tmp_path: Path) 
     assert isinstance(profile.protocol_material, VlessMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["transport"] == {"type": "ws", "path": "/proxy"}
-    assert document["certificate_providers"][0]["tag"] == "tls-profile-1"
+    assert document["inbounds"][0]["tls"]["acme"]["domain"] == ["vpn.example.com"]
 
 
 def test_cli_composes_a_complete_vmess_tls_websocket_apply_path(tmp_path: Path) -> None:

@@ -384,6 +384,23 @@ class ManagedConfigurationPolicy:
             if provider_tag != f"tls-{profile_tag}":
                 raise PrivilegedInputError("Managed TLS provider tag does not match profile")
             return provider_tag, server_name
+        if "acme" in tls:
+            if set(tls) != {"enabled", "server_name", "acme"}:
+                raise PrivilegedInputError("Managed inline ACME TLS fields are invalid")
+            acme = self._object(
+                tls["acme"],
+                fields={"domain", "email", "data_directory"},
+                role="inline ACME settings",
+            )
+            domains = self._list(acme["domain"], role="inline ACME domain")
+            if domains != [server_name]:
+                raise PrivilegedInputError("Managed inline ACME domain does not match TLS")
+            self._nonempty_string(acme["email"], role="inline ACME email")
+            if acme["data_directory"] != str(self._acme_data_directory):
+                raise PrivilegedInputError(
+                    f"Managed inline ACME data directory must be {self._acme_data_directory}"
+                )
+            return None
         if set(tls) != {"enabled", "server_name", "certificate_path", "key_path"}:
             raise PrivilegedInputError("Managed operator-file TLS fields are invalid")
         self._validate_tls_file(tls["certificate_path"], role="certificate", private=False)

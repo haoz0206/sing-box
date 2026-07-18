@@ -84,7 +84,7 @@ class TlsCatalog:
 
 
 class AcmeTlsHandler:
-    """Build sing-box 1.14 shared ACME certificate-provider artifacts."""
+    """Build the inline ACME shape shared by sing-box 1.13 and 1.14."""
 
     kind = TlsKind.ACME
 
@@ -95,18 +95,13 @@ class AcmeTlsHandler:
             server={
                 "enabled": True,
                 "server_name": intent.server_name,
-                "certificate_provider": tag,
-            },
-            certificate_providers=(
-                {
-                    "type": "acme",
-                    "tag": tag,
+                "acme": {
                     "domain": [intent.server_name],
                     "email": intent.email,
                     "data_directory": str(intent.data_directory),
-                    "key_type": "p256",
                 },
-            ),
+            },
+            certificate_providers=(),
             client=TlsClientPolicy(
                 server_name=intent.server_name,
                 insecure=False,

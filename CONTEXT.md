@@ -92,6 +92,12 @@ track, but preserves the upstream alpha, beta, or release-candidate stage in
 operator evidence. Discovery never authorizes a moving `latest` target.
 _Avoid_: Hardcoded version, implicit prerelease consent, privileged discovery
 
+**Core compatibility window**:
+The exact Stable and Preview releases for which one manager-generated
+configuration shape has real-binary validation evidence. Artifact acquisition
+trust and configuration compatibility are independent requirements.
+_Avoid_: Core release channel, installer support, version guess
+
 **Core channel switch**:
 An operator-confirmed atomic selection of one exact manager-installed immutable
 core release associated with the chosen channel. A reviewed retained target may

@@ -156,7 +156,7 @@ def test_catalog_materializes_a_complete_reality_profile() -> None:
     assert "private-key-value" not in materialized.connection_info.share_uri
 
 
-def test_catalog_materializes_hysteria2_with_shared_tls_artifacts(tmp_path) -> None:
+def test_catalog_materializes_hysteria2_with_inline_acme(tmp_path) -> None:
     handler = Hysteria2Handler(
         material_source=FixedHysteria2MaterialSource(),
         tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
@@ -183,18 +183,13 @@ def test_catalog_materializes_hysteria2_with_shared_tls_artifacts(tmp_path) -> N
     assert materialized.inbound["tls"] == {
         "enabled": True,
         "server_name": "vpn.example.com",
-        "certificate_provider": "tls-profile-3",
-    }
-    assert materialized.certificate_providers == (
-        {
-            "type": "acme",
-            "tag": "tls-profile-3",
+        "acme": {
             "domain": ["vpn.example.com"],
             "email": "operator@example.com",
             "data_directory": str(tmp_path / "acme"),
-            "key_type": "p256",
         },
-    )
+    }
+    assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
     assert materialized.connection_info.share_uri == (
         "hysteria2://hy2-password@vpn.example.com:8443/"
@@ -202,7 +197,7 @@ def test_catalog_materializes_hysteria2_with_shared_tls_artifacts(tmp_path) -> N
     )
 
 
-def test_catalog_materializes_trojan_with_shared_tls_artifacts(tmp_path) -> None:
+def test_catalog_materializes_trojan_with_inline_acme(tmp_path) -> None:
     handler = TrojanHandler(
         material_source=FixedTrojanMaterialSource(),
         tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
@@ -226,8 +221,8 @@ def test_catalog_materializes_trojan_with_shared_tls_artifacts(tmp_path) -> None
 
     assert materialized.profile.protocol_material == TrojanMaterial(password="trojan-password")
     assert materialized.inbound["type"] == "trojan"
-    assert materialized.inbound["tls"]["certificate_provider"] == "tls-profile-4"
-    assert materialized.certificate_providers[0]["tag"] == "tls-profile-4"
+    assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
+    assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
     assert materialized.connection_info.share_uri == (
         "trojan://trojan-password@vpn.example.com:443/"
@@ -235,7 +230,7 @@ def test_catalog_materializes_trojan_with_shared_tls_artifacts(tmp_path) -> None
     )
 
 
-def test_catalog_materializes_anytls_with_shared_tls_artifacts(tmp_path) -> None:
+def test_catalog_materializes_anytls_with_inline_acme(tmp_path) -> None:
     handler = AnyTlsHandler(
         material_source=FixedAnyTlsMaterialSource(),
         tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
@@ -259,8 +254,8 @@ def test_catalog_materializes_anytls_with_shared_tls_artifacts(tmp_path) -> None
 
     assert materialized.profile.protocol_material == AnyTlsMaterial(password="anytls-password")
     assert materialized.inbound["type"] == "anytls"
-    assert materialized.inbound["tls"]["certificate_provider"] == "tls-profile-5"
-    assert materialized.certificate_providers[0]["tag"] == "tls-profile-5"
+    assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
+    assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
     assert materialized.connection_info.share_uri == (
         "anytls://anytls-password@vpn.example.com:443/"
@@ -268,7 +263,7 @@ def test_catalog_materializes_anytls_with_shared_tls_artifacts(tmp_path) -> None
     )
 
 
-def test_catalog_materializes_tuic_with_shared_tls_artifacts(tmp_path) -> None:
+def test_catalog_materializes_tuic_with_inline_acme(tmp_path) -> None:
     handler = TuicHandler(
         material_source=FixedTuicMaterialSource(),
         tls_catalog=TlsCatalog((AcmeTlsHandler(),)),
@@ -296,7 +291,8 @@ def test_catalog_materializes_tuic_with_shared_tls_artifacts(tmp_path) -> None:
     )
     assert materialized.inbound["type"] == "tuic"
     assert materialized.inbound["zero_rtt_handshake"] is False
-    assert materialized.certificate_providers[0]["tag"] == "tls-profile-6"
+    assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
+    assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
     assert materialized.connection_info.share_uri.startswith("tuic://")
 
@@ -332,7 +328,8 @@ def test_catalog_materializes_vless_tls_websocket_across_deep_catalogs(tmp_path)
         user_uuid="bf000d23-0752-40b4-affe-68f7707a9661"
     )
     assert materialized.inbound["transport"] == {"type": "ws", "path": "/proxy"}
-    assert materialized.certificate_providers[0]["tag"] == "tls-profile-7"
+    assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
+    assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
     assert "type=ws" in materialized.connection_info.share_uri
 

@@ -399,7 +399,7 @@ def test_applying_a_second_profile_preserves_existing_applied_inbounds() -> None
     assert state_store.load().profiles[1].status is ProfileStatus.APPLIED
 
 
-def test_hysteria2_apply_includes_top_level_certificate_providers(tmp_path: Path) -> None:
+def test_hysteria2_apply_uses_inline_acme_compatible_with_both_channels(tmp_path: Path) -> None:
     profile = ManagedProfile(
         profile_id="profile-3",
         profile_name="移动网络",
@@ -435,13 +435,17 @@ def test_hysteria2_apply_includes_top_level_certificate_providers(tmp_path: Path
     )
 
     assert applier.document is not None
-    assert applier.document["certificate_providers"] == [
-        {
-            "type": "acme",
-            "tag": "tls-profile-3",
+    assert "certificate_providers" not in applier.document
+    inbounds = applier.document["inbounds"]
+    assert isinstance(inbounds, list)
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    assert inbound["tls"] == {
+        "enabled": True,
+        "server_name": "vpn.example.com",
+        "acme": {
             "domain": ["vpn.example.com"],
             "email": "operator@example.com",
             "data_directory": str(tmp_path / "acme"),
-            "key_type": "p256",
-        }
-    ]
+        },
+    }

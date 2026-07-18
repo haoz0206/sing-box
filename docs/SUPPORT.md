@@ -68,7 +68,7 @@ back the current pre-release in an isolated root:
 
 ```bash
 SB_MANAGER_ARTIFACT_DOWNLOAD=download \
-SB_MANAGER_ARTIFACT_VERSION=1.14.0-alpha.45 \
+SB_MANAGER_ARTIFACT_VERSION=1.14.0-alpha.47 \
 SB_MANAGER_ARTIFACT_ARCHITECTURE=amd64 \
 SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE=1 \
 .venv/bin/pytest -q tests/integration/test_official_artifact.py
@@ -120,13 +120,19 @@ recoverable host.
 
 ## sing-box
 
-Generated configuration currently targets the sing-box 1.14 pre-release schema
-because shared ACME certificate providers use `certificate_provider`. It was
-last verified against official `1.14.0-alpha.45` on 2026-07-16. That verification
-covers every supported protocol plus both WebSocket and gRPC variants for VLESS
-and VMess.
+Generated configuration currently uses the strictly allowlisted inline ACME
+shape shared by sing-box 1.13 and 1.14. On 2026-07-18 the complete real-binary
+suite passed all 15 cases against official Stable `1.13.14` and Preview
+`1.14.0-alpha.47`. That covers every supported protocol plus both WebSocket and
+gRPC variants for VLESS and VMess. Inline ACME is deprecated in 1.14 and is
+scheduled for removal in 1.16, so a version-capability projection is required
+before either supported channel reaches 1.16.
 
-There is no stable 1.14 release at the time of that verification. This is
-pre-release compatibility and blocks a stable manager release until sing-box
-1.14 becomes stable and the suite passes against it. A future artifact installer
-must enforce the accepted core version before apply.
+Artifact trust remains a separate release gate. Preview `1.14.0-alpha.47` is an
+immutable GitHub release and passed the official download, digest, safe-staging,
+isolated activation, and rollback test. Current Stable `1.13.14` has per-asset
+GitHub SHA-256 digests but the release API reports `immutable=false`; ADR-0003
+therefore rejects production discovery/acquisition. Its compatibility run used
+the exact official amd64 digest in disposable staging and is not evidence that
+the production network installer accepts Stable. Supporting that release needs
+an explicit trust-policy decision rather than a silent fallback.

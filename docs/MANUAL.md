@@ -44,11 +44,11 @@
 和一个通道。查询过程只读，会同时解析官方精确版本并检查本机由 manager 记录的可信
 安装：
 
-- `stable` 解析官方最新非预发布 immutable release；
+- `stable` 解析官方最新非预发布 release，并继续执行 immutable 信任检查；
 - `preview` 是 beta/测试通道，解析官方最新 prerelease；实际版本可能是 alpha、beta
   或 rc，计划会显示真实版本，不会把 alpha 错称为 beta；
-- 截至 2026-07-17 的官方证据是 stable `1.13.14`、preview
-  `1.14.0-alpha.46`，生产代码不会硬编码这两个值；
+- 截至 2026-07-18 的官方证据是 stable `1.13.14`、preview
+  `1.14.0-alpha.47`，生产代码不会硬编码这两个值；
 - 通道解析完成后仍会生成绑定精确版本的计划，不会把会移动的 `latest` 直接交给
   root helper。
 
@@ -61,6 +61,10 @@
 
 Preview 计划会显示预发布兼容性警告。切换或激活完成前不能离开确认页；若出现“结果
 未知”，按下一节检查后再决定是否重试。
+
+当前 Stable `1.13.14` 的配置兼容性已经通过真实核心检查，但 GitHub 将该 release 标记
+为 `immutable=false`。manager 会按制品信任策略拒绝网络下载，而不会仅凭“最新稳定版”
+降低校验强度。Preview `1.14.0-alpha.47` 已通过 immutable 制品下载与隔离激活验收。
 
 较早版本安装的、没有 manager manifest 的核心可以继续作为当前运行目标，但不会被
 静默列为离线切换候选。通过可信精确版本流程重新获取后，它才会进入 retained catalog。
