@@ -12,7 +12,12 @@ from sb_manager.application.core_update import (
     PlanCoreUpdateRequest,
 )
 from sb_manager.artifacts.installation import CoreActivation, CoreReleaseIdentity
-from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreReleaseChannel
+from sb_manager.seams.artifact_source import (
+    ArtifactArchitecture,
+    CoreArtifactTrustMode,
+    CoreReleaseChannel,
+    PlannedCoreArtifact,
+)
 from sb_manager.ui.app import ManagerApp
 
 
@@ -106,11 +111,19 @@ class MissingPreviewChannels(RetainedPreviewChannels):
                 source_sha256="a" * 64,
             ),
             exact_update=CoreUpdatePlan(
-                version="1.14.0-alpha.46",
-                architecture=request.architecture,
-                allow_prerelease=True,
-                asset_name="sing-box-1.14.0-alpha.46-linux-amd64.tar.gz",
-                source="SagerNet/sing-box immutable GitHub release",
+                artifact=PlannedCoreArtifact(
+                    version="1.14.0-alpha.46",
+                    architecture=request.architecture,
+                    asset_name="sing-box-1.14.0-alpha.46-linux-amd64.tar.gz",
+                    download_url=(
+                        "https://github.com/SagerNet/sing-box/releases/download/"
+                        "v1.14.0-alpha.46/sing-box-1.14.0-alpha.46-linux-amd64.tar.gz"
+                    ),
+                    sha256="b" * 64,
+                    trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+                    release_immutable=True,
+                    prerelease=True,
+                ),
                 mutates_host=False,
                 warnings=(CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,),
             ),

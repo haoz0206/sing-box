@@ -13,8 +13,10 @@ from sb_manager.artifacts.installation import CoreActivation, InstalledCoreRelea
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
+    CoreArtifactTrustMode,
     CoreRelease,
     CoreReleaseChannel,
+    PlannedCoreArtifact,
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest
@@ -71,25 +73,42 @@ class RecordingCoreSwitcher:
 
 class RecordingArtifactSource:
     def __init__(self) -> None:
-        self.requests: list[CoreArtifactRequest] = []
+        self.inspect_requests: list[CoreArtifactRequest] = []
+        self.acquisitions: list[PlannedCoreArtifact] = []
 
-    def acquire(
-        self,
-        request: CoreArtifactRequest,
-        *,
-        destination_directory: Path,
-    ) -> VerifiedCoreArtifact:
-        self.requests.append(request)
-        destination_directory.mkdir(parents=True, exist_ok=True)
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
+        self.inspect_requests.append(request)
         asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
-        archive_path = destination_directory / asset_name
-        archive_path.write_bytes(b"verified preview archive")
-        return VerifiedCoreArtifact(
+        return PlannedCoreArtifact(
             version=request.version,
             architecture=request.architecture,
             asset_name=asset_name,
-            archive_path=archive_path,
+            download_url=(
+                "https://github.com/SagerNet/sing-box/releases/download/"
+                f"v{request.version}/{asset_name}"
+            ),
             sha256="c" * 64,
+            trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+            release_immutable=True,
+            prerelease=True,
+        )
+
+    def acquire(
+        self,
+        artifact: PlannedCoreArtifact,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        self.acquisitions.append(artifact)
+        destination_directory.mkdir(parents=True, exist_ok=True)
+        archive_path = destination_directory / artifact.asset_name
+        archive_path.write_bytes(b"verified preview archive")
+        return VerifiedCoreArtifact(
+            version=artifact.version,
+            architecture=artifact.architecture,
+            asset_name=artifact.asset_name,
+            archive_path=archive_path,
+            sha256=artifact.sha256,
         )
 
 
@@ -312,13 +331,15 @@ def test_missing_preview_channel_acquires_and_activates_the_discovered_exact_rel
     assert plan.exact_update is not None
     assert plan.exact_update.version == "1.14.0-alpha.46"
     assert plan.exact_update.allow_prerelease is True
-    assert artifacts.requests == [
+    assert artifacts.inspect_requests == [
         CoreArtifactRequest(
             version="1.14.0-alpha.46",
             architecture=ArtifactArchitecture.AMD64,
             allow_prerelease=True,
         )
     ]
+    assert artifacts.acquisitions == [plan.exact_update.artifact]
+    assert artifacts.acquisitions[0] is plan.exact_update.artifact
     assert activator.requests == [
         CoreActivationRequest(
             version="1.14.0-alpha.46",

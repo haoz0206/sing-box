@@ -14,8 +14,10 @@ from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
     CoreArtifactSource,
+    CoreArtifactTrustMode,
     CoreReleaseChannel,
     CoreReleaseSource,
+    PlannedCoreArtifact,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest, CoreActivator
 from sb_manager.seams.core_inventory import CoreInventory
@@ -38,6 +40,7 @@ class CoreUpdateWarning(str, Enum):
     """Stable review warning rendered by the presentation catalog."""
 
     PRERELEASE_COMPATIBILITY_RISK = "prerelease-compatibility-risk"
+    DIGEST_PINNED_MUTABLE_RELEASE = "digest-pinned-mutable-release"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,13 +56,29 @@ class PlanCoreUpdateRequest:
 class CoreUpdatePlan:
     """Pure preview of the exact upstream artifact and trust boundary."""
 
-    version: str
-    architecture: ArtifactArchitecture
-    allow_prerelease: bool
-    asset_name: str
-    source: str
+    artifact: PlannedCoreArtifact
     mutates_host: bool
     warnings: tuple[CoreUpdateWarning, ...]
+
+    @property
+    def version(self) -> str:
+        return self.artifact.version
+
+    @property
+    def architecture(self) -> ArtifactArchitecture:
+        return self.artifact.architecture
+
+    @property
+    def asset_name(self) -> str:
+        return self.artifact.asset_name
+
+    @property
+    def allow_prerelease(self) -> bool:
+        return self.artifact.prerelease
+
+    @property
+    def source(self) -> str:
+        return "SagerNet/sing-box official GitHub release"
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,22 +116,34 @@ class CoreUpdateService:
             architecture=request.architecture,
             allow_prerelease=request.allow_prerelease,
         )
-        is_prerelease = "-" in artifact_request.version
-        if is_prerelease and not artifact_request.allow_prerelease:
+        requested_prerelease = "-" in artifact_request.version.partition("+")[0]
+        if requested_prerelease and not artifact_request.allow_prerelease:
             raise CorePrereleaseConsentRequiredError(
                 f"Core version {artifact_request.version} is a prerelease"
             )
+        try:
+            artifact = self._artifact_source.inspect(artifact_request)
+            if (
+                artifact.version != artifact_request.version
+                or artifact.architecture is not artifact_request.architecture
+                or artifact.prerelease is not requested_prerelease
+            ):
+                raise CoreArtifactAcquisitionError(
+                    "Artifact inspection returned evidence for a different requested release"
+                )
+        except CoreArtifactAcquisitionError:
+            raise
+        except Exception as error:
+            raise CoreArtifactAcquisitionError(str(error)) from error
+        warnings: list[CoreUpdateWarning] = []
+        if artifact.prerelease:
+            warnings.append(CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK)
+        if artifact.trust_mode is CoreArtifactTrustMode.DIGEST_PINNED_STABLE:
+            warnings.append(CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE)
         return CoreUpdatePlan(
-            version=artifact_request.version,
-            architecture=artifact_request.architecture,
-            allow_prerelease=artifact_request.allow_prerelease,
-            asset_name=(
-                f"sing-box-{artifact_request.version}-linux-"
-                f"{artifact_request.architecture.value}.tar.gz"
-            ),
-            source="SagerNet/sing-box immutable GitHub release",
+            artifact=artifact,
             mutates_host=False,
-            warnings=((CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,) if is_prerelease else ()),
+            warnings=tuple(warnings),
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -120,11 +151,7 @@ class CoreUpdateService:
             raise CoreUpdateConfirmationRequiredError("Core update requires explicit confirmation")
         try:
             artifact = self._artifact_source.acquire(
-                CoreArtifactRequest(
-                    version=plan.version,
-                    architecture=plan.architecture,
-                    allow_prerelease=plan.allow_prerelease,
-                ),
+                plan.artifact,
                 destination_directory=self._incoming_directory,
             )
         except Exception as error:

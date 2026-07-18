@@ -10,6 +10,7 @@ from tempfile import NamedTemporaryFile
 from sb_manager.seams.artifact_source import (
     ArtifactDigestUnavailableError,
     ArtifactIntegrityError,
+    ArtifactMetadataChangedError,
     ArtifactTrustError,
     CoreArtifactRequest,
     CoreArtifactTrustMode,
@@ -60,8 +61,8 @@ class GitHubArtifactSource:
             raise ArtifactTrustError("Release metadata is not a JSON object")
         if raw_metadata.get("draft") is not False:
             raise ArtifactTrustError("Refusing a draft release")
-        if raw_metadata.get("immutable") is not True:
-            raise ArtifactTrustError("Release is not immutable")
+        if not isinstance(raw_metadata.get("immutable"), bool):
+            raise ArtifactTrustError("Release immutable metadata is invalid")
         if raw_metadata.get("prerelease") is not False:
             raise ArtifactTrustError("Stable channel requires a non-prerelease")
         self._require_published(raw_metadata)
@@ -91,32 +92,38 @@ class GitHubArtifactSource:
 
     def acquire(
         self,
-        request: CoreArtifactRequest,
+        artifact: PlannedCoreArtifact,
         *,
         destination_directory: Path,
     ) -> VerifiedCoreArtifact:
-        metadata = self._release_metadata(request)
-        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
-        asset = self._find_asset(metadata, asset_name)
-        expected_sha256 = self._sha256(asset)
-        download_url = self._download_url(asset, request=request, asset_name=asset_name)
+        observed = self.inspect(
+            CoreArtifactRequest(
+                version=artifact.version,
+                architecture=artifact.architecture,
+                allow_prerelease=artifact.prerelease,
+            )
+        )
+        if observed != artifact:
+            raise ArtifactMetadataChangedError(
+                f"Artifact metadata changed for {artifact.asset_name}; create a new plan"
+            )
 
         destination_directory.mkdir(parents=True, exist_ok=True)
-        archive_path = destination_directory / asset_name
+        archive_path = destination_directory / artifact.asset_name
         temporary_path: Path | None = None
         try:
             with NamedTemporaryFile(
                 dir=destination_directory,
-                prefix=f".{asset_name}.",
+                prefix=f".{artifact.asset_name}.",
                 delete=False,
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
-            self._http_client.download(download_url, temporary_path)
+            self._http_client.download(artifact.download_url, temporary_path)
             actual_sha256 = self._hash(temporary_path)
-            if not hmac.compare_digest(actual_sha256, expected_sha256):
+            if not hmac.compare_digest(actual_sha256, artifact.sha256):
                 raise ArtifactIntegrityError(
-                    f"SHA-256 mismatch for {asset_name}: "
-                    f"expected {expected_sha256}, got {actual_sha256}"
+                    f"SHA-256 mismatch for {artifact.asset_name}: "
+                    f"expected {artifact.sha256}, got {actual_sha256}"
                 )
             temporary_path.replace(archive_path)
             temporary_path = None
@@ -125,11 +132,11 @@ class GitHubArtifactSource:
                 temporary_path.unlink(missing_ok=True)
 
         return VerifiedCoreArtifact(
-            version=request.version,
-            architecture=request.architecture,
-            asset_name=asset_name,
+            version=artifact.version,
+            architecture=artifact.architecture,
+            asset_name=artifact.asset_name,
             archive_path=archive_path,
-            sha256=expected_sha256,
+            sha256=artifact.sha256,
         )
 
     def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:

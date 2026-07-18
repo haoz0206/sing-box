@@ -12,7 +12,11 @@ from sb_manager.application.core_update import (
     PlanCoreUpdateRequest,
 )
 from sb_manager.artifacts.installation import CoreActivation
-from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.artifact_source import (
+    ArtifactArchitecture,
+    CoreArtifactTrustMode,
+    PlannedCoreArtifact,
+)
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.ui.app import ManagerApp, ManagerAppInterfaceTools
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
@@ -60,12 +64,21 @@ class RecordingCoreUpdater:
 
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
         self.plan_requests.append(request)
+        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
         return CoreUpdatePlan(
-            version=request.version,
-            architecture=request.architecture,
-            allow_prerelease=request.allow_prerelease,
-            asset_name=f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz",
-            source="SagerNet/sing-box immutable GitHub release",
+            artifact=PlannedCoreArtifact(
+                version=request.version,
+                architecture=request.architecture,
+                asset_name=asset_name,
+                download_url=(
+                    "https://github.com/SagerNet/sing-box/releases/download/"
+                    f"v{request.version}/{asset_name}"
+                ),
+                sha256="a" * 64,
+                trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+                release_immutable=True,
+                prerelease=True,
+            ),
             mutates_host=False,
             warnings=(CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,),
         )

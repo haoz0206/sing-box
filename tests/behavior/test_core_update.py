@@ -14,6 +14,8 @@ from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
+    CoreArtifactTrustMode,
+    PlannedCoreArtifact,
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest
@@ -21,25 +23,50 @@ from sb_manager.seams.core_activator import CoreActivationRequest
 
 class RecordingArtifactSource:
     def __init__(self) -> None:
-        self.calls: list[tuple[CoreArtifactRequest, Path]] = []
+        self.inspect_requests: list[CoreArtifactRequest] = []
+        self.inspected_artifacts: list[PlannedCoreArtifact] = []
+        self.acquisitions: list[tuple[PlannedCoreArtifact, Path]] = []
 
-    def acquire(
-        self,
-        request: CoreArtifactRequest,
-        *,
-        destination_directory: Path,
-    ) -> VerifiedCoreArtifact:
-        self.calls.append((request, destination_directory))
-        destination_directory.mkdir(parents=True, exist_ok=True)
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
+        self.inspect_requests.append(request)
+        prerelease = "-" in request.version.partition("+")[0]
         asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
-        archive_path = destination_directory / asset_name
-        archive_path.write_bytes(b"verified archive")
-        return VerifiedCoreArtifact(
+        artifact = PlannedCoreArtifact(
             version=request.version,
             architecture=request.architecture,
             asset_name=asset_name,
-            archive_path=archive_path,
+            download_url=(
+                "https://github.com/SagerNet/sing-box/releases/download/"
+                f"v{request.version}/{asset_name}"
+            ),
             sha256="a" * 64,
+            trust_mode=(
+                CoreArtifactTrustMode.IMMUTABLE_RELEASE
+                if prerelease
+                else CoreArtifactTrustMode.DIGEST_PINNED_STABLE
+            ),
+            release_immutable=prerelease,
+            prerelease=prerelease,
+        )
+        self.inspected_artifacts.append(artifact)
+        return artifact
+
+    def acquire(
+        self,
+        artifact: PlannedCoreArtifact,
+        *,
+        destination_directory: Path,
+    ) -> VerifiedCoreArtifact:
+        self.acquisitions.append((artifact, destination_directory))
+        destination_directory.mkdir(parents=True, exist_ok=True)
+        archive_path = destination_directory / artifact.asset_name
+        archive_path.write_bytes(b"verified archive")
+        return VerifiedCoreArtifact(
+            version=artifact.version,
+            architecture=artifact.architecture,
+            asset_name=artifact.asset_name,
+            archive_path=archive_path,
+            sha256=artifact.sha256,
         )
 
 
@@ -58,13 +85,14 @@ class RecordingCoreActivator:
         )
 
 
-class FailingArtifactSource:
+class FailingArtifactSource(RecordingArtifactSource):
     def acquire(
         self,
-        request: CoreArtifactRequest,
+        artifact: PlannedCoreArtifact,
         *,
         destination_directory: Path,
     ) -> VerifiedCoreArtifact:
+        self.acquisitions.append((artifact, destination_directory))
         raise OSError("network unavailable")
 
 
@@ -96,10 +124,21 @@ def test_core_update_plan_is_pure_and_exposes_exact_artifact(tmp_path: Path) -> 
     )
 
     assert plan.asset_name == "sing-box-1.14.0-linux-amd64.tar.gz"
-    assert plan.source == "SagerNet/sing-box immutable GitHub release"
+    assert plan.version == "1.14.0"
+    assert plan.architecture is ArtifactArchitecture.AMD64
+    assert plan.allow_prerelease is False
+    assert plan.source == "SagerNet/sing-box official GitHub release"
     assert plan.mutates_host is False
-    assert plan.warnings == ()
-    assert source.calls == []
+    assert plan.warnings == (CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,)
+    assert source.inspect_requests == [
+        CoreArtifactRequest(
+            version="1.14.0",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    ]
+    assert plan.artifact is source.inspected_artifacts[0]
+    assert source.acquisitions == []
 
 
 def test_prerelease_plan_requires_explicit_consent(tmp_path: Path) -> None:
@@ -114,7 +153,8 @@ def test_prerelease_plan_requires_explicit_consent(tmp_path: Path) -> None:
             )
         )
 
-    assert source.calls == []
+    assert source.inspect_requests == []
+    assert source.acquisitions == []
 
 
 def test_prerelease_plan_returns_semantic_warning_after_consent(tmp_path: Path) -> None:
@@ -129,7 +169,14 @@ def test_prerelease_plan_returns_semantic_warning_after_consent(tmp_path: Path) 
     )
 
     assert plan.warnings == (CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,)
-    assert source.calls == []
+    assert source.inspect_requests == [
+        CoreArtifactRequest(
+            version="1.14.0-alpha.45",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    ]
+    assert source.acquisitions == []
 
 
 def test_execution_requires_confirmation_before_download(tmp_path: Path) -> None:
@@ -145,7 +192,7 @@ def test_execution_requires_confirmation_before_download(tmp_path: Path) -> None
     with pytest.raises(CoreUpdateConfirmationRequiredError, match="confirmation"):
         core_updates.execute(plan, confirmed=False)
 
-    assert source.calls == []
+    assert source.acquisitions == []
 
 
 def test_confirmed_update_acquires_activates_and_removes_incoming_archive(
@@ -162,16 +209,10 @@ def test_confirmed_update_acquires_activates_and_removes_incoming_archive(
 
     result = core_updates.execute(plan, confirmed=True)
 
-    assert source.calls == [
-        (
-            CoreArtifactRequest(
-                version="1.14.0-alpha.45",
-                architecture=ArtifactArchitecture.ARM64,
-                allow_prerelease=True,
-            ),
-            tmp_path / "incoming",
-        )
-    ]
+    assert len(source.acquisitions) == 1
+    acquired_artifact, destination = source.acquisitions[0]
+    assert acquired_artifact is plan.artifact
+    assert destination == tmp_path / "incoming"
     assert activator.requests == [
         CoreActivationRequest(
             version="1.14.0-alpha.45",
@@ -184,9 +225,10 @@ def test_confirmed_update_acquires_activates_and_removes_incoming_archive(
 
 
 def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path: Path) -> None:
+    source = FailingArtifactSource()
     activator = RecordingCoreActivator()
     core_updates = CoreUpdateService(
-        artifact_source=FailingArtifactSource(),
+        artifact_source=source,
         core_activator=activator,
         incoming_directory=tmp_path / "incoming",
     )
@@ -201,4 +243,23 @@ def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path
     with pytest.raises(CoreArtifactAcquisitionError, match="network unavailable"):
         core_updates.execute(plan, confirmed=True)
 
+    assert len(source.inspect_requests) == 1
+    assert source.acquisitions == [(plan.artifact, tmp_path / "incoming")]
     assert activator.requests == []
+
+
+def test_build_metadata_hyphen_does_not_make_a_stable_version_prerelease(tmp_path: Path) -> None:
+    core_updates, source, _ = service(tmp_path)
+
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0+vendor-build",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+
+    assert plan.allow_prerelease is False
+    assert plan.artifact.prerelease is False
+    assert plan.warnings == (CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,)
+    assert len(source.inspect_requests) == 1

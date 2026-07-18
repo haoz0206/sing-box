@@ -9,7 +9,11 @@ from sb_manager.application.core_update import (
     PlanCoreUpdateRequest,
 )
 from sb_manager.application.diagnostics_center import DiagnosticsCenterReport
-from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.artifact_source import (
+    ArtifactArchitecture,
+    CoreArtifactTrustMode,
+    PlannedCoreArtifact,
+)
 from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfaceTools
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
@@ -55,12 +59,21 @@ class BlockingCoreUpdater:
         self.release = Event()
 
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        asset_name = f"sing-box-{request.version}-linux-amd64.tar.gz"
         return CoreUpdatePlan(
-            version=request.version,
-            architecture=ArtifactArchitecture.AMD64,
-            allow_prerelease=False,
-            asset_name=f"sing-box-{request.version}-linux-amd64.tar.gz",
-            source="trusted test source",
+            artifact=PlannedCoreArtifact(
+                version=request.version,
+                architecture=ArtifactArchitecture.AMD64,
+                asset_name=asset_name,
+                download_url=(
+                    "https://github.com/SagerNet/sing-box/releases/download/"
+                    f"v{request.version}/{asset_name}"
+                ),
+                sha256="a" * 64,
+                trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+                release_immutable=True,
+                prerelease=False,
+            ),
             mutates_host=False,
             warnings=(),
         )

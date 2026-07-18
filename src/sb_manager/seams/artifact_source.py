@@ -141,11 +141,13 @@ class StagedCoreArtifact:
 
 
 class CoreArtifactSource(Protocol):
-    """Acquire one exact verified sing-box archive without installing it."""
+    """Inspect, then acquire one exact verified official sing-box archive."""
+
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact: ...
 
     def acquire(
         self,
-        request: CoreArtifactRequest,
+        artifact: PlannedCoreArtifact,
         *,
         destination_directory: Path,
     ) -> VerifiedCoreArtifact: ...

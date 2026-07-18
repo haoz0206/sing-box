@@ -9,6 +9,7 @@ from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     ArtifactDigestUnavailableError,
     ArtifactIntegrityError,
+    ArtifactMetadataChangedError,
     ArtifactTrustError,
     CoreArtifactRequest,
     CoreArtifactTrustMode,
@@ -144,13 +145,13 @@ def test_planned_artifact_rejects_an_invalid_digest(sha256: str) -> None:
         replace(planned_artifact(), sha256=sha256)
 
 
-def test_latest_stable_channel_resolves_exact_immutable_release_without_downloading() -> None:
+def test_latest_stable_channel_resolves_exact_published_release_without_downloading() -> None:
     http = FakeHttpClient(
         metadata={
             "tag_name": "v1.13.14",
             "draft": False,
             "prerelease": False,
-            "immutable": True,
+            "immutable": False,
             "published_at": "2026-06-25T09:11:52Z",
         },
         payload=b"must not be downloaded",
@@ -492,22 +493,27 @@ def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: P
     download_url = f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{asset_name}"
     payload = b"release archive bytes"
     sha256 = hashlib.sha256(payload).hexdigest()
-    http = FakeHttpClient(
-        metadata=release_metadata(
-            version=version,
-            prerelease=True,
-            immutable=True,
-            digest=sha256,
-        ),
-        payload=payload,
+    metadata = release_metadata(
+        version=version,
+        prerelease=True,
+        immutable=True,
+        digest=sha256,
     )
+    http = FakeHttpClient(
+        metadata=metadata,
+        payload=payload,
+        later_metadata=(metadata,),
+    )
+    source = GitHubArtifactSource(http_client=http)
+    request = CoreArtifactRequest(
+        version=version,
+        architecture=ArtifactArchitecture.AMD64,
+        allow_prerelease=True,
+    )
+    planned = source.inspect(request)
 
-    artifact = GitHubArtifactSource(http_client=http).acquire(
-        CoreArtifactRequest(
-            version=version,
-            architecture=ArtifactArchitecture.AMD64,
-            allow_prerelease=True,
-        ),
+    artifact = source.acquire(
+        planned,
         destination_directory=tmp_path,
     )
 
@@ -521,7 +527,8 @@ def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: P
     )
     assert archive_path.read_bytes() == payload
     assert http.json_urls == [
-        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
     ]
     assert len(http.downloads) == 1
     downloaded_url, temporary_path = http.downloads[0]
@@ -531,40 +538,37 @@ def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: P
     assert not temporary_path.exists()
 
 
-@pytest.mark.parametrize(
-    ("metadata_override", "diagnostic"),
-    (
-        ({"immutable": False}, "immutable"),
-        ({"draft": True}, "draft"),
-    ),
-)
-def test_untrusted_release_metadata_is_rejected_before_download(
-    tmp_path: Path,
-    metadata_override: dict[str, object],
-    diagnostic: str,
-) -> None:
+def test_release_that_becomes_draft_is_rejected_before_download(tmp_path: Path) -> None:
     metadata = release_metadata(
         version="1.14.0",
         prerelease=False,
         immutable=True,
         digest="a" * 64,
     )
-    metadata.update(metadata_override)
-    http = FakeHttpClient(metadata=metadata, payload=b"unused")
+    later_metadata = dict(metadata, draft=True)
+    http = FakeHttpClient(
+        metadata=metadata,
+        payload=b"unused",
+        later_metadata=(later_metadata,),
+    )
+    source = GitHubArtifactSource(http_client=http)
+    planned = source.inspect(
+        CoreArtifactRequest(
+            version="1.14.0",
+            architecture=ArtifactArchitecture.AMD64,
+        )
+    )
 
-    with pytest.raises(ArtifactTrustError, match=diagnostic):
-        GitHubArtifactSource(http_client=http).acquire(
-            CoreArtifactRequest(
-                version="1.14.0",
-                architecture=ArtifactArchitecture.AMD64,
-            ),
+    with pytest.raises(ArtifactTrustError, match="draft"):
+        source.acquire(
+            planned,
             destination_directory=tmp_path,
         )
 
     assert http.downloads == []
 
 
-def test_prerelease_requires_explicit_permission(tmp_path: Path) -> None:
+def test_prerelease_requires_explicit_permission() -> None:
     version = "1.14.0-alpha.45"
     http = FakeHttpClient(
         metadata=release_metadata(
@@ -577,18 +581,17 @@ def test_prerelease_requires_explicit_permission(tmp_path: Path) -> None:
     )
 
     with pytest.raises(ArtifactTrustError, match=r"(?i)prerelease"):
-        GitHubArtifactSource(http_client=http).acquire(
+        GitHubArtifactSource(http_client=http).inspect(
             CoreArtifactRequest(
                 version=version,
                 architecture=ArtifactArchitecture.AMD64,
-            ),
-            destination_directory=tmp_path,
+            )
         )
 
     assert http.downloads == []
 
 
-def test_missing_sha256_digest_is_rejected_before_download(tmp_path: Path) -> None:
+def test_missing_sha256_digest_is_rejected_before_download() -> None:
     version = "1.14.0"
     asset_name = f"sing-box-{version}-linux-arm64.tar.gz"
     http = FakeHttpClient(
@@ -610,18 +613,17 @@ def test_missing_sha256_digest_is_rejected_before_download(tmp_path: Path) -> No
     )
 
     with pytest.raises(ArtifactDigestUnavailableError, match="SHA-256"):
-        GitHubArtifactSource(http_client=http).acquire(
+        GitHubArtifactSource(http_client=http).inspect(
             CoreArtifactRequest(
                 version=version,
                 architecture=ArtifactArchitecture.ARM64,
-            ),
-            destination_directory=tmp_path,
+            )
         )
 
     assert http.downloads == []
 
 
-def test_malformed_sha256_digest_is_rejected_before_download(tmp_path: Path) -> None:
+def test_malformed_sha256_digest_is_rejected_before_download() -> None:
     version = "1.14.0"
     metadata = release_metadata(
         version=version,
@@ -632,12 +634,11 @@ def test_malformed_sha256_digest_is_rejected_before_download(tmp_path: Path) -> 
     http = FakeHttpClient(metadata=metadata, payload=b"unused")
 
     with pytest.raises(ArtifactDigestUnavailableError, match="SHA-256"):
-        GitHubArtifactSource(http_client=http).acquire(
+        GitHubArtifactSource(http_client=http).inspect(
             CoreArtifactRequest(
                 version=version,
                 architecture=ArtifactArchitecture.AMD64,
-            ),
-            destination_directory=tmp_path,
+            )
         )
 
     assert http.downloads == []
@@ -646,26 +647,107 @@ def test_malformed_sha256_digest_is_rejected_before_download(tmp_path: Path) -> 
 def test_digest_mismatch_removes_untrusted_download(tmp_path: Path) -> None:
     version = "1.14.0"
     asset_name = f"sing-box-{version}-linux-amd64.tar.gz"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="0" * 64,
+    )
     http = FakeHttpClient(
-        metadata=release_metadata(
-            version=version,
-            prerelease=False,
-            immutable=True,
-            digest="0" * 64,
-        ),
+        metadata=metadata,
         payload=b"tampered bytes",
+        later_metadata=(metadata,),
+    )
+    source = GitHubArtifactSource(http_client=http)
+    planned = source.inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+        )
     )
 
     with pytest.raises(ArtifactIntegrityError, match="SHA-256 mismatch"):
-        GitHubArtifactSource(http_client=http).acquire(
-            CoreArtifactRequest(
-                version=version,
-                architecture=ArtifactArchitecture.AMD64,
-            ),
+        source.acquire(
+            planned,
             destination_directory=tmp_path,
         )
 
     assert not (tmp_path / asset_name).exists()
+    assert http.json_urls == [
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
+    ]
+    assert len(http.downloads) == 1
+
+
+def test_mutable_stable_digest_drift_is_rejected_before_download(tmp_path: Path) -> None:
+    version = "1.13.14"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=False,
+        digest="a" * 64,
+    )
+    later_metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=False,
+        digest="b" * 64,
+    )
+    http = FakeHttpClient(
+        metadata=metadata,
+        payload=b"must not be downloaded",
+        later_metadata=(later_metadata,),
+    )
+    source = GitHubArtifactSource(http_client=http)
+    planned = source.inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+        )
+    )
+
+    with pytest.raises(ArtifactMetadataChangedError, match=r"changed.*new plan"):
+        source.acquire(planned, destination_directory=tmp_path)
+
+    assert http.json_urls == [
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}",
+    ]
+    assert http.downloads == []
+
+
+def test_stable_trust_mode_drift_is_rejected_before_download(tmp_path: Path) -> None:
+    version = "1.13.14"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=False,
+        digest="a" * 64,
+    )
+    later_metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="a" * 64,
+    )
+    http = FakeHttpClient(
+        metadata=metadata,
+        payload=b"must not be downloaded",
+        later_metadata=(later_metadata,),
+    )
+    source = GitHubArtifactSource(http_client=http)
+    planned = source.inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+        )
+    )
+
+    with pytest.raises(ArtifactMetadataChangedError, match="changed"):
+        source.acquire(planned, destination_directory=tmp_path)
+
+    assert http.downloads == []
 
 
 @pytest.mark.parametrize("version", ("", "../1.14.0", "1.14.0/asset"))
