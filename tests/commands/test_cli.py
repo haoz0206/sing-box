@@ -247,6 +247,26 @@ def test_cli_reuses_one_core_inspector_for_planning_and_readiness(
     assert inspectors[0].calls == EXPECTED_SHARED_CORE_INSPECTIONS
 
 
+def test_cli_injects_one_active_core_guard_into_every_profile_mutation(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = _create_isolated_app(tmp_path)
+
+    assert app.profile_applier is not None
+    assert app.profile_editor is not None
+    assert app.profile_remover is not None
+    assert app.profile_availability_manager is not None
+    guard = vars(app.manager)["_core_compatibility"]
+    services = (
+        app.profile_applier,
+        app.profile_editor,
+        app.profile_remover,
+        app.profile_availability_manager,
+    )
+
+    assert all(vars(service)["_core_compatibility"] is guard for service in services)
+
+
 def test_cli_uses_only_an_absolute_xdg_interface_preference_root(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,
@@ -790,11 +810,13 @@ def test_cli_composes_a_complete_snell_v6_apply_path(tmp_path: Path) -> None:
     app.manager.save_profile_draft(plan)
 
     assert app.profile_applier is not None
+    apply_plan = app.profile_applier.plan_profile("profile-1")
     result = app.profile_applier.apply_profile(
         ApplyProfileRequest(
-            profile_id="profile-1",
-            expected_revision=1,
+            profile_id=apply_plan.profile_id,
+            expected_revision=apply_plan.expected_revision,
             confirmed=True,
+            expected_core_version=apply_plan.observed_core_version,
         )
     )
 

@@ -29,6 +29,7 @@ from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
     ProfileApplier,
+    ProfileApplyPlan,
 )
 from sb_manager.application.profile_recommendation import ProtocolVariant
 from sb_manager.domain.installation import ManagedInstallation, PortSelection, ProtocolKind
@@ -427,21 +428,13 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
 
     def __init__(
         self,
-        installation: ManagedInstallation,
+        plan: ProfileApplyPlan,
         profile_applier: ProfileApplier,
-        *,
-        profile_id: str,
         copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
     ) -> None:
         super().__init__(copy_catalog)
-        self.installation = installation
+        self.plan = plan
         self.profile_applier = profile_applier
-        try:
-            self.profile = next(
-                profile for profile in installation.profiles if profile.profile_id == profile_id
-            )
-        except StopIteration as error:
-            raise ValueError(f"Unknown profile in apply confirmation: {profile_id}") from error
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -454,7 +447,7 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
             yield Static(
                 self.copy.text(
                     UiText.PROFILE_CREATION_APPLY_CONFIRM_PROFILE,
-                    name=self.profile.profile_name,
+                    name=self.plan.profile_name,
                 ),
                 id="apply-confirm-profile",
                 markup=False,
@@ -482,9 +475,10 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
         )
         self.execute_apply(
             ApplyProfileRequest(
-                profile_id=self.profile.profile_id,
-                expected_revision=self.installation.revision,
+                profile_id=self.plan.profile_id,
+                expected_revision=self.plan.expected_revision,
                 confirmed=True,
+                expected_core_version=self.plan.observed_core_version,
             )
         )
 
@@ -573,11 +567,11 @@ class DraftSavedScreen(Screen[None]):
     @on(Button.Pressed, "#apply-draft")
     def open_apply_confirmation(self) -> None:
         if self.profile_applier is not None:
+            plan = self.profile_applier.plan_profile(self.profile.profile_id)
             self.app.push_screen(
                 ApplyConfirmationScreen(
-                    self.installation,
+                    plan,
                     self.profile_applier,
-                    profile_id=self.profile.profile_id,
                     copy_catalog=self.copy,
                 )
             )

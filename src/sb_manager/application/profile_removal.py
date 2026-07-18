@@ -6,6 +6,7 @@ from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.manager import StateRevisionConflictError
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import ManagedInstallation, ProfileStatus, ProtocolKind
 from sb_manager.protocols.catalog import ProtocolCatalog
 from sb_manager.seams.apply_lock import ApplyLock
@@ -47,6 +48,7 @@ class ProfileRemovalPlan:
     remaining_profile_count: int
     remaining_applied_count: int
     mutates_host: bool = False
+    observed_core_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,6 +84,7 @@ class ProfileRemovalService:
         protocol_catalog: ProtocolCatalog,
         applier: ConfigurationApplier,
         apply_lock: ApplyLock,
+        core_compatibility: ActiveCoreProtocolCompatibility | None = None,
     ) -> None:
         self._state_store = state_store
         self._configuration_projector = ManagedConfigurationProjector(
@@ -89,9 +92,18 @@ class ProfileRemovalService:
         )
         self._applier = applier
         self._apply_lock = apply_lock
+        self._core_compatibility = core_compatibility or ActiveCoreProtocolCompatibility()
 
     def plan_removal(self, profile_id: str) -> ProfileRemovalPlan:
         """Describe profile removal without acquiring the mutation lock or applying."""
+        return self._plan_removal(profile_id)
+
+    def _plan_removal(
+        self,
+        profile_id: str,
+        *,
+        expected_core_version: str | None = None,
+    ) -> ProfileRemovalPlan:
         installation = self._state_store.load()
         try:
             profile = next(
@@ -101,6 +113,10 @@ class ProfileRemovalService:
             raise ProfileRemovalNotFoundError(profile_id) from error
         remaining = tuple(
             existing for existing in installation.profiles if existing.profile_id != profile_id
+        )
+        observed_core_version = self._core_compatibility.require_profiles(
+            remaining,
+            expected_version=expected_core_version,
         )
         return ProfileRemovalPlan(
             profile_id=profile.profile_id,
@@ -117,6 +133,7 @@ class ProfileRemovalService:
             remaining_applied_count=sum(
                 profile.status is ProfileStatus.APPLIED for profile in remaining
             ),
+            observed_core_version=observed_core_version,
         )
 
     def remove_profile(
@@ -130,7 +147,10 @@ class ProfileRemovalService:
                 "Profile removal requires explicit confirmation"
             )
         with self._apply_lock.acquire():
-            current_plan = self.plan_removal(plan.profile_id)
+            current_plan = self._plan_removal(
+                plan.profile_id,
+                expected_core_version=plan.observed_core_version,
+            )
             if current_plan.expected_revision != plan.expected_revision:
                 raise StateRevisionConflictError(
                     expected=plan.expected_revision,

@@ -35,6 +35,7 @@ from sb_manager.application.manager import (
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
+    ProfileApplyPlan,
 )
 from sb_manager.application.profile_details import (
     ProfileDetails,
@@ -213,9 +214,38 @@ async def open_direct_protocol_selection(
     await pilot.pause()
 
 
-class RecordingProfileApplier:
-    def __init__(self) -> None:
+class FixedProfileApplyPlanner:
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        return ProfileApplyPlan(
+            profile_id=profile_id,
+            profile_name="手机",
+            expected_revision=1,
+            observed_core_version=None,
+        )
+
+
+class RecordingProfileApplier(FixedProfileApplyPlanner):
+    def __init__(
+        self,
+        *,
+        expected_revision: int = 1,
+        profile_name: str = "手机",
+        observed_core_version: str | None = None,
+    ) -> None:
         self.requests: list[ApplyProfileRequest] = []
+        self.planned_profile_ids: list[str] = []
+        self.expected_revision = expected_revision
+        self.profile_name = profile_name
+        self.observed_core_version = observed_core_version
+
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planned_profile_ids.append(profile_id)
+        return ProfileApplyPlan(
+            profile_id=profile_id,
+            profile_name=self.profile_name,
+            expected_revision=self.expected_revision,
+            observed_core_version=self.observed_core_version,
+        )
 
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         self.requests.append(request)
@@ -244,7 +274,7 @@ class RecordingProfileApplier:
         )
 
 
-class RollbackFailingProfileApplier:
+class RollbackFailingProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         return ApplyProfileResult(
@@ -269,7 +299,7 @@ class RollbackFailingProfileApplier:
         )
 
 
-class RolledBackProfileApplier:
+class RolledBackProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         return ApplyProfileResult(
@@ -291,7 +321,7 @@ class RolledBackProfileApplier:
         )
 
 
-class CommitFailingProfileApplier:
+class CommitFailingProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         return ApplyProfileResult(
@@ -310,7 +340,7 @@ class CommitFailingProfileApplier:
         )
 
 
-class ValidationFailingProfileApplier:
+class ValidationFailingProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         return ApplyProfileResult(
@@ -328,7 +358,7 @@ class ValidationFailingProfileApplier:
         )
 
 
-class PreconditionFailingProfileApplier:
+class PreconditionFailingProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         return ApplyProfileResult(
@@ -347,13 +377,13 @@ class PreconditionFailingProfileApplier:
         )
 
 
-class UnavailableProfileApplier:
+class UnavailableProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         raise ConfigurationApplyError("sudo authorization denied")
 
 
-class UnexpectedProfileApplier:
+class UnexpectedProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
         raise RuntimeError("token=private-apply-worker-error")
@@ -1417,7 +1447,11 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
             ),
         ),
     )
-    profile_applier = RecordingProfileApplier()
+    profile_applier = RecordingProfileApplier(
+        expected_revision=7,
+        profile_name="待应用手机",
+        observed_core_version="1.14.0-alpha.47",
+    )
     app = ManagerApp(
         manager=Manager(state_store=MemoryStateStore(installation)),
         profile_applier=profile_applier,
@@ -1435,11 +1469,13 @@ async def test_operator_can_apply_a_specific_saved_draft_after_reopening() -> No
         )
         await pilot.click("#confirm-apply")
 
+        assert profile_applier.planned_profile_ids == ["saved-draft"]
         assert profile_applier.requests == [
             ApplyProfileRequest(
                 profile_id="saved-draft",
                 expected_revision=7,
                 confirmed=True,
+                expected_core_version="1.14.0-alpha.47",
             )
         ]
 
@@ -1753,7 +1789,7 @@ async def test_operator_sees_an_inline_error_for_an_invalid_port() -> None:
 
 
 async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -> None:
-    profile_applier = RecordingProfileApplier()
+    profile_applier = RecordingProfileApplier(observed_core_version="1.14.0-alpha.47")
     app = ManagerApp(
         profile_applier=profile_applier,
         interface_tools=ManagerAppInterfaceTools(
@@ -1798,11 +1834,13 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
 
         await pilot.click("#confirm-apply")
 
+        assert profile_applier.planned_profile_ids == ["profile-1"]
         assert profile_applier.requests == [
             ApplyProfileRequest(
                 profile_id="profile-1",
                 expected_revision=1,
                 confirmed=True,
+                expected_core_version="1.14.0-alpha.47",
             )
         ]
         assert app.screen.query_one("#apply-result-title", Static).content == "目录应用成功"

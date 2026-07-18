@@ -15,6 +15,11 @@ from sb_manager.application.profile_editing import (
     ProfileEditScope,
     ProfileEditValidationError,
 )
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionChanged,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -22,8 +27,10 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.domain.protocol_material import SnellV6Material
 from sb_manager.protocols.catalog import MaterializedProfile, ProtocolCatalog
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import (
     ApplyOutcome,
@@ -126,6 +133,62 @@ class RecordingProfileHandler:
         )
 
 
+class RecordingSnellProfileHandler(RecordingProfileHandler):
+    kind = ProtocolKind.SNELL_V6
+
+
+class SequenceCoreStatusInspector:
+    def __init__(self, *versions: str) -> None:
+        self._versions = iter(versions)
+        self.calls = 0
+
+    def inspect(self) -> CoreStatusObservation:
+        self.calls += 1
+        version = next(self._versions)
+        return CoreStatusObservation(
+            available=True,
+            version=version,
+            diagnostics=f"sing-box version {version}",
+        )
+
+
+class InspectorThatMustNotBeCalled:
+    def inspect(self) -> CoreStatusObservation:
+        raise AssertionError("inactive Snell profiles must not inspect the core")
+
+
+def snell_profile(
+    *,
+    enabled: bool = True,
+    status: ProfileStatus = ProfileStatus.APPLIED,
+) -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-snell",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=18443,
+        port_selection=PortSelection.FIXED,
+        status=status,
+        enabled=enabled,
+        protocol_material=(
+            SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+            if status is ProfileStatus.APPLIED
+            else None
+        ),
+    )
+
+
+def reality_profile() -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-reality",
+        profile_name="Reality",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+
+
 class RecordingSuccessfulApplier:
     def __init__(self) -> None:
         self.document: object | None = None
@@ -166,6 +229,124 @@ class RejectingApplier:
             postcondition=None,
             rollback=None,
         )
+
+
+def test_editing_applied_snell_under_stable_is_rejected_before_apply() -> None:
+    profile = snell_profile()
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(profile,))
+    state_store = MemoryStateStore(initial)
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingSnellProfileHandler(),)),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.13.14")
+        ),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        editor.plan_edit(
+            PlanProfileEditRequest(
+                profile_id=profile.profile_id,
+                profile_name="Renamed Snell",
+                server_address=None,
+                listen_port=profile.listen_port,
+            )
+        )
+
+    assert state_store.load() == initial
+
+
+def test_editing_other_applied_profile_rejects_stable_when_active_snell_remains() -> None:
+    snell = snell_profile()
+    reality = reality_profile()
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=7, profiles=(snell, reality))
+    )
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.13.14")
+        ),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        editor.plan_edit(
+            PlanProfileEditRequest(
+                profile_id=reality.profile_id,
+                profile_name="Renamed Reality",
+                server_address=None,
+                listen_port=reality.listen_port,
+            )
+        )
+
+
+@pytest.mark.parametrize(
+    "profile",
+    (
+        snell_profile(status=ProfileStatus.DRAFT),
+        snell_profile(enabled=False),
+    ),
+)
+def test_editing_draft_or_paused_snell_does_not_probe_core(profile: ManagedProfile) -> None:
+    editor = ProfileEditingService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(profile,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=InspectorThatMustNotBeCalled()
+        ),
+    )
+
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id=profile.profile_id,
+            profile_name="Renamed inactive Snell",
+            server_address=None,
+            listen_port=profile.listen_port,
+        )
+    )
+
+    assert plan.observed_core_version is None
+
+
+def test_snell_retaining_edit_rejects_supported_preview_version_race() -> None:
+    profile = snell_profile()
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(profile,))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    editor = ProfileEditingService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingSnellProfileHandler(),)),
+        port_source=AvailablePortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = editor.plan_edit(
+        PlanProfileEditRequest(
+            profile_id=profile.profile_id,
+            profile_name="Renamed Snell",
+            server_address=None,
+            listen_port=profile.listen_port,
+        )
+    )
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    with pytest.raises(CoreVersionChanged):
+        editor.apply_edit(plan, confirmed=True)
+
+    assert state_store.load() == initial
 
 
 def test_applied_profile_port_edit_plan_is_read_only_and_requires_live_apply() -> None:

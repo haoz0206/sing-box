@@ -309,10 +309,11 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     core_inspector = SingBoxCoreStatusInspector(binary=sing_box_binary)
+    core_compatibility = ActiveCoreProtocolCompatibility(inspector=core_inspector)
     manager = Manager(
         state_store=state_store,
         mutation_lock=mutation_lock,
-        core_compatibility=ActiveCoreProtocolCompatibility(inspector=core_inspector),
+        core_compatibility=core_compatibility,
     )
     runtime_kind = RuntimeKind(arguments.runtime)
     runtime = create_runtime(
@@ -365,6 +366,7 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         port_source=port_source,
         applier=applier,
         apply_lock=mutation_lock,
+        core_compatibility=core_compatibility,
     )
     core_artifacts = GitHubArtifactSource(http_client=UrllibHttpClient())
     core_controller = PrivilegedCoreActivator(helper_command=privileged_helper_command)
@@ -442,12 +444,14 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
                 port_source=port_source,
                 applier=applier,
                 apply_lock=mutation_lock,
+                core_compatibility=core_compatibility,
             ),
             profile_remover=ProfileRemovalService(
                 state_store=state_store,
                 protocol_catalog=protocol_catalog,
                 applier=applier,
                 apply_lock=mutation_lock,
+                core_compatibility=core_compatibility,
             ),
             profile_availability_manager=ProfileAvailabilityService(
                 state_store=state_store,
@@ -455,6 +459,7 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
                 port_source=port_source,
                 applier=applier,
                 apply_lock=mutation_lock,
+                core_compatibility=core_compatibility,
             ),
             profile_cloner=ProfileCloningService(
                 state_store=state_store,

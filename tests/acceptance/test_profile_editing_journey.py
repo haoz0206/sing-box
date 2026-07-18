@@ -111,6 +111,7 @@ class RecordingProfileEditor:
                 else ProfileEditScope.DESIRED_STATE_ONLY
             ),
             changed_fields=changed_fields,
+            observed_core_version="1.14.0-alpha.47",
         )
 
     def apply_edit(
@@ -556,6 +557,7 @@ async def test_operator_confirms_desired_state_only_edit_and_sees_revision() -> 
         assert len(editor.edits) == 1
         plan, confirmed = editor.edits[0]
         assert plan.profile_id == "profile-1"
+        assert plan.observed_core_version == "1.14.0-alpha.47"
         assert confirmed is True
         assert app.screen.query_one("#profile-edit-result-title", Static).content == ("配置已更新")
         assert app.screen.query_one("#profile-edit-result-details", Static).content == (

@@ -110,6 +110,7 @@ class RecordingProfileRemover:
             ),
             remaining_profile_count=0,
             remaining_applied_count=0,
+            observed_core_version="1.14.0-alpha.47",
         )
 
     def remove_profile(
@@ -417,6 +418,7 @@ async def test_operator_confirms_draft_removal_and_sees_desired_state_result() -
         assert len(remover.removals) == 1
         plan, confirmed = remover.removals[0]
         assert plan.profile_id == "profile-1"
+        assert plan.observed_core_version == "1.14.0-alpha.47"
         assert confirmed is True
         assert app.screen.query_one("#profile-removal-result-title", Static).content == (
             "草案已移除"

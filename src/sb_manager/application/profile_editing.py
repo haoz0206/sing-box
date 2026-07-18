@@ -6,6 +6,7 @@ from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.manager import MAX_LISTEN_PORT, StateRevisionConflictError
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import ManagedInstallation, PortSelection, ProfileStatus
 from sb_manager.protocols.catalog import ProtocolCatalog
 from sb_manager.seams.apply_lock import ApplyLock
@@ -88,6 +89,7 @@ class ProfileEditPlan:
     scope: ProfileEditScope
     changed_fields: tuple[str, ...]
     mutates_host: bool = False
+    observed_core_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -116,7 +118,7 @@ class ProfileEditor(Protocol):
 class ProfileEditingService:
     """Own profile-edit planning and its desired/live-state invariants."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - explicit mutation boundary dependencies
         self,
         *,
         state_store: StateStore,
@@ -124,6 +126,7 @@ class ProfileEditingService:
         port_source: PortSource,
         applier: ConfigurationApplier,
         apply_lock: ApplyLock,
+        core_compatibility: ActiveCoreProtocolCompatibility | None = None,
     ) -> None:
         self._state_store = state_store
         self._configuration_projector = ManagedConfigurationProjector(
@@ -132,8 +135,17 @@ class ProfileEditingService:
         self._port_source = port_source
         self._applier = applier
         self._apply_lock = apply_lock
+        self._core_compatibility = core_compatibility or ActiveCoreProtocolCompatibility()
 
     def plan_edit(self, request: PlanProfileEditRequest) -> ProfileEditPlan:
+        return self._plan_edit(request)
+
+    def _plan_edit(
+        self,
+        request: PlanProfileEditRequest,
+        *,
+        expected_core_version: str | None = None,
+    ) -> ProfileEditPlan:
         installation = self._state_store.load()
         try:
             profile = next(
@@ -198,6 +210,22 @@ class ProfileEditingService:
         )
         if not changed_fields:
             raise ProfileEditNoChangesError("No profile fields changed")
+        projected_profiles = tuple(
+            replace(
+                existing,
+                profile_name=profile_name,
+                server_address=server_address,
+                listen_port=request.listen_port,
+                port_selection=port_selection,
+            )
+            if existing.profile_id == profile.profile_id
+            else existing
+            for existing in installation.profiles
+        )
+        observed_core_version = self._core_compatibility.require_profiles(
+            projected_profiles,
+            expected_version=expected_core_version,
+        )
         return ProfileEditPlan(
             profile_id=profile.profile_id,
             previous_profile_name=profile.profile_name,
@@ -218,6 +246,7 @@ class ProfileEditingService:
                 else ProfileEditScope.DESIRED_STATE_ONLY
             ),
             changed_fields=changed_fields,
+            observed_core_version=observed_core_version,
         )
 
     def apply_edit(
@@ -238,13 +267,14 @@ class ProfileEditingService:
                     actual=installation.revision,
                 )
             try:
-                current_plan = self.plan_edit(
+                current_plan = self._plan_edit(
                     PlanProfileEditRequest(
                         profile_id=plan.profile_id,
                         profile_name=plan.profile_name,
                         server_address=plan.server_address,
                         listen_port=plan.listen_port,
-                    )
+                    ),
+                    expected_core_version=plan.observed_core_version,
                 )
             except ProfileEditValidationError as error:
                 if error.field == "listen_port" and plan.listen_port is not None:

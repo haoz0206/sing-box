@@ -135,6 +135,7 @@ class UnexpectedProfileAvailabilityManager:
             recorded_listen_port=4433,
             port_may_change=False,
             requires_live_apply=True,
+            observed_core_version="1.14.0-alpha.47",
         )
 
     def apply_change(
@@ -148,6 +149,9 @@ class UnexpectedProfileAvailabilityManager:
 
 
 class SuccessfulProfileAvailabilityManager(UnexpectedProfileAvailabilityManager):
+    def __init__(self) -> None:
+        self.confirmed_plans: list[ProfileAvailabilityPlan] = []
+
     def apply_change(
         self,
         plan: ProfileAvailabilityPlan,
@@ -155,6 +159,7 @@ class SuccessfulProfileAvailabilityManager(UnexpectedProfileAvailabilityManager)
         confirmed: bool,
     ) -> ProfileAvailabilityResult:
         assert confirmed
+        self.confirmed_plans.append(plan)
         return ProfileAvailabilityResult(
             availability=ProfileAvailability.ACTIVE,
             listen_port=4433,
@@ -242,7 +247,8 @@ async def test_profile_availability_copy_catalog_reaches_planning_failure() -> N
 
 
 async def test_profile_availability_copy_catalog_reaches_committed_result() -> None:
-    app = catalog_app_for(SuccessfulProfileAvailabilityManager())
+    manager = SuccessfulProfileAvailabilityManager()
+    app = catalog_app_for(manager)
 
     async with app.run_test() as pilot:
         await pilot.click("#open-profiles")
@@ -254,6 +260,7 @@ async def test_profile_availability_copy_catalog_reaches_committed_result() -> N
         assert app.screen.query_one("#profile-availability-result-title", Static).content == (
             "目录配置已恢复"
         )
+        assert manager.confirmed_plans[0].observed_core_version == "1.14.0-alpha.47"
 
 
 async def test_operator_pauses_applied_profile_without_deleting_intent() -> None:

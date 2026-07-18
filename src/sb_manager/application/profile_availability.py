@@ -6,6 +6,7 @@ from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.manager import StateRevisionConflictError
+from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import (
     ManagedInstallation,
     PortSelection,
@@ -81,6 +82,7 @@ class ProfileAvailabilityPlan:
     recorded_listen_port: int | None
     port_may_change: bool
     requires_live_apply: bool
+    observed_core_version: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,7 +114,7 @@ class ProfileAvailabilityManager(Protocol):
 class ProfileAvailabilityService:
     """Own revision-bound pause/resume semantics behind one small interface."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - explicit mutation boundary dependencies
         self,
         *,
         state_store: StateStore,
@@ -120,6 +122,7 @@ class ProfileAvailabilityService:
         port_source: PortSource,
         applier: ConfigurationApplier,
         apply_lock: ApplyLock,
+        core_compatibility: ActiveCoreProtocolCompatibility | None = None,
     ) -> None:
         self._state_store = state_store
         self._configuration_projector = ManagedConfigurationProjector(
@@ -128,6 +131,7 @@ class ProfileAvailabilityService:
         self._port_source = port_source
         self._applier = applier
         self._apply_lock = apply_lock
+        self._core_compatibility = core_compatibility or ActiveCoreProtocolCompatibility()
 
     def plan_change(
         self,
@@ -151,6 +155,16 @@ class ProfileAvailabilityService:
             raise ProfileAvailabilityNoChangeError(
                 f"Profile {profile.profile_id} is already {request.target.value}"
             )
+        compatibility_profiles = tuple(
+            replace(
+                existing,
+                enabled=request.target is ProfileAvailability.ACTIVE,
+            )
+            if existing.profile_id == profile.profile_id
+            else existing
+            for existing in installation.profiles
+        )
+        observed_core_version = self._core_compatibility.require_profiles(compatibility_profiles)
         if (
             request.target is ProfileAvailability.ACTIVE
             and profile.port_selection is PortSelection.FIXED
@@ -182,6 +196,7 @@ class ProfileAvailabilityService:
                 and profile.port_selection is PortSelection.AUTOMATIC
             ),
             requires_live_apply=True,
+            observed_core_version=observed_core_version,
         )
 
     def apply_change(
@@ -224,6 +239,19 @@ class ProfileAvailabilityService:
                 raise ProfileAvailabilityPlanChangedError(
                     "Profile availability plan no longer matches desired state"
                 )
+            compatibility_profiles = tuple(
+                replace(
+                    profile,
+                    enabled=plan.target is ProfileAvailability.ACTIVE,
+                )
+                if profile.profile_id == plan.profile_id
+                else profile
+                for profile in installation.profiles
+            )
+            self._core_compatibility.require_profiles(
+                compatibility_profiles,
+                expected_version=plan.observed_core_version,
+            )
             if (
                 plan.target is ProfileAvailability.ACTIVE
                 and current_profile.port_selection is PortSelection.FIXED

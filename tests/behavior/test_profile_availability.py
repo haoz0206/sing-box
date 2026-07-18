@@ -17,6 +17,11 @@ from sb_manager.application.profile_availability import (
     ProfileAvailabilityService,
     ProfileResumePortUnavailableError,
 )
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionChanged,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -24,9 +29,10 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
-from sb_manager.domain.protocol_material import RealityMaterial
-from sb_manager.protocols.catalog import ProtocolCatalog, RealityHandler
+from sb_manager.domain.protocol_material import RealityMaterial, SnellV6Material
+from sb_manager.protocols.catalog import ProtocolCatalog, RealityHandler, SnellV6Handler
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import (
     ApplyOutcome,
@@ -38,6 +44,8 @@ from sb_manager.transactions.staging import configuration_sha256
 AUTOMATIC_RESUME_PORT = 9443
 EXPECTED_PORT_PROBES = 2
 PLANNED_REVISION = 4
+EXPECTED_COMMITTED_REVISION = 5
+EXPECTED_CORE_INSPECTIONS = 2
 
 
 class ExplodingApplier:
@@ -93,6 +101,73 @@ class AvailableFixedPortSource:
 class ExplodingRealityMaterialSource:
     def generate(self) -> RealityMaterial:
         raise AssertionError("resume must reuse persisted protocol material")
+
+
+class ExplodingSnellMaterialSource:
+    def generate(self) -> SnellV6Material:
+        raise AssertionError("resume must reuse persisted Snell material")
+
+
+class SequenceCoreStatusInspector:
+    def __init__(self, *versions: str) -> None:
+        self._versions = iter(versions)
+        self.calls = 0
+
+    def inspect(self) -> CoreStatusObservation:
+        self.calls += 1
+        version = next(self._versions)
+        return CoreStatusObservation(
+            available=True,
+            version=version,
+            diagnostics=f"sing-box version {version}",
+        )
+
+
+class InspectorThatMustNotBeCalled:
+    def inspect(self) -> CoreStatusObservation:
+        raise AssertionError("inactive Snell profiles must not inspect the core")
+
+
+def snell_profile(
+    *, enabled: bool, status: ProfileStatus = ProfileStatus.APPLIED
+) -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-7",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=18443,
+        port_selection=PortSelection.FIXED,
+        status=status,
+        enabled=enabled,
+        protocol_material=(
+            SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+            if status is ProfileStatus.APPLIED
+            else None
+        ),
+    )
+
+
+def reality_profile(*, enabled: bool) -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-reality",
+        profile_name="Reality",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=enabled,
+        protocol_material=RealityMaterial(
+            user_uuid="11111111-1111-4111-8111-111111111111",
+            private_key="private-key",
+            public_key="public-key",
+            short_id="0123456789abcdef",
+            server_name="www.cloudflare.com",
+        ),
+    )
+
+
+def snell_catalog() -> ProtocolCatalog:
+    return ProtocolCatalog((SnellV6Handler(material_source=ExplodingSnellMaterialSource()),))
 
 
 class AutomaticResumePortSource:
@@ -156,6 +231,221 @@ class RejectingApplier:
             postcondition=None,
             rollback=None,
         )
+
+
+def test_snell_resume_rechecks_active_core_before_port_or_apply() -> None:
+    profile = snell_profile(enabled=False)
+    initial = ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+    state_store = MemoryStateStore(initial)
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=ExplodingPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.13.14")
+        ),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        service.plan_change(
+            PlanProfileAvailabilityRequest(
+                profile_id=profile.profile_id,
+                target=ProfileAvailability.ACTIVE,
+            )
+        )
+
+    assert state_store.load() == initial
+
+
+def test_snell_resume_succeeds_with_matching_preview() -> None:
+    profile = snell_profile(enabled=False)
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+    )
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.47")
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=AvailableFixedPortSource(),
+        applier=RecordingSuccessfulApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+
+    plan = service.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id=profile.profile_id,
+            target=ProfileAvailability.ACTIVE,
+        )
+    )
+    result = service.apply_change(plan, confirmed=True)
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    assert result.availability is ProfileAvailability.ACTIVE
+    assert result.committed_revision == EXPECTED_COMMITTED_REVISION
+    assert inspector.calls == EXPECTED_CORE_INSPECTIONS
+
+
+def test_pausing_last_active_snell_under_stable_is_recovery_safe() -> None:
+    profile = snell_profile(enabled=True)
+    inspector = InspectorThatMustNotBeCalled()
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+    )
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=ExplodingPortSource(),
+        applier=RecordingSuccessfulApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+
+    plan = service.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id=profile.profile_id,
+            target=ProfileAvailability.PAUSED,
+        )
+    )
+    result = service.apply_change(plan, confirmed=True)
+
+    assert plan.observed_core_version is None
+    assert result.availability is ProfileAvailability.PAUSED
+    assert state_store.load().profiles[0].enabled is False
+
+
+@pytest.mark.parametrize(
+    ("profile", "target", "error"),
+    (
+        (
+            snell_profile(enabled=True, status=ProfileStatus.DRAFT),
+            ProfileAvailability.PAUSED,
+            ProfileAvailabilityDraftError,
+        ),
+        (
+            snell_profile(enabled=False),
+            ProfileAvailability.PAUSED,
+            ProfileAvailabilityNoChangeError,
+        ),
+    ),
+)
+def test_draft_and_already_paused_snell_do_not_probe_core(
+    profile: ManagedProfile,
+    target: ProfileAvailability,
+    error: type[Exception],
+) -> None:
+    service = ProfileAvailabilityService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+        ),
+        protocol_catalog=snell_catalog(),
+        port_source=ExplodingPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=InspectorThatMustNotBeCalled()
+        ),
+    )
+
+    with pytest.raises(error):
+        service.plan_change(
+            PlanProfileAvailabilityRequest(profile_id=profile.profile_id, target=target)
+        )
+
+
+def test_snell_resume_rejects_supported_preview_version_race_before_apply() -> None:
+    profile = snell_profile(enabled=False)
+    initial = ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=AvailableFixedPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = service.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id=profile.profile_id,
+            target=ProfileAvailability.ACTIVE,
+        )
+    )
+
+    with pytest.raises(CoreVersionChanged):
+        service.apply_change(plan, confirmed=True)
+
+
+def test_reality_resume_freezes_version_when_active_snell_is_retained() -> None:
+    snell = snell_profile(enabled=True)
+    reality = reality_profile(enabled=False)
+    initial = ManagedInstallation(schema_version=1, revision=4, profiles=(snell, reality))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        port_source=AvailableFixedPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+
+    plan = service.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id=reality.profile_id,
+            target=ProfileAvailability.ACTIVE,
+        )
+    )
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    with pytest.raises(CoreVersionChanged):
+        service.apply_change(plan, confirmed=True)
+    assert inspector.calls == EXPECTED_CORE_INSPECTIONS
+    assert state_store.load() == initial
+
+
+def test_pausing_one_active_snell_freezes_version_for_retained_snell() -> None:
+    selected = snell_profile(enabled=True)
+    retained = replace(
+        snell_profile(enabled=True),
+        profile_id="profile-8",
+        profile_name="Retained Snell preview",
+        listen_port=18444,
+    )
+    initial = ManagedInstallation(
+        schema_version=1,
+        revision=4,
+        profiles=(selected, retained),
+    )
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=ExplodingPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+
+    plan = service.plan_change(
+        PlanProfileAvailabilityRequest(
+            profile_id=selected.profile_id,
+            target=ProfileAvailability.PAUSED,
+        )
+    )
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    with pytest.raises(CoreVersionChanged):
+        service.apply_change(plan, confirmed=True)
+    assert inspector.calls == EXPECTED_CORE_INSPECTIONS
+    assert state_store.load() == initial
+
+    assert state_store.load() == initial
 
 
 def test_applied_profile_can_plan_pause_without_host_effects() -> None:

@@ -10,6 +10,11 @@ from sb_manager.application.profile_removal import (
     ProfileRemovalScope,
     ProfileRemovalService,
 )
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionChanged,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -17,8 +22,10 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.domain.protocol_material import SnellV6Material
 from sb_manager.protocols.catalog import MaterializedProfile, ProtocolCatalog
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import (
     ApplyOutcome,
@@ -76,6 +83,62 @@ class RecordingRealityHandler:
         )
 
 
+class RecordingSnellHandler(RecordingRealityHandler):
+    kind = ProtocolKind.SNELL_V6
+
+
+class SequenceCoreStatusInspector:
+    def __init__(self, *versions: str) -> None:
+        self._versions = iter(versions)
+        self.calls = 0
+
+    def inspect(self) -> CoreStatusObservation:
+        self.calls += 1
+        version = next(self._versions)
+        return CoreStatusObservation(
+            available=True,
+            version=version,
+            diagnostics=f"sing-box version {version}",
+        )
+
+
+class InspectorThatMustNotBeCalled:
+    def inspect(self) -> CoreStatusObservation:
+        raise AssertionError("removed or inactive Snell profiles must not inspect the core")
+
+
+def snell_profile(
+    *,
+    enabled: bool = True,
+    status: ProfileStatus = ProfileStatus.APPLIED,
+) -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-snell",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=18443,
+        port_selection=PortSelection.FIXED,
+        status=status,
+        enabled=enabled,
+        protocol_material=(
+            SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+            if status is ProfileStatus.APPLIED
+            else None
+        ),
+    )
+
+
+def reality_profile() -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-reality",
+        profile_name="Reality",
+        protocol=ProtocolKind.VLESS_REALITY,
+        listen_port=4433,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+    )
+
+
 class RecordingSuccessfulApplier:
     def __init__(self) -> None:
         self.document: Mapping[str, object] | None = None
@@ -112,6 +175,97 @@ class RejectingApplier:
             postcondition=None,
             rollback=None,
         )
+
+
+def test_removing_last_active_snell_under_stable_is_recovery_safe() -> None:
+    profile = snell_profile()
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=7, profiles=(profile,))
+    )
+    remover = ProfileRemovalService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        applier=RecordingSuccessfulApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=InspectorThatMustNotBeCalled()
+        ),
+    )
+
+    plan = remover.plan_removal(profile.profile_id)
+    result = remover.remove_profile(plan, confirmed=True)
+
+    assert plan.observed_core_version is None
+    assert result.committed_revision == DRAFT_REMOVAL_REVISION
+    assert state_store.load().profiles == ()
+
+
+def test_removing_other_profile_rejects_stable_when_active_snell_remains() -> None:
+    snell = snell_profile()
+    reality = reality_profile()
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(snell, reality))
+    state_store = MemoryStateStore(initial)
+    remover = ProfileRemovalService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.13.14")
+        ),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        remover.plan_removal(reality.profile_id)
+
+    assert state_store.load() == initial
+
+
+@pytest.mark.parametrize(
+    "profile",
+    (
+        snell_profile(status=ProfileStatus.DRAFT),
+        snell_profile(enabled=False),
+    ),
+)
+def test_removing_draft_or_paused_snell_does_not_probe_core(profile: ManagedProfile) -> None:
+    remover = ProfileRemovalService(
+        state_store=MemoryStateStore(
+            ManagedInstallation(schema_version=1, revision=7, profiles=(profile,))
+        ),
+        protocol_catalog=ProtocolCatalog(()),
+        applier=ExplodingApplier(),
+        apply_lock=ExplodingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=InspectorThatMustNotBeCalled()
+        ),
+    )
+
+    plan = remover.plan_removal(profile.profile_id)
+
+    assert plan.observed_core_version is None
+
+
+def test_snell_retaining_removal_rejects_supported_preview_version_race() -> None:
+    snell = snell_profile()
+    reality = reality_profile()
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(snell, reality))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    remover = ProfileRemovalService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RecordingSnellHandler(),)),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = remover.plan_removal(reality.profile_id)
+
+    assert plan.observed_core_version == "1.14.0-alpha.47"
+    with pytest.raises(CoreVersionChanged):
+        remover.remove_profile(plan, confirmed=True)
+
+    assert state_store.load() == initial
 
 
 def test_draft_profile_removal_plan_is_read_only_and_desired_state_only() -> None:

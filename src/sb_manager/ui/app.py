@@ -996,11 +996,11 @@ class ManagerApp(App[None]):
             return
         if profile.status is not ProfileStatus.DRAFT:
             return
+        plan = self.profile_applier.plan_profile(profile.profile_id)
         self.push_screen(
             ApplyConfirmationScreen(
-                installation,
+                plan,
                 self.profile_applier,
-                profile_id=profile.profile_id,
                 copy_catalog=self.copy_catalog,
             )
         )
