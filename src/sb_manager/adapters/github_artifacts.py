@@ -179,7 +179,7 @@ class GitHubArtifactSource:
             raise ArtifactTrustError("Release immutable metadata is invalid")
         if not isinstance(prerelease, bool):
             raise ArtifactTrustError("Release prerelease metadata is invalid")
-        if prerelease != ("-" in request.version):
+        if prerelease != ("-" in request.version.partition("+")[0]):
             raise ArtifactTrustError("Release prerelease classification is inconsistent")
         if prerelease and not request.allow_prerelease:
             raise ArtifactTrustError("Prerelease requires explicit permission")

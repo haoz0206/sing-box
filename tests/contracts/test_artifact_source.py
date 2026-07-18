@@ -293,6 +293,29 @@ def test_inspect_accepts_an_immutable_prerelease_without_downloading() -> None:
     assert http.downloads == []
 
 
+def test_inspect_treats_a_hyphen_in_build_metadata_as_stable() -> None:
+    version = "1.13.14+vendor-build"
+    http = FakeHttpClient(
+        metadata=release_metadata(
+            version=version,
+            prerelease=False,
+            immutable=True,
+            digest="c" * 64,
+        ),
+        payload=b"must not be downloaded",
+    )
+
+    artifact = GitHubArtifactSource(http_client=http).inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+        )
+    )
+
+    assert artifact.prerelease is False
+    assert http.downloads == []
+
+
 def test_inspect_rejects_a_mutable_prerelease_with_explicit_permission() -> None:
     version = "1.14.0-beta.1"
     http = FakeHttpClient(
