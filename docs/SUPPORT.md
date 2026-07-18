@@ -63,9 +63,10 @@ The real configuration integration check is also opt in. Point
 ```
 
 The official artifact path has a separate network authorization. In this
-example the unprivileged side acquires and hashes the archive, then the
-root-only no-network helper re-copies, re-hashes, safely stages, self-verifies,
-atomically activates, and rolls back the current pre-release in an isolated root:
+example the unprivileged side acquires and hashes the archive, then directly
+invokes the root-side activation service logic in an isolated root. That logic
+re-copies, re-hashes, safely stages, self-verifies, atomically activates, and
+rolls back the current pre-release:
 
 ```bash
 SB_MANAGER_ARTIFACT_DOWNLOAD=download \
@@ -76,6 +77,11 @@ SB_MANAGER_ARTIFACT_TRUST_MODE=immutable-release \
 SB_MANAGER_ARTIFACT_SHA256=39387ea20a1b44fc123c106fb4b2cf961b98f5550e55a516f446498a163336e1 \
 .venv/bin/pytest -q tests/integration/test_official_artifact.py
 ```
+
+This integration test does not invoke the privileged-helper subprocess or prove
+its JSON protocol, EUID check, or sudo/doas authorization. Those boundaries are
+covered separately by protocol, adapter, and distribution-policy tests; live
+authorization on each target host remains a distinct release acceptance step.
 
 ## Host runtime smoke
 
@@ -133,8 +139,10 @@ before either supported channel reaches 1.16.
 
 Artifact trust remains a separate release gate. On 2026-07-18 the opt-in
 official-artifact acceptance passed unprivileged download and exact digest
-verification plus helper-side re-hashing, safe staging, isolated activation,
-and rollback for both current discoveries:
+verification plus direct root-side activation-service re-copying, re-hashing,
+safe staging, version self-verification, isolated activation, and rollback for
+both current discoveries. It did not traverse the helper subprocess, JSON
+protocol, EUID check, or sudo/doas authorization described above.
 
 | Channel | Observed version | Trust mode | Official amd64 SHA-256 |
 |---|---|---|---|
