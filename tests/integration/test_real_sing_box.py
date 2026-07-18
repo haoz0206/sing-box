@@ -66,19 +66,22 @@ def real_sing_box_binary() -> Path:
 
 
 def _materialize_snell_v6_document(real_sing_box_binary: Path) -> dict[str, object]:
-    materialized = create_protocol_catalog(
+    catalog = create_protocol_catalog(
         sing_box_binary=real_sing_box_binary,
         reality_server_name="www.cloudflare.com",
-    ).materialize(
-        ManagedProfile(
-            profile_name="official-snell-v6-fixture",
-            protocol=ProtocolKind.SNELL_V6,
-            listen_port=18443,
-            port_selection=PortSelection.FIXED,
-            status=ProfileStatus.DRAFT,
-            profile_id="profile-1",
-            server_address="proxy.example.com",
-        ),
+    )
+    profile = ManagedProfile(
+        profile_name="official-snell-v6-fixture",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=18443,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+        profile_id="profile-1",
+        server_address="proxy.example.com",
+    )
+    profile = catalog.prepare_draft(profile)
+    materialized = catalog.materialize(
+        profile,
         listen_port=18443,
     )
     return {
