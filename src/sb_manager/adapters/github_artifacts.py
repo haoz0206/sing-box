@@ -23,7 +23,7 @@ from sb_manager.seams.http_client import HttpClient
 
 
 class GitHubArtifactSource:
-    """Resolve and verify exact immutable SagerNet releases before exposing them."""
+    """Resolve trusted official releases, including digest-pinned Stable inspection."""
 
     _RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
     _LATEST_RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"

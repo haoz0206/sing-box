@@ -34,13 +34,23 @@ class FakeHttpClient:
         self.downloads: list[tuple[str, Path]] = []
 
     def get_json(self, url: str) -> object:
+        index = len(self.json_urls)
         self.json_urls.append(url)
-        index = min(len(self.json_urls) - 1, len(self._metadata_responses) - 1)
+        if index >= len(self._metadata_responses):
+            raise AssertionError(f"Unexpected metadata request: {url}")
         return self._metadata_responses[index]
 
     def download(self, url: str, destination: Path) -> None:
         self.downloads.append((url, destination))
         destination.write_bytes(self._payload)
+
+
+def test_fake_http_client_rejects_an_unconfigured_metadata_request() -> None:
+    http = FakeHttpClient(metadata={"response": 1}, payload=b"unused")
+
+    assert http.get_json("https://example.test/first") == {"response": 1}
+    with pytest.raises(AssertionError, match="Unexpected metadata request"):
+        http.get_json("https://example.test/extra")
 
 
 def release_metadata(
@@ -259,10 +269,18 @@ def test_inspect_accepts_digest_pinned_stable_release_without_downloading() -> N
     )
 
     assert artifact.version == version
+    assert artifact.asset_name == f"sing-box-{version}-linux-amd64.tar.gz"
+    assert artifact.download_url == (
+        "https://github.com/SagerNet/sing-box/releases/download/"
+        f"v{version}/sing-box-{version}-linux-amd64.tar.gz"
+    )
     assert artifact.sha256 == digest
     assert artifact.trust_mode is CoreArtifactTrustMode.DIGEST_PINNED_STABLE
     assert artifact.release_immutable is False
     assert artifact.prerelease is False
+    assert http.json_urls == [
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
+    ]
     assert http.downloads == []
 
 
@@ -287,9 +305,17 @@ def test_inspect_accepts_an_immutable_prerelease_without_downloading() -> None:
         )
     )
 
+    assert artifact.asset_name == f"sing-box-{version}-linux-amd64.tar.gz"
+    assert artifact.download_url == (
+        "https://github.com/SagerNet/sing-box/releases/download/"
+        f"v{version}/sing-box-{version}-linux-amd64.tar.gz"
+    )
     assert artifact.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE
     assert artifact.release_immutable is True
     assert artifact.prerelease is True
+    assert http.json_urls == [
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
+    ]
     assert http.downloads == []
 
 
@@ -312,7 +338,15 @@ def test_inspect_treats_a_hyphen_in_build_metadata_as_stable() -> None:
         )
     )
 
+    assert artifact.asset_name == f"sing-box-{version}-linux-amd64.tar.gz"
+    assert artifact.download_url == (
+        "https://github.com/SagerNet/sing-box/releases/download/"
+        f"v{version}/sing-box-{version}-linux-amd64.tar.gz"
+    )
     assert artifact.prerelease is False
+    assert http.json_urls == [
+        f"https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
+    ]
     assert http.downloads == []
 
 
@@ -367,6 +401,84 @@ def test_inspect_rejects_inconsistent_release_metadata_before_download(
         GitHubArtifactSource(http_client=http).inspect(
             CoreArtifactRequest(
                 version="1.13.14",
+                architecture=ArtifactArchitecture.AMD64,
+            )
+        )
+
+    assert http.downloads == []
+
+
+def test_inspect_rejects_when_the_exact_asset_is_missing_before_download() -> None:
+    version = "1.13.14"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="e" * 64,
+    )
+    assets = metadata["assets"]
+    assert isinstance(assets, list)
+    asset = assets[0]
+    assert isinstance(asset, dict)
+    asset["name"] = "sing-box-1.13.14-linux-arm64.tar.gz"
+    http = FakeHttpClient(metadata=metadata, payload=b"must not be downloaded")
+
+    with pytest.raises(ArtifactTrustError, match="exactly one"):
+        GitHubArtifactSource(http_client=http).inspect(
+            CoreArtifactRequest(
+                version=version,
+                architecture=ArtifactArchitecture.AMD64,
+            )
+        )
+
+    assert http.downloads == []
+
+
+def test_inspect_rejects_duplicate_exact_assets_before_download() -> None:
+    version = "1.13.14"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="e" * 64,
+    )
+    assets = metadata["assets"]
+    assert isinstance(assets, list)
+    asset = assets[0]
+    assert isinstance(asset, dict)
+    assets.append(dict(asset))
+    http = FakeHttpClient(metadata=metadata, payload=b"must not be downloaded")
+
+    with pytest.raises(ArtifactTrustError, match="exactly one"):
+        GitHubArtifactSource(http_client=http).inspect(
+            CoreArtifactRequest(
+                version=version,
+                architecture=ArtifactArchitecture.AMD64,
+            )
+        )
+
+    assert http.downloads == []
+
+
+def test_inspect_rejects_an_unofficial_asset_url_before_download() -> None:
+    version = "1.13.14"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="e" * 64,
+    )
+    assets = metadata["assets"]
+    assert isinstance(assets, list)
+    asset = assets[0]
+    assert isinstance(asset, dict)
+    asset["browser_download_url"] = "https://downloads.example.test/sing-box.tar.gz"
+    http = FakeHttpClient(metadata=metadata, payload=b"must not be downloaded")
+
+    with pytest.raises(ArtifactTrustError, match="Unexpected release asset URL"):
+        GitHubArtifactSource(http_client=http).inspect(
+            CoreArtifactRequest(
+                version=version,
                 architecture=ArtifactArchitecture.AMD64,
             )
         )
