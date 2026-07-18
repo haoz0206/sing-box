@@ -7,31 +7,67 @@ import pytest
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
+    ArtifactDigestUnavailableError,
     ArtifactIntegrityError,
     ArtifactTrustError,
     CoreArtifactRequest,
     CoreArtifactTrustMode,
     CoreRelease,
     CoreReleaseChannel,
+    MutablePrereleaseArtifactError,
     PlannedCoreArtifact,
     VerifiedCoreArtifact,
 )
 
 
 class FakeHttpClient:
-    def __init__(self, *, metadata: object, payload: bytes) -> None:
-        self._metadata = metadata
+    def __init__(
+        self,
+        *,
+        metadata: object,
+        payload: bytes,
+        later_metadata: tuple[object, ...] = (),
+    ) -> None:
+        self._metadata_responses = [metadata, *later_metadata]
         self._payload = payload
         self.json_urls: list[str] = []
         self.downloads: list[tuple[str, Path]] = []
 
     def get_json(self, url: str) -> object:
         self.json_urls.append(url)
-        return self._metadata
+        index = min(len(self.json_urls) - 1, len(self._metadata_responses) - 1)
+        return self._metadata_responses[index]
 
     def download(self, url: str, destination: Path) -> None:
         self.downloads.append((url, destination))
         destination.write_bytes(self._payload)
+
+
+def release_metadata(
+    *,
+    version: str,
+    prerelease: bool,
+    immutable: bool,
+    digest: str,
+) -> dict[str, object]:
+    asset_name = f"sing-box-{version}-linux-amd64.tar.gz"
+    return {
+        "tag_name": f"v{version}",
+        "draft": False,
+        "prerelease": prerelease,
+        "immutable": immutable,
+        "published_at": "2026-07-18T00:00:00Z",
+        "assets": [
+            {
+                "name": asset_name,
+                "browser_download_url": (
+                    "https://github.com/SagerNet/sing-box/releases/download/"
+                    f"v{version}/{asset_name}"
+                ),
+                "digest": f"sha256:{digest}",
+            }
+        ],
+    }
 
 
 def planned_artifact(
@@ -202,6 +238,119 @@ def test_release_discovery_rejects_unpublished_metadata() -> None:
     assert http.downloads == []
 
 
+def test_inspect_accepts_digest_pinned_stable_release_without_downloading() -> None:
+    version = "1.13.14"
+    digest = "a" * 64
+    http = FakeHttpClient(
+        metadata=release_metadata(
+            version=version,
+            prerelease=False,
+            immutable=False,
+            digest=digest,
+        ),
+        payload=b"must not be downloaded",
+    )
+
+    artifact = GitHubArtifactSource(http_client=http).inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+        )
+    )
+
+    assert artifact.version == version
+    assert artifact.sha256 == digest
+    assert artifact.trust_mode is CoreArtifactTrustMode.DIGEST_PINNED_STABLE
+    assert artifact.release_immutable is False
+    assert artifact.prerelease is False
+    assert http.downloads == []
+
+
+def test_inspect_accepts_an_immutable_prerelease_without_downloading() -> None:
+    version = "1.14.0-alpha.47"
+    digest = "b" * 64
+    http = FakeHttpClient(
+        metadata=release_metadata(
+            version=version,
+            prerelease=True,
+            immutable=True,
+            digest=digest,
+        ),
+        payload=b"must not be downloaded",
+    )
+
+    artifact = GitHubArtifactSource(http_client=http).inspect(
+        CoreArtifactRequest(
+            version=version,
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    )
+
+    assert artifact.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE
+    assert artifact.release_immutable is True
+    assert artifact.prerelease is True
+    assert http.downloads == []
+
+
+def test_inspect_rejects_a_mutable_prerelease_with_explicit_permission() -> None:
+    version = "1.14.0-beta.1"
+    http = FakeHttpClient(
+        metadata=release_metadata(
+            version=version,
+            prerelease=True,
+            immutable=False,
+            digest="c" * 64,
+        ),
+        payload=b"must not be downloaded",
+    )
+
+    with pytest.raises(MutablePrereleaseArtifactError, match="Mutable prereleases"):
+        GitHubArtifactSource(http_client=http).inspect(
+            CoreArtifactRequest(
+                version=version,
+                architecture=ArtifactArchitecture.AMD64,
+                allow_prerelease=True,
+            )
+        )
+
+    assert http.downloads == []
+
+
+@pytest.mark.parametrize(
+    ("metadata_override", "diagnostic"),
+    (
+        ({"tag_name": "v1.13.13"}, "tag"),
+        ({"published_at": None}, "published"),
+        ({"draft": True}, "draft"),
+        ({"prerelease": True}, "classification"),
+        ({"immutable": None}, "immutable"),
+    ),
+)
+def test_inspect_rejects_inconsistent_release_metadata_before_download(
+    metadata_override: dict[str, object],
+    diagnostic: str,
+) -> None:
+    metadata = release_metadata(
+        version="1.13.14",
+        prerelease=False,
+        immutable=True,
+        digest="d" * 64,
+    )
+    metadata.update(metadata_override)
+    http = FakeHttpClient(metadata=metadata, payload=b"must not be downloaded")
+
+    with pytest.raises(ArtifactTrustError, match=diagnostic):
+        GitHubArtifactSource(http_client=http).inspect(
+            CoreArtifactRequest(
+                version="1.13.14",
+                architecture=ArtifactArchitecture.AMD64,
+            )
+        )
+
+    assert http.downloads == []
+
+
 def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: Path) -> None:
     version = "1.14.0-alpha.45"
     asset_name = f"sing-box-{version}-linux-amd64.tar.gz"
@@ -209,18 +358,12 @@ def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: P
     payload = b"release archive bytes"
     sha256 = hashlib.sha256(payload).hexdigest()
     http = FakeHttpClient(
-        metadata={
-            "draft": False,
-            "prerelease": True,
-            "immutable": True,
-            "assets": [
-                {
-                    "name": asset_name,
-                    "browser_download_url": download_url,
-                    "digest": f"sha256:{sha256}",
-                }
-            ],
-        },
+        metadata=release_metadata(
+            version=version,
+            prerelease=True,
+            immutable=True,
+            digest=sha256,
+        ),
         payload=payload,
     )
 
@@ -265,12 +408,12 @@ def test_untrusted_release_metadata_is_rejected_before_download(
     metadata_override: dict[str, object],
     diagnostic: str,
 ) -> None:
-    metadata: dict[str, object] = {
-        "draft": False,
-        "prerelease": False,
-        "immutable": True,
-        "assets": [],
-    }
+    metadata = release_metadata(
+        version="1.14.0",
+        prerelease=False,
+        immutable=True,
+        digest="a" * 64,
+    )
     metadata.update(metadata_override)
     http = FakeHttpClient(metadata=metadata, payload=b"unused")
 
@@ -287,20 +430,21 @@ def test_untrusted_release_metadata_is_rejected_before_download(
 
 
 def test_prerelease_requires_explicit_permission(tmp_path: Path) -> None:
+    version = "1.14.0-alpha.45"
     http = FakeHttpClient(
-        metadata={
-            "draft": False,
-            "prerelease": True,
-            "immutable": True,
-            "assets": [],
-        },
+        metadata=release_metadata(
+            version=version,
+            prerelease=True,
+            immutable=True,
+            digest="a" * 64,
+        ),
         payload=b"unused",
     )
 
     with pytest.raises(ArtifactTrustError, match=r"(?i)prerelease"):
         GitHubArtifactSource(http_client=http).acquire(
             CoreArtifactRequest(
-                version="1.14.0-alpha.45",
+                version=version,
                 architecture=ArtifactArchitecture.AMD64,
             ),
             destination_directory=tmp_path,
@@ -314,9 +458,11 @@ def test_missing_sha256_digest_is_rejected_before_download(tmp_path: Path) -> No
     asset_name = f"sing-box-{version}-linux-arm64.tar.gz"
     http = FakeHttpClient(
         metadata={
+            "tag_name": f"v{version}",
             "draft": False,
             "prerelease": False,
             "immutable": True,
+            "published_at": "2026-07-18T00:00:00Z",
             "assets": [
                 {
                     "name": asset_name,
@@ -328,7 +474,7 @@ def test_missing_sha256_digest_is_rejected_before_download(tmp_path: Path) -> No
         payload=b"unused",
     )
 
-    with pytest.raises(ArtifactTrustError, match="SHA-256"):
+    with pytest.raises(ArtifactDigestUnavailableError, match="SHA-256"):
         GitHubArtifactSource(http_client=http).acquire(
             CoreArtifactRequest(
                 version=version,
@@ -340,23 +486,38 @@ def test_missing_sha256_digest_is_rejected_before_download(tmp_path: Path) -> No
     assert http.downloads == []
 
 
+def test_malformed_sha256_digest_is_rejected_before_download(tmp_path: Path) -> None:
+    version = "1.14.0"
+    metadata = release_metadata(
+        version=version,
+        prerelease=False,
+        immutable=True,
+        digest="not-a-digest",
+    )
+    http = FakeHttpClient(metadata=metadata, payload=b"unused")
+
+    with pytest.raises(ArtifactDigestUnavailableError, match="SHA-256"):
+        GitHubArtifactSource(http_client=http).acquire(
+            CoreArtifactRequest(
+                version=version,
+                architecture=ArtifactArchitecture.AMD64,
+            ),
+            destination_directory=tmp_path,
+        )
+
+    assert http.downloads == []
+
+
 def test_digest_mismatch_removes_untrusted_download(tmp_path: Path) -> None:
     version = "1.14.0"
     asset_name = f"sing-box-{version}-linux-amd64.tar.gz"
-    download_url = f"https://github.com/SagerNet/sing-box/releases/download/v{version}/{asset_name}"
     http = FakeHttpClient(
-        metadata={
-            "draft": False,
-            "prerelease": False,
-            "immutable": True,
-            "assets": [
-                {
-                    "name": asset_name,
-                    "browser_download_url": download_url,
-                    "digest": f"sha256:{'0' * 64}",
-                }
-            ],
-        },
+        metadata=release_metadata(
+            version=version,
+            prerelease=False,
+            immutable=True,
+            digest="0" * 64,
+        ),
         payload=b"tampered bytes",
     )
 

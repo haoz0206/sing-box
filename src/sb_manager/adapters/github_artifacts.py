@@ -8,11 +8,15 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from sb_manager.seams.artifact_source import (
+    ArtifactDigestUnavailableError,
     ArtifactIntegrityError,
     ArtifactTrustError,
     CoreArtifactRequest,
+    CoreArtifactTrustMode,
     CoreRelease,
     CoreReleaseChannel,
+    MutablePrereleaseArtifactError,
+    PlannedCoreArtifact,
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.http_client import HttpClient
@@ -128,16 +132,59 @@ class GitHubArtifactSource:
             sha256=expected_sha256,
         )
 
-    def _release_metadata(self, request: CoreArtifactRequest) -> Mapping[object, object]:
+    def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
+        metadata = self._release_metadata(request, require_immutable=False)
+        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
+        asset = self._find_asset(metadata, asset_name)
+        sha256 = self._sha256(asset)
+        download_url = self._download_url(asset, request=request, asset_name=asset_name)
+        immutable = metadata["immutable"]
+        prerelease = metadata["prerelease"]
+        if not isinstance(immutable, bool) or not isinstance(prerelease, bool):
+            raise ArtifactTrustError("Release immutable/prerelease metadata is invalid")
+        if not immutable and prerelease:
+            raise MutablePrereleaseArtifactError("Mutable prereleases are not trusted")
+        return PlannedCoreArtifact(
+            version=request.version,
+            architecture=request.architecture,
+            asset_name=asset_name,
+            download_url=download_url,
+            sha256=sha256,
+            trust_mode=(
+                CoreArtifactTrustMode.IMMUTABLE_RELEASE
+                if immutable
+                else CoreArtifactTrustMode.DIGEST_PINNED_STABLE
+            ),
+            release_immutable=immutable,
+            prerelease=prerelease,
+        )
+
+    def _release_metadata(
+        self,
+        request: CoreArtifactRequest,
+        *,
+        require_immutable: bool = True,
+    ) -> Mapping[object, object]:
         raw_metadata = self._http_client.get_json(self._RELEASE_API.format(version=request.version))
         if not isinstance(raw_metadata, Mapping):
             raise ArtifactTrustError("Release metadata is not a JSON object")
+        if raw_metadata.get("tag_name") != f"v{request.version}":
+            raise ArtifactTrustError("Release tag does not match the requested version")
         if raw_metadata.get("draft") is not False:
             raise ArtifactTrustError("Refusing a draft release")
-        if raw_metadata.get("immutable") is not True:
-            raise ArtifactTrustError("Release is not immutable")
-        if raw_metadata.get("prerelease") is True and not request.allow_prerelease:
+        self._require_published(raw_metadata)
+        immutable = raw_metadata.get("immutable")
+        prerelease = raw_metadata.get("prerelease")
+        if not isinstance(immutable, bool):
+            raise ArtifactTrustError("Release immutable metadata is invalid")
+        if not isinstance(prerelease, bool):
+            raise ArtifactTrustError("Release prerelease metadata is invalid")
+        if prerelease != ("-" in request.version):
+            raise ArtifactTrustError("Release prerelease classification is inconsistent")
+        if prerelease and not request.allow_prerelease:
             raise ArtifactTrustError("Prerelease requires explicit permission")
+        if require_immutable and not immutable:
+            raise ArtifactTrustError("Release is not immutable")
         return raw_metadata
 
     @staticmethod
@@ -160,10 +207,10 @@ class GitHubArtifactSource:
     def _sha256(asset: Mapping[object, object]) -> str:
         digest = asset.get("digest")
         if not isinstance(digest, str):
-            raise ArtifactTrustError("Release asset has no SHA-256 digest")
+            raise ArtifactDigestUnavailableError("Release asset has no SHA-256 digest")
         match = re.fullmatch(r"sha256:([0-9a-fA-F]{64})", digest)
         if match is None:
-            raise ArtifactTrustError("Release asset has no valid SHA-256 digest")
+            raise ArtifactDigestUnavailableError("Release asset has no valid SHA-256 digest")
         return match.group(1).lower()
 
     def _download_url(
