@@ -68,7 +68,10 @@ from sb_manager.application.profile_cloning import ProfileCloningService
 from sb_manager.application.profile_details import ProfileDetailsService
 from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
-from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    ProtocolCompatibilityPolicy,
+)
 from sb_manager.application.service_logs import ServiceLogService
 from sb_manager.application.state_recovery import StateRecoveryService
 from sb_manager.artifacts.installation import CoreInstallationCatalog
@@ -309,7 +312,11 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         arguments.state_file.with_name(f"{arguments.state_file.name}.apply.lock")
     )
     core_inspector = SingBoxCoreStatusInspector(binary=sing_box_binary)
-    core_compatibility = ActiveCoreProtocolCompatibility(inspector=core_inspector)
+    protocol_compatibility = ProtocolCompatibilityPolicy()
+    core_compatibility = ActiveCoreProtocolCompatibility(
+        inspector=core_inspector,
+        policy=protocol_compatibility,
+    )
     manager = Manager(
         state_store=state_store,
         mutation_lock=mutation_lock,
@@ -374,12 +381,16 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         artifact_source=core_artifacts,
         core_activator=core_controller,
         incoming_directory=arguments.privileged_incoming_dir,
+        state_store=state_store,
+        compatibility=protocol_compatibility,
     )
     core_channels = CoreChannelService(
         release_source=core_artifacts,
         core_inventory=CoreInstallationCatalog(installation_root=MANAGED_CORE_ROOT),
         core_updater=core_updater,
         core_switcher=core_controller,
+        state_store=state_store,
+        compatibility=protocol_compatibility,
     )
     host_diagnostics = RuntimeHostDiagnostics(runtime=runtime)
     host_readiness = HostReadinessService(

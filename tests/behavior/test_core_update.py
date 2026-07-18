@@ -2,15 +2,28 @@ from pathlib import Path
 
 import pytest
 
+from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.application.core_update import (
     CoreArtifactAcquisitionError,
+    CoreDesiredStateChangedError,
     CorePrereleaseConsentRequiredError,
     CoreUpdateConfirmationRequiredError,
     CoreUpdateService,
     CoreUpdateWarning,
     PlanCoreUpdateRequest,
 )
+from sb_manager.application.protocol_compatibility import (
+    CoreTargetIncompatibleWithDesiredState,
+    ProtocolCompatibilityPolicy,
+)
 from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.domain.installation import (
+    ManagedInstallation,
+    ManagedProfile,
+    PortSelection,
+    ProfileStatus,
+    ProtocolKind,
+)
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
     CoreArtifactRequest,
@@ -19,6 +32,9 @@ from sb_manager.seams.artifact_source import (
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest
+
+INITIAL_REVISION = 7
+CHANGED_REVISION = 8
 
 
 class RecordingArtifactSource:
@@ -96,6 +112,38 @@ class FailingArtifactSource(RecordingArtifactSource):
         raise OSError("network unavailable")
 
 
+def test_core_update_plan_records_the_loaded_desired_state_revision(tmp_path: Path) -> None:
+    source = RecordingArtifactSource()
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    core_updates = CoreUpdateService(
+        artifact_source=source,
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=state_store,
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+
+    assert plan.expected_state_revision == INITIAL_REVISION
+
+
+def test_desired_state_changed_error_exposes_revisions_without_state_details() -> None:
+    error = CoreDesiredStateChangedError(expected=INITIAL_REVISION, actual=CHANGED_REVISION)
+
+    assert error.expected == INITIAL_REVISION
+    assert error.actual == CHANGED_REVISION
+    assert str(error) == "Desired state changed from revision 7 to 8"
+
+
 def service(
     tmp_path: Path,
 ) -> tuple[CoreUpdateService, RecordingArtifactSource, RecordingCoreActivator]:
@@ -106,6 +154,8 @@ def service(
             artifact_source=source,
             core_activator=activator,
             incoming_directory=tmp_path / "incoming",
+            state_store=MemoryStateStore(),
+            compatibility=ProtocolCompatibilityPolicy(),
         ),
         source,
         activator,
@@ -231,6 +281,8 @@ def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path
         artifact_source=source,
         core_activator=activator,
         incoming_directory=tmp_path / "incoming",
+        state_store=MemoryStateStore(),
+        compatibility=ProtocolCompatibilityPolicy(),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(
@@ -246,6 +298,168 @@ def test_acquisition_failure_is_classified_before_privileged_activation(tmp_path
     assert len(source.inspect_requests) == 1
     assert source.acquisitions == [(plan.artifact, tmp_path / "incoming")]
     assert activator.requests == []
+
+
+def snell_installation(
+    *,
+    revision: int = INITIAL_REVISION,
+    status: ProfileStatus = ProfileStatus.APPLIED,
+    enabled: bool = True,
+) -> ManagedInstallation:
+    return ManagedInstallation(
+        schema_version=1,
+        revision=revision,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="private-snell",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=8388,
+                port_selection=PortSelection.FIXED,
+                status=status,
+                enabled=enabled,
+            ),
+        ),
+    )
+
+
+def test_exact_stable_update_is_blocked_by_an_applied_snell_profile(
+    tmp_path: Path,
+) -> None:
+    source = RecordingArtifactSource()
+    core_updates = CoreUpdateService(
+        artifact_source=source,
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=MemoryStateStore(snell_installation()),
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+
+    with pytest.raises(CoreTargetIncompatibleWithDesiredState) as captured:
+        core_updates.plan(
+            PlanCoreUpdateRequest(
+                version="1.13.14",
+                architecture=ArtifactArchitecture.AMD64,
+                allow_prerelease=False,
+            )
+        )
+
+    assert captured.value.blocking_profile_ids == ("profile-7",)
+    assert captured.value.blocking_profile_names == ("private-snell",)
+    assert source.inspect_requests == []
+    assert source.acquisitions == []
+
+
+@pytest.mark.parametrize(
+    ("status", "enabled"),
+    (
+        (ProfileStatus.DRAFT, True),
+        (ProfileStatus.APPLIED, False),
+    ),
+)
+def test_inactive_snell_does_not_block_an_exact_stable_update(
+    tmp_path: Path,
+    status: ProfileStatus,
+    enabled: bool,
+) -> None:
+    core_updates = CoreUpdateService(
+        artifact_source=RecordingArtifactSource(),
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=MemoryStateStore(snell_installation(status=status, enabled=enabled)),
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+
+    assert plan.version == "1.13.14"
+
+
+def test_exact_preview_update_allows_an_applied_snell_profile(tmp_path: Path) -> None:
+    core_updates = CoreUpdateService(
+        artifact_source=RecordingArtifactSource(),
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=MemoryStateStore(snell_installation()),
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0-alpha.47",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    )
+
+    assert plan.version == "1.14.0-alpha.47"
+
+
+def test_core_update_rejects_a_changed_desired_state_before_acquisition(
+    tmp_path: Path,
+) -> None:
+    source = RecordingArtifactSource()
+    store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    core_updates = CoreUpdateService(
+        artifact_source=source,
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=store,
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.14.0-alpha.47",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=True,
+        )
+    )
+    store.save(snell_installation(revision=CHANGED_REVISION))
+
+    with pytest.raises(CoreDesiredStateChangedError) as captured:
+        core_updates.execute(plan, confirmed=True)
+
+    assert captured.value.expected == INITIAL_REVISION
+    assert captured.value.actual == CHANGED_REVISION
+    assert str(captured.value) == "Desired state changed from revision 7 to 8"
+    assert source.acquisitions == []
+
+
+def test_core_update_rechecks_target_compatibility_before_acquisition(
+    tmp_path: Path,
+) -> None:
+    source = RecordingArtifactSource()
+    store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=INITIAL_REVISION, profiles=())
+    )
+    core_updates = CoreUpdateService(
+        artifact_source=source,
+        core_activator=RecordingCoreActivator(),
+        incoming_directory=tmp_path / "incoming",
+        state_store=store,
+        compatibility=ProtocolCompatibilityPolicy(),
+    )
+    plan = core_updates.plan(
+        PlanCoreUpdateRequest(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            allow_prerelease=False,
+        )
+    )
+    store.save(snell_installation(revision=INITIAL_REVISION))
+
+    with pytest.raises(CoreTargetIncompatibleWithDesiredState):
+        core_updates.execute(plan, confirmed=True)
+
+    assert source.acquisitions == []
 
 
 def test_build_metadata_hyphen_does_not_make_a_stable_version_prerelease(tmp_path: Path) -> None:

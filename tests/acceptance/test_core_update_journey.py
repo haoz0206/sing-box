@@ -102,6 +102,7 @@ class RecordingCoreUpdater:
                 if prerelease
                 else (CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,)
             ),
+            expected_state_revision=3,
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:

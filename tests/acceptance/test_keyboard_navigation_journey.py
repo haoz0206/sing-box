@@ -76,6 +76,7 @@ class BlockingCoreUpdater:
             ),
             mutates_host=False,
             warnings=(),
+            expected_state_revision=3,
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:

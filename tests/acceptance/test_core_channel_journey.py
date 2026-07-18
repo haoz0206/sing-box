@@ -57,6 +57,7 @@ class AlreadyCurrentChannels:
             target=identity,
             expected_active=identity,
             exact_update=None,
+            expected_state_revision=3,
         )
 
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -85,6 +86,7 @@ class RetainedPreviewChannels(AlreadyCurrentChannels):
                 source_sha256="a" * 64,
             ),
             exact_update=None,
+            expected_state_revision=3,
         )
 
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -132,7 +134,9 @@ class MissingPreviewChannels(RetainedPreviewChannels):
                 ),
                 mutates_host=False,
                 warnings=(CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,),
+                expected_state_revision=3,
             ),
+            expected_state_revision=3,
         )
 
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -176,7 +180,9 @@ class MissingStableChannels(MissingPreviewChannels):
                 ),
                 mutates_host=False,
                 warnings=(CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,),
+                expected_state_revision=3,
             ),
+            expected_state_revision=3,
         )
 
 

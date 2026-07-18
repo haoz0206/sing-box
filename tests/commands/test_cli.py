@@ -267,6 +267,22 @@ def test_cli_injects_one_active_core_guard_into_every_profile_mutation(
     assert all(vars(service)["_core_compatibility"] is guard for service in services)
 
 
+def test_cli_shares_desired_state_and_protocol_policy_across_core_lifecycle(
+    tmp_path: Path,
+) -> None:
+    app, _, _ = _create_isolated_app(tmp_path)
+
+    assert app.core_updater is not None
+    assert app.core_channel_manager is not None
+    state_store = vars(app.manager)["_state_store"]
+    updater_policy = vars(app.core_updater)["_compatibility"]
+
+    assert vars(app.core_updater)["_state_store"] is state_store
+    assert vars(app.core_channel_manager)["_state_store"] is state_store
+    assert vars(app.core_channel_manager)["_compatibility"] is updater_policy
+    assert vars(app.core_channel_manager)["_core_updater"] is app.core_updater
+
+
 def test_cli_uses_only_an_absolute_xdg_interface_preference_root(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

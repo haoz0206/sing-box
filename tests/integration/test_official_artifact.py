@@ -6,8 +6,10 @@ import pytest
 
 from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.adapters.github_artifacts import GitHubArtifactSource
+from sb_manager.adapters.memory_state import MemoryStateStore
 from sb_manager.adapters.urllib_http import UrllibHttpClient
 from sb_manager.application.core_update import CoreUpdateService, PlanCoreUpdateRequest
+from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
 from sb_manager.artifacts.installation import CoreDistributionInstaller
 from sb_manager.privileged.core_install import (
     PrivilegedCoreInstallPolicy,
@@ -55,6 +57,8 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
         artifact_source=GitHubArtifactSource(http_client=UrllibHttpClient()),
         core_activator=PrivilegedCoreInstallService(policy=policy),
         incoming_directory=policy.incoming_directory,
+        state_store=MemoryStateStore(),
+        compatibility=ProtocolCompatibilityPolicy(),
     )
     plan = core_updates.plan(
         PlanCoreUpdateRequest(

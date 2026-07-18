@@ -5,6 +5,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol
 
+from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
 from sb_manager.artifacts.installation import (
     CoreActivation,
     CoreReleaseIdentity,
@@ -22,6 +23,7 @@ from sb_manager.seams.artifact_source import (
 from sb_manager.seams.core_activator import CoreActivationRequest, CoreActivator
 from sb_manager.seams.core_inventory import CoreInventory
 from sb_manager.seams.core_switcher import CoreSwitcher, CoreSwitchRequest
+from sb_manager.seams.state_store import StateStore
 
 
 class CorePrereleaseConsentRequiredError(PermissionError):
@@ -34,6 +36,15 @@ class CoreUpdateConfirmationRequiredError(PermissionError):
 
 class CoreArtifactAcquisitionError(RuntimeError):
     """The exact release artifact could not be acquired and verified."""
+
+
+class CoreDesiredStateChangedError(RuntimeError):
+    """The desired state no longer matches the reviewed core action."""
+
+    def __init__(self, *, expected: int, actual: int) -> None:
+        self.expected = expected
+        self.actual = actual
+        super().__init__(f"Desired state changed from revision {expected} to {actual}")
 
 
 class CoreUpdateWarning(str, Enum):
@@ -59,6 +70,7 @@ class CoreUpdatePlan:
     artifact: PlannedCoreArtifact
     mutates_host: bool
     warnings: tuple[CoreUpdateWarning, ...]
+    expected_state_revision: int
 
     @property
     def version(self) -> str:
@@ -105,12 +117,21 @@ class CoreUpdateService:
         artifact_source: CoreArtifactSource,
         core_activator: CoreActivator,
         incoming_directory: Path,
+        state_store: StateStore,
+        compatibility: ProtocolCompatibilityPolicy,
     ) -> None:
         self._artifact_source = artifact_source
         self._core_activator = core_activator
         self._incoming_directory = incoming_directory
+        self._state_store = state_store
+        self._compatibility = compatibility
 
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        installation = self._state_store.load()
+        self._compatibility.require_profiles_supported(
+            installation.profiles,
+            target_version=request.version,
+        )
         artifact_request = CoreArtifactRequest(
             version=request.version,
             architecture=request.architecture,
@@ -144,11 +165,22 @@ class CoreUpdateService:
             artifact=artifact,
             mutates_host=False,
             warnings=tuple(warnings),
+            expected_state_revision=installation.revision,
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
         if not confirmed:
             raise CoreUpdateConfirmationRequiredError("Core update requires explicit confirmation")
+        installation = self._state_store.load()
+        if installation.revision != plan.expected_state_revision:
+            raise CoreDesiredStateChangedError(
+                expected=plan.expected_state_revision,
+                actual=installation.revision,
+            )
+        self._compatibility.require_profiles_supported(
+            installation.profiles,
+            target_version=plan.artifact.version,
+        )
         try:
             artifact = self._artifact_source.acquire(
                 plan.artifact,
@@ -202,6 +234,7 @@ class CoreChannelPlan:
     target: CoreReleaseIdentity | None
     expected_active: CoreReleaseIdentity | None
     exact_update: CoreUpdatePlan | None
+    expected_state_revision: int
 
 
 class CoreChannelManager(Protocol):
@@ -215,20 +248,25 @@ class CoreChannelManager(Protocol):
 class CoreChannelService:
     """Choose one exact channel action without putting policy in the TUI."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - channel orchestration has six explicit seams
         self,
         *,
         release_source: CoreReleaseSource,
         core_inventory: CoreInventory,
         core_updater: CoreUpdater,
         core_switcher: CoreSwitcher,
+        state_store: StateStore,
+        compatibility: ProtocolCompatibilityPolicy,
     ) -> None:
         self._release_source = release_source
         self._core_inventory = core_inventory
         self._core_updater = core_updater
         self._core_switcher = core_switcher
+        self._state_store = state_store
+        self._compatibility = compatibility
 
     def plan(self, request: PlanCoreChannelRequest) -> CoreChannelPlan:
+        installation = self._state_store.load()
         release = self._release_source.latest(request.channel)
         if release.channel is not request.channel:
             raise CoreChannelPlanningError(
@@ -259,9 +297,14 @@ class CoreChannelService:
                 target=identity,
                 expected_active=identity,
                 exact_update=None,
+                expected_state_revision=installation.revision,
             )
         active = self._one_active_release(installed)
         if target is not None and active is not None:
+            self._compatibility.require_profiles_supported(
+                installation.profiles,
+                target_version=release.version,
+            )
             return CoreChannelPlan(
                 kind=CoreChannelPlanKind.SWITCH_RETAINED,
                 channel=release.channel,
@@ -272,6 +315,7 @@ class CoreChannelService:
                 target=self._identity(target),
                 expected_active=self._identity(active),
                 exact_update=None,
+                expected_state_revision=installation.revision,
             )
         exact_update = self._core_updater.plan(
             PlanCoreUpdateRequest(
@@ -290,6 +334,7 @@ class CoreChannelService:
             target=None,
             expected_active=self._identity(active) if active is not None else None,
             exact_update=exact_update,
+            expected_state_revision=exact_update.expected_state_revision,
         )
 
     def execute(self, plan: CoreChannelPlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -300,6 +345,16 @@ class CoreChannelService:
                 )
             if plan.target is None or plan.expected_active is None:
                 raise CoreChannelPlanningError("Retained switch plan is missing exact identities")
+            installation = self._state_store.load()
+            if installation.revision != plan.expected_state_revision:
+                raise CoreDesiredStateChangedError(
+                    expected=plan.expected_state_revision,
+                    actual=installation.revision,
+                )
+            self._compatibility.require_profiles_supported(
+                installation.profiles,
+                target_version=plan.version,
+            )
             activation = self._core_switcher.switch_core(
                 CoreSwitchRequest(
                     target=plan.target,
