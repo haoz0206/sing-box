@@ -19,7 +19,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
-from sb_manager.domain.protocol_material import TuicMaterial
+from sb_manager.domain.protocol_material import SnellV6Material, TuicMaterial
 from sb_manager.seams.apply_history import ApplyHistoryEntry, ApplyHistoryStoreError
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
@@ -29,6 +29,7 @@ from sb_manager.transactions.apply import (
     ApplyTransactionResult,
     CommitResult,
     ConfigTargetPrecondition,
+    RollbackResult,
 )
 
 
@@ -45,6 +46,19 @@ class RecordingConfigurationApplier:
     ) -> ApplyTransactionResult:
         self.calls.append((document, precondition))
         return self.result
+
+
+class FailingConfigurationApplier:
+    def __init__(self, diagnostics: str) -> None:
+        self.diagnostics = diagnostics
+
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition,
+    ) -> ApplyTransactionResult:
+        raise ConfigurationApplyError(self.diagnostics)
 
 
 class FailingBeginHistoryStore(MemoryApplyHistoryStore):
@@ -205,28 +219,195 @@ def test_failed_apply_history_redacts_persisted_material_and_remains_actionable(
     assert "[已脱敏]" in report.entries[0].diagnostics
 
 
-def test_first_apply_history_redacts_generic_snell_psk_assignment() -> None:
+def test_first_apply_history_and_returned_result_redact_unlabeled_exact_snell_psk() -> None:
     secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
-    store = MemoryApplyHistoryStore()
-    applier = ApplyHistoryConfigurationApplier(
-        delegate=RecordingConfigurationApplier(
-            validation_failed_result(f"snell rejected psk={secret}")
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-snell",
+                profile_name="Snell preview",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+                protocol_material=SnellV6Material(psk=secret),
+            ),
         ),
+    )
+    store = MemoryApplyHistoryStore()
+    delegate = RecordingConfigurationApplier(
+        validation_failed_result(f"validation rejected {secret}")
+    )
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=delegate,
         history_store=store,
-        state_store=MemoryStateStore(),
+        state_store=MemoryStateStore(installation),
         clock=lambda: datetime(2026, 7, 18, 8, 30, tzinfo=timezone.utc),
         attempt_id_factory=lambda: "attempt-snell-001",
     )
 
-    applier.apply(
+    result = applier.apply(
         {"inbounds": [{"type": "snell", "psk": secret}], "outbounds": []},
         precondition=ConfigTargetPrecondition.absent(),
     )
 
     entry = store.recent(limit=1)[0]
-    assert entry.diagnostics == "snell rejected psk=[已脱敏]"
+    assert result is not delegate.result
+    assert result.validation.diagnostics == "validation rejected [已脱敏]"
+    assert entry.diagnostics == "validation rejected [已脱敏]"
     assert entry.redacted_occurrences == 1
+    assert secret not in result.validation.diagnostics
     assert secret not in entry.diagnostics
+
+
+def test_first_apply_history_uses_candidate_document_to_redact_generated_reality_uuid() -> None:
+    secret = "bf000d23-0752-40b4-affe-68f7707a9661"
+    store = MemoryApplyHistoryStore()
+    delegate = RecordingConfigurationApplier(
+        validation_failed_result(f"validation rejected {secret}")
+    )
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=delegate,
+        history_store=store,
+        state_store=MemoryStateStore(),
+        attempt_id_factory=lambda: "attempt-reality-first-apply",
+    )
+
+    result = applier.apply(
+        {
+            "inbounds": [{"type": "vless", "users": [{"uuid": secret}]}],
+            "outbounds": [],
+        },
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+
+    assert result.validation.diagnostics == "validation rejected [已脱敏]"
+    entry = store.recent(limit=1)[0]
+    assert entry.diagnostics == "validation rejected [已脱敏]"
+    assert secret not in entry.diagnostics
+
+
+def test_apply_history_exception_omits_exact_secret_and_exception_chain() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-snell",
+                profile_name="Snell preview",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+                protocol_material=SnellV6Material(psk=secret),
+            ),
+        ),
+    )
+    store = MemoryApplyHistoryStore()
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=FailingConfigurationApplier(f"helper rejected {secret}"),
+        history_store=store,
+        state_store=MemoryStateStore(installation),
+        clock=lambda: datetime(2026, 7, 18, 8, 30, tzinfo=timezone.utc),
+        attempt_id_factory=lambda: "attempt-snell-exception",
+    )
+
+    with pytest.raises(ConfigurationApplyError) as caught:
+        applier.apply(
+            {"inbounds": [{"type": "snell", "psk": secret}], "outbounds": []},
+            precondition=ConfigTargetPrecondition.absent(),
+        )
+
+    assert str(caught.value) == "helper rejected [已脱敏]"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    entry = store.recent(limit=1)[0]
+    assert entry.status is ApplyHistoryStatus.EXECUTION_ERROR
+    assert entry.diagnostics == "helper rejected [已脱敏]"
+    assert secret not in entry.diagnostics
+
+
+def test_first_apply_history_exception_redacts_generated_reality_uuid() -> None:
+    secret = "bf000d23-0752-40b4-affe-68f7707a9661"
+    store = MemoryApplyHistoryStore()
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=FailingConfigurationApplier(f"helper rejected {secret}"),
+        history_store=store,
+        state_store=MemoryStateStore(),
+        attempt_id_factory=lambda: "attempt-reality-exception",
+    )
+
+    with pytest.raises(ConfigurationApplyError) as caught:
+        applier.apply(
+            {
+                "inbounds": [{"type": "vless", "users": [{"uuid": secret}]}],
+                "outbounds": [],
+            },
+            precondition=ConfigTargetPrecondition.absent(),
+        )
+
+    assert str(caught.value) == "helper rejected [已脱敏]"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    entry = store.recent(limit=1)[0]
+    assert entry.diagnostics == "helper rejected [已脱敏]"
+    assert secret not in entry.diagnostics
+
+
+def test_transaction_redaction_covers_runtime_commit_rollback_and_recovery() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-snell",
+                profile_name="Snell preview",
+                protocol=ProtocolKind.SNELL_V6,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+                protocol_material=SnellV6Material(psk=secret),
+            ),
+        ),
+    )
+    original = ApplyTransactionResult(
+        outcome=ApplyOutcome.ROLLBACK_FAILED,
+        validation=ConfigValidationResult(valid=True, diagnostics=f"validation {secret}"),
+        commit=CommitResult(success=True, diagnostics=f"commit {secret}"),
+        runtime_refresh=RuntimeRefreshResult(success=False, diagnostics=f"refresh {secret}"),
+        postcondition=RuntimePostcondition(healthy=False, diagnostics=f"health {secret}"),
+        rollback=RollbackResult(
+            success=False,
+            diagnostics=f"rollback {secret}",
+            recovery_instructions=(f"recover with {secret}",),
+        ),
+    )
+    applier = ApplyHistoryConfigurationApplier(
+        delegate=RecordingConfigurationApplier(original),
+        history_store=MemoryApplyHistoryStore(),
+        state_store=MemoryStateStore(installation),
+    )
+
+    result = applier.apply(
+        {"inbounds": [{"type": "snell", "psk": secret}], "outbounds": []},
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+
+    assert result is not original
+    carriers = (
+        result.validation.diagnostics,
+        result.commit.diagnostics if result.commit is not None else "",
+        result.runtime_refresh.diagnostics if result.runtime_refresh is not None else "",
+        result.postcondition.diagnostics if result.postcondition is not None else "",
+        result.rollback.diagnostics if result.rollback is not None else "",
+        result.rollback.recovery_instructions[0] if result.rollback is not None else "",
+    )
+    assert all(secret not in carrier for carrier in carriers)
+    assert all("[已脱敏]" in carrier for carrier in carriers)
 
 
 def test_apply_history_diagnostics_are_bounded_before_persistence() -> None:

@@ -21,8 +21,10 @@ from sb_manager.protocols.catalog import (
     AnyTlsHandler,
     ConnectionPayload,
     ConnectionPayloadKind,
+    DraftPreparationUnsupportedError,
     Hysteria2Handler,
-    IncompleteAppliedProfileError,
+    IncompleteProfileMaterialError,
+    MaterializedProfile,
     ProtocolCatalog,
     ProtocolMaterialMismatchError,
     RealityHandler,
@@ -51,6 +53,13 @@ class FixedSnellV6MaterialSource:
     def generate(self) -> SnellV6Material:
         self.generate_calls += 1
         return SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+
+
+class SnellHandlerWithoutDraftPreparation:
+    kind = ProtocolKind.SNELL_V6
+
+    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+        raise AssertionError("draft preparation must fail before materialization")
 
 
 class FixedRealityMaterialSource:
@@ -157,7 +166,7 @@ def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
     )
 
 
-def test_catalog_generates_and_idempotently_reuses_complete_snell_v6_material() -> None:
+def test_catalog_prepares_and_idempotently_reuses_complete_snell_v6_material() -> None:
     source = FixedSnellV6MaterialSource()
     catalog = ProtocolCatalog((SnellV6Handler(material_source=source),))
     profile = ManagedProfile(
@@ -170,7 +179,9 @@ def test_catalog_generates_and_idempotently_reuses_complete_snell_v6_material() 
         server_address="proxy.example.com",
     )
 
-    materialized = catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
+    prepared = catalog.prepare_draft(profile)
+    repeated_prepare = catalog.prepare_draft(prepared)
+    materialized = catalog.materialize(repeated_prepare, listen_port=SNELL_LISTEN_PORT)
     repeated = catalog.materialize(materialized.profile, listen_port=SNELL_LISTEN_PORT)
 
     assert source.generate_calls == 1
@@ -200,6 +211,36 @@ def test_catalog_generates_and_idempotently_reuses_complete_snell_v6_material() 
     assert "operator display name" not in materialized.connection_info.payload.content
 
 
+def test_catalog_rejects_draft_snell_v6_profile_missing_material() -> None:
+    catalog = ProtocolCatalog((SnellV6Handler(material_source=FixedSnellV6MaterialSource()),))
+    profile = ManagedProfile(
+        profile_id="profile-7",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=None,
+        port_selection=PortSelection.AUTOMATIC,
+        status=ProfileStatus.DRAFT,
+    )
+
+    with pytest.raises(IncompleteProfileMaterialError, match="profile-7"):
+        catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
+
+
+def test_catalog_fails_closed_when_snell_handler_cannot_prepare_drafts() -> None:
+    catalog = ProtocolCatalog((SnellHandlerWithoutDraftPreparation(),))
+    profile = ManagedProfile(
+        profile_id="profile-7",
+        profile_name="Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=SNELL_LISTEN_PORT,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.DRAFT,
+    )
+
+    with pytest.raises(DraftPreparationUnsupportedError, match="snell-v6"):
+        catalog.prepare_draft(profile)
+
+
 def test_catalog_rejects_applied_snell_v6_profile_missing_material() -> None:
     catalog = ProtocolCatalog((SnellV6Handler(material_source=FixedSnellV6MaterialSource()),))
     profile = ManagedProfile(
@@ -211,7 +252,7 @@ def test_catalog_rejects_applied_snell_v6_profile_missing_material() -> None:
         status=ProfileStatus.APPLIED,
     )
 
-    with pytest.raises(IncompleteAppliedProfileError, match="profile-7"):
+    with pytest.raises(IncompleteProfileMaterialError, match="profile-7"):
         catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
 
 
@@ -229,6 +270,9 @@ def test_catalog_rejects_cross_protocol_material_for_snell_v6() -> None:
 
     with pytest.raises(ProtocolMaterialMismatchError, match="profile-7"):
         catalog.materialize(profile, listen_port=SNELL_LISTEN_PORT)
+
+    with pytest.raises(ProtocolMaterialMismatchError, match="profile-7"):
+        catalog.prepare_draft(profile)
 
 
 def test_catalog_materializes_a_complete_reality_profile() -> None:

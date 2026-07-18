@@ -1,13 +1,16 @@
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from sb_manager.adapters.memory_state import MemoryStateStore
+from sb_manager.application.manager import Manager, PlanProfileRequest
 from sb_manager.application.profile_apply import (
     ApplyConfirmationRequiredError,
     ApplyProfileRequest,
+    ProfileApplyOperationalError,
     ProfileApplyPlan,
     ProfileApplyService,
     ProfileMaterializationError,
@@ -30,6 +33,7 @@ from sb_manager.protocols.catalog import (
     ConnectionPayload,
     ConnectionPayloadKind,
     Hysteria2Handler,
+    IncompleteProfileMaterialError,
     ProfileConnectionInfo,
     ProtocolCatalog,
     RealityHandler,
@@ -37,6 +41,7 @@ from sb_manager.protocols.catalog import (
 )
 from sb_manager.protocols.reality import RealityMaterial
 from sb_manager.seams.config_validator import ConfigValidationResult
+from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.tls.catalog import (
@@ -57,6 +62,7 @@ FIXED_LISTEN_PORT = 4433
 EXPECTED_COMMITTED_REVISION = 2
 EXPECTED_SECOND_PROFILE_REVISION = 3
 EXPECTED_CORE_INSPECTIONS = 2
+EXPECTED_APPLY_ATTEMPTS = 2
 
 
 class TrackingApplyLock:
@@ -157,6 +163,7 @@ def snell_draft() -> ManagedProfile:
         port_selection=PortSelection.AUTOMATIC,
         status=ProfileStatus.DRAFT,
         server_address="proxy.example.com",
+        protocol_material=SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"),
     )
 
 
@@ -246,6 +253,34 @@ class RecordingSuccessfulApplier:
         )
 
 
+class SequencedConfigurationApplier:
+    def __init__(self, *results: ApplyTransactionResult) -> None:
+        self._results = iter(results)
+        self.documents: list[Mapping[str, object]] = []
+
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition | None = None,
+    ) -> ApplyTransactionResult:
+        self.documents.append(document)
+        return next(self._results)
+
+
+class SecretFailingConfigurationApplier:
+    def __init__(self, secret: str) -> None:
+        self.secret = secret
+
+    def apply(
+        self,
+        document: Mapping[str, object],
+        *,
+        precondition: ConfigTargetPrecondition | None = None,
+    ) -> ApplyTransactionResult:
+        raise ConfigurationApplyError(f"helper rejected {self.secret}")
+
+
 def test_snell_apply_rechecks_active_core_before_material_or_host_mutation() -> None:
     draft = snell_draft()
     initial = ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
@@ -312,9 +347,114 @@ def test_snell_apply_succeeds_when_confirmation_observes_matching_preview() -> N
     )
 
     assert result.committed_revision == EXPECTED_COMMITTED_REVISION
-    assert material_source.calls == 1
+    assert material_source.calls == 0
     assert port_source.calls == 1
     assert state_store.load().profiles[0].status is ProfileStatus.APPLIED
+
+
+def test_snell_failed_retry_reuses_persisted_psk_and_sanitizes_direct_result() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    state_store = MemoryStateStore()
+    material_source = RecordingSnellV6MaterialSource()
+    catalog = snell_catalog(material_source)
+    manager = Manager(
+        state_store=state_store,
+        draft_profile_preparer=catalog,
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+    plan = manager.plan_profile(
+        PlanProfileRequest(
+            profile_name="Snell preview",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=None,
+            server_address="proxy.example.com",
+        )
+    )
+    manager.save_profile_draft(plan)
+    failed = ApplyTransactionResult(
+        outcome=ApplyOutcome.VALIDATION_FAILED,
+        validation=ConfigValidationResult(
+            valid=False,
+            diagnostics=f"validation rejected {secret}",
+        ),
+        runtime_refresh=None,
+        postcondition=None,
+        rollback=None,
+    )
+    succeeded = RecordingSuccessfulApplier().apply(
+        {},
+        precondition=ConfigTargetPrecondition.absent(),
+    )
+    applier = SequencedConfigurationApplier(failed, succeeded)
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=catalog,
+        port_source=RecordingAutomaticPortSource(),
+        applier=applier,
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector(
+                "1.14.0-alpha.47",
+                "1.14.0-alpha.47",
+            )
+        ),
+    )
+    request = ApplyProfileRequest(
+        profile_id="profile-1",
+        expected_revision=1,
+        expected_core_version="1.14.0-alpha.47",
+        confirmed=True,
+    )
+
+    first = service.apply_profile(request)
+    second = service.apply_profile(request)
+
+    assert first.transaction.validation.diagnostics == "validation rejected [已脱敏]"
+    assert first.committed_revision is None
+    assert second.connection_info is not None
+    assert second.connection_info.payload.content.endswith(f"psk={secret}, version=6")
+    assert material_source.calls == 1
+    assert len(applier.documents) == EXPECTED_APPLY_ATTEMPTS
+    for document in applier.documents:
+        inbounds = document["inbounds"]
+        assert isinstance(inbounds, list)
+        assert inbounds[0]["psk"] == secret
+    assert state_store.load().profiles[0].protocol_material == SnellV6Material(psk=secret)
+
+
+def test_profile_apply_exception_is_typed_sanitized_and_has_no_secret_chain() -> None:
+    secret = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"
+    draft = snell_draft()
+    state_store = MemoryStateStore(
+        ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
+    )
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(RecordingSnellV6MaterialSource()),
+        port_source=RecordingAutomaticPortSource(),
+        applier=SecretFailingConfigurationApplier(secret),
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+
+    with pytest.raises(ProfileApplyOperationalError) as caught:
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id=draft.profile_id,
+                expected_revision=1,
+                expected_core_version="1.14.0-alpha.47",
+                confirmed=True,
+            )
+        )
+
+    assert str(caught.value) == "helper rejected [已脱敏]"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert state_store.load().profiles[0] == draft
 
 
 def test_snell_apply_rejects_supported_preview_version_race_before_mutation() -> None:
@@ -372,6 +512,36 @@ def test_snell_apply_requires_planned_core_version_evidence() -> None:
         )
 
     assert inspector.calls == 0
+    assert material_source.calls == 0
+    assert state_store.load() == initial
+
+
+def test_missing_snell_material_fails_before_port_projection_or_host_apply() -> None:
+    draft = replace(snell_draft(), protocol_material=None)
+    initial = ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
+    state_store = MemoryStateStore(initial)
+    material_source = RecordingSnellV6MaterialSource()
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(material_source),
+        port_source=PortSourceThatMustNotBeCalled(),
+        applier=ApplierThatMustNotBeCalled(),
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=SequenceCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+
+    with pytest.raises(IncompleteProfileMaterialError, match="profile-7"):
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id=draft.profile_id,
+                expected_revision=1,
+                expected_core_version="1.14.0-alpha.47",
+                confirmed=True,
+            )
+        )
+
     assert material_source.calls == 0
     assert state_store.load() == initial
 
@@ -571,6 +741,74 @@ def test_confirmed_reality_draft_is_applied_and_committed_to_desired_state() -> 
         ),
         expected_config_sha256=committed_config_sha256,
     )
+
+
+def test_reality_first_apply_redacts_generated_uuid_from_direct_failed_result() -> None:
+    secret = FixedRealityMaterialSource().generate().user_uuid
+    draft = reality_draft()
+    initial = ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
+    state_store = MemoryStateStore(initial)
+    failed = ApplyTransactionResult(
+        outcome=ApplyOutcome.VALIDATION_FAILED,
+        validation=ConfigValidationResult(
+            valid=False,
+            diagnostics=f"validation rejected {secret}",
+        ),
+        runtime_refresh=None,
+        postcondition=None,
+        rollback=None,
+    )
+    applier = SequencedConfigurationApplier(failed)
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=reality_catalog(),
+        port_source=RecordingAutomaticPortSource(),
+        applier=applier,
+        apply_lock=TrackingApplyLock(),
+    )
+
+    result = service.apply_profile(
+        ApplyProfileRequest(
+            profile_id=draft.profile_id,
+            expected_revision=1,
+            confirmed=True,
+        )
+    )
+
+    assert result.transaction.validation.diagnostics == "validation rejected [已脱敏]"
+    assert result.committed_revision is None
+    assert state_store.load() == initial
+    inbounds = applier.documents[0]["inbounds"]
+    assert isinstance(inbounds, list)
+    assert inbounds[0]["users"][0]["uuid"] == secret
+
+
+def test_reality_first_apply_redacts_generated_uuid_from_operational_error() -> None:
+    secret = FixedRealityMaterialSource().generate().user_uuid
+    draft = reality_draft()
+    initial = ManagedInstallation(schema_version=1, revision=1, profiles=(draft,))
+    state_store = MemoryStateStore(initial)
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=reality_catalog(),
+        port_source=RecordingAutomaticPortSource(),
+        applier=SecretFailingConfigurationApplier(secret),
+        apply_lock=TrackingApplyLock(),
+    )
+
+    with pytest.raises(ProfileApplyOperationalError) as caught:
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id=draft.profile_id,
+                expected_revision=1,
+                confirmed=True,
+            )
+        )
+
+    assert str(caught.value) == "helper rejected [已脱敏]"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+    assert state_store.load() == initial
 
 
 def test_apply_requires_the_live_configuration_fingerprint_recorded_in_desired_state() -> None:

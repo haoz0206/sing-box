@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Protocol
 
-from sb_manager.application.disclosure import persisted_secrets, redact_text
+from sb_manager.application.disclosure import (
+    disclosure_secrets,
+    redact_text,
+    redact_transaction_result,
+)
 from sb_manager.seams.apply_history import (
     MAX_APPLY_HISTORY_DIAGNOSTICS,
     ApplyHistoryEntry,
@@ -105,7 +109,7 @@ class ApplyHistoryConfigurationApplier:
             raise ApplyHistoryRecordingError(
                 f"无法在主机变更前写入应用历史，未执行配置应用：{error}"
             ) from error
-        secrets_to_redact = persisted_secrets(installation)
+        secrets_to_redact = disclosure_secrets(installation, document)
         try:
             result = self._delegate.apply(document, precondition=precondition)
         except (OSError, ConfigurationApplyError) as error:
@@ -116,18 +120,21 @@ class ApplyHistoryConfigurationApplier:
                 diagnostics=_bounded_diagnostics(diagnostics),
                 redacted_occurrences=redactions,
             )
-            raise
-        diagnostics, redactions = redact_text(
-            _transaction_diagnostics(result),
-            secrets_to_redact,
-        )
-        self._finish_best_effort(
-            entry,
-            status=ApplyHistoryStatus(result.outcome.value),
-            diagnostics=_bounded_diagnostics(diagnostics),
-            redacted_occurrences=redactions,
-        )
-        return result
+            operational_error = ConfigurationApplyError(diagnostics)
+        else:
+            redacted_result, redactions = redact_transaction_result(
+                result,
+                secrets_to_redact,
+            )
+            diagnostics = _transaction_diagnostics(redacted_result)
+            self._finish_best_effort(
+                entry,
+                status=ApplyHistoryStatus(result.outcome.value),
+                diagnostics=_bounded_diagnostics(diagnostics),
+                redacted_occurrences=redactions,
+            )
+            return redacted_result
+        raise operational_error from None
 
     def _finish_best_effort(
         self,

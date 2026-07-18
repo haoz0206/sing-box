@@ -1,6 +1,8 @@
 """Shared conservative redaction for operator-visible and durable diagnostics."""
 
 import re
+from collections.abc import Mapping
+from dataclasses import replace
 
 from sb_manager.domain.installation import ManagedInstallation
 from sb_manager.domain.protocol_material import (
@@ -14,10 +16,31 @@ from sb_manager.domain.protocol_material import (
     VlessMaterial,
     VmessMaterial,
 )
+from sb_manager.transactions.apply import ApplyTransactionResult
 
 MIN_EXACT_SECRET_LENGTH = 8
 MIN_PRINTABLE_CODE_POINT = 32
 REDACTION_MARKER = "[已脱敏]"
+
+SENSITIVE_CONFIGURATION_KEYS = frozenset(
+    {
+        "api_key",
+        "auth",
+        "authentication",
+        "authorization",
+        "credential",
+        "password",
+        "passwd",
+        "private_key",
+        "psk",
+        "refresh_token",
+        "secret",
+        "short_id",
+        "token",
+        "access_token",
+        "uuid",
+    }
+)
 
 _ANSI_ESCAPE = re.compile(r"\x1b(?:\[[0-?]*[ -/]*[@-~]|[@-_])")
 _URI_USERINFO = re.compile(r"(?i)(\b[a-z][a-z0-9+.-]*://)([^@\s/]+)@")
@@ -88,3 +111,92 @@ def persisted_secrets(installation: ManagedInstallation) -> tuple[str, ...]:
             candidates = ()
         values.update(value for value in candidates if len(value) >= MIN_EXACT_SECRET_LENGTH)
     return tuple(sorted(values, key=len, reverse=True))
+
+
+def disclosure_secrets(
+    installation: ManagedInstallation,
+    document: Mapping[str, object],
+) -> tuple[str, ...]:
+    """Return exact persisted and candidate credentials needed at an apply boundary."""
+    values = set(persisted_secrets(installation))
+
+    def collect(value: object, *, sensitive: bool = False) -> None:
+        if isinstance(value, Mapping):
+            for key, child in value.items():
+                normalized_key = str(key).lower().replace("-", "_").replace(" ", "_")
+                collect(
+                    child,
+                    sensitive=sensitive or normalized_key in SENSITIVE_CONFIGURATION_KEYS,
+                )
+        elif isinstance(value, (list, tuple)):
+            for child in value:
+                collect(child, sensitive=sensitive)
+        elif sensitive and isinstance(value, str) and len(value) >= MIN_EXACT_SECRET_LENGTH:
+            values.add(value)
+
+    collect(document)
+    return tuple(sorted(values, key=len, reverse=True))
+
+
+def redact_transaction_result(
+    result: ApplyTransactionResult,
+    secrets: tuple[str, ...],
+) -> tuple[ApplyTransactionResult, int]:
+    """Redact every operator-visible diagnostic while preserving clean result identity."""
+    replacements = 0
+    changed = False
+
+    def sanitized(text: str) -> str:
+        nonlocal replacements, changed
+        value, count = redact_text(text, secrets)
+        replacements += count
+        changed = changed or value != text
+        return value
+
+    validation = replace(
+        result.validation,
+        diagnostics=sanitized(result.validation.diagnostics),
+    )
+    runtime_refresh = (
+        replace(
+            result.runtime_refresh,
+            diagnostics=sanitized(result.runtime_refresh.diagnostics),
+        )
+        if result.runtime_refresh is not None
+        else None
+    )
+    postcondition = (
+        replace(
+            result.postcondition,
+            diagnostics=sanitized(result.postcondition.diagnostics),
+        )
+        if result.postcondition is not None
+        else None
+    )
+    commit = (
+        replace(result.commit, diagnostics=sanitized(result.commit.diagnostics))
+        if result.commit is not None
+        else None
+    )
+    rollback = None
+    if result.rollback is not None:
+        rollback = replace(
+            result.rollback,
+            diagnostics=sanitized(result.rollback.diagnostics),
+            recovery_instructions=tuple(
+                sanitized(instruction) for instruction in result.rollback.recovery_instructions
+            ),
+        )
+    if not changed:
+        return result, replacements
+    return (
+        replace(
+            result,
+            validation=validation,
+            runtime_refresh=runtime_refresh,
+            postcondition=postcondition,
+            commit=commit,
+            rollback=rollback,
+        ),
+        replacements,
+    )

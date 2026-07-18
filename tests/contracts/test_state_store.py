@@ -4,7 +4,10 @@ from typing import cast
 
 import pytest
 
-from sb_manager.adapters.json_file_state import JsonFileStateStore
+from sb_manager.adapters.json_file_state import (
+    InvalidProfileMaterialError,
+    JsonFileStateStore,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -160,6 +163,96 @@ def test_json_state_store_round_trips_tagged_snell_v6_material(tmp_path: Path) -
         "kind": "snell-v6",
         "psk": material.psk,
     }
+
+
+@pytest.mark.parametrize(
+    ("protocol", "material"),
+    [
+        pytest.param(ProtocolKind.SNELL_V6, None, id="snell-missing"),
+        pytest.param(
+            ProtocolKind.SNELL_V6,
+            ShadowsocksMaterial(password="wrong-protocol-material"),
+            id="snell-with-shadowsocks-material",
+        ),
+        pytest.param(
+            ProtocolKind.SHADOWSOCKS,
+            SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"),
+            id="shadowsocks-with-snell-material",
+        ),
+    ],
+)
+def test_json_state_store_rejects_invalid_protocol_material_before_save(
+    tmp_path: Path,
+    protocol: ProtocolKind,
+    material: ProtocolMaterial | None,
+) -> None:
+    state_path = tmp_path / "state.json"
+    installation = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(
+            ManagedProfile(
+                profile_id="profile-7",
+                profile_name="Snell preview",
+                protocol=protocol,
+                listen_port=18443,
+                port_selection=PortSelection.FIXED,
+                status=ProfileStatus.DRAFT,
+                protocol_material=material,
+            ),
+        ),
+    )
+
+    with pytest.raises(InvalidProfileMaterialError, match="profile-7"):
+        JsonFileStateStore(state_path).save(installation)
+
+    assert not state_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("protocol", "material_data"),
+    [
+        pytest.param("snell-v6", None, id="snell-missing"),
+        pytest.param(
+            "snell-v6",
+            {"kind": "shadowsocks-2022", "password": "wrong-protocol-material"},
+            id="snell-with-shadowsocks-material",
+        ),
+        pytest.param(
+            "shadowsocks-2022",
+            {"kind": "snell-v6", "psk": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"},
+            id="shadowsocks-with-snell-material",
+        ),
+    ],
+)
+def test_json_state_store_rejects_invalid_protocol_material_while_loading(
+    protocol: str,
+    material_data: object,
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "revision": 1,
+        "profiles": [
+            {
+                "profile_id": "profile-7",
+                "profile_name": "Snell preview",
+                "protocol": protocol,
+                "listen_port": 18443,
+                "port_selection": "fixed",
+                "status": "draft",
+                "enabled": True,
+                "reality_material": None,
+                "protocol_material": material_data,
+                "server_address": "proxy.example.com",
+                "tls_intent": None,
+                "transport_intent": None,
+            }
+        ],
+        "expected_config_sha256": None,
+    }
+
+    with pytest.raises(InvalidProfileMaterialError, match="profile-7"):
+        JsonFileStateStore.load_payload(json.dumps(payload).encode())
 
 
 def test_json_state_store_rejects_malformed_tagged_snell_v6_material() -> None:

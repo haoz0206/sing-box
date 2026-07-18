@@ -827,6 +827,9 @@ def test_cli_composes_a_complete_snell_v6_apply_path(tmp_path: Path) -> None:
         )
     )
     app.manager.save_profile_draft(plan)
+    draft_profile = JsonFileStateStore(state_path).load().profiles[0]
+    assert isinstance(draft_profile.protocol_material, SnellV6Material)
+    draft_psk = draft_profile.protocol_material.psk
 
     assert app.profile_applier is not None
     apply_plan = app.profile_applier.plan_profile("profile-1")
@@ -843,6 +846,7 @@ def test_cli_composes_a_complete_snell_v6_apply_path(tmp_path: Path) -> None:
     assert result.connection_info.payload.kind is ConnectionPayloadKind.SURGE_POLICY
     profile = JsonFileStateStore(state_path).load().profiles[0]
     assert isinstance(profile.protocol_material, SnellV6Material)
+    assert profile.protocol_material.psk == draft_psk
     assert result.connection_info.payload.content == (
         "Snell-50135a426adc = snell, proxy.example.com, "
         f"{listen_port}, psk={profile.protocol_material.psk}, version=6"

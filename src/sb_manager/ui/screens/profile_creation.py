@@ -29,6 +29,7 @@ from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
     ProfileApplier,
+    ProfileApplyOperationalError,
     ProfileApplyPlan,
 )
 from sb_manager.application.profile_recommendation import ProtocolVariant
@@ -39,7 +40,6 @@ from sb_manager.application.protocol_compatibility import (
     ProtocolCompatibilityPolicy,
 )
 from sb_manager.domain.installation import ManagedInstallation, PortSelection, ProtocolKind
-from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
@@ -511,7 +511,7 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
                 ),
             )
             return
-        except ConfigurationApplyError as error:
+        except ProfileApplyOperationalError as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
                 ApplyOperationalErrorScreen(str(error), self.copy),

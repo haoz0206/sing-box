@@ -38,6 +38,10 @@ from sb_manager.transports.catalog import (
 )
 
 
+class InvalidProfileMaterialError(ValueError):
+    """Persisted Snell protocol and material identities do not correlate."""
+
+
 class RealityMaterialData(TypedDict):
     user_uuid: str
     private_key: str
@@ -191,6 +195,7 @@ class JsonFileStateStore:
         )
 
     def save(self, installation: ManagedInstallation) -> None:
+        data = self._installation_to_data(installation)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._backup_current_state()
         temporary_path: Path | None = None
@@ -204,7 +209,7 @@ class JsonFileStateStore:
             ) as temporary_file:
                 temporary_path = Path(temporary_file.name)
                 json.dump(
-                    self._installation_to_data(installation),
+                    data,
                     temporary_file,
                     ensure_ascii=False,
                     indent=2,
@@ -244,6 +249,8 @@ class JsonFileStateStore:
 
     @staticmethod
     def _installation_to_data(installation: ManagedInstallation) -> InstallationData:
+        for profile in installation.profiles:
+            JsonFileStateStore._validate_profile_material(profile)
         return InstallationData(
             schema_version=installation.schema_version,
             revision=installation.revision,
@@ -275,7 +282,7 @@ class JsonFileStateStore:
     def _profile_from_data(data: ProfileData) -> ManagedProfile:
         tagged_material_data = data.get("protocol_material")
         material_data = data.get("reality_material")
-        return ManagedProfile(
+        profile = ManagedProfile(
             profile_id=data.get("profile_id", ""),
             profile_name=data["profile_name"],
             protocol=ProtocolKind(data["protocol"]),
@@ -310,6 +317,15 @@ class JsonFileStateStore:
                 else None
             ),
         )
+        JsonFileStateStore._validate_profile_material(profile)
+        return profile
+
+    @staticmethod
+    def _validate_profile_material(profile: ManagedProfile) -> None:
+        uses_snell_protocol = profile.protocol is ProtocolKind.SNELL_V6
+        has_snell_material = isinstance(profile.protocol_material, SnellV6Material)
+        if uses_snell_protocol != has_snell_material:
+            raise InvalidProfileMaterialError(profile.profile_id)
 
     @staticmethod
     def _material_to_data(material: ProtocolMaterial | None) -> ProtocolMaterialData | None:

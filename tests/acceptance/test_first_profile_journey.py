@@ -37,6 +37,7 @@ from sb_manager.application.manager import (
 from sb_manager.application.profile_apply import (
     ApplyProfileRequest,
     ApplyProfileResult,
+    ProfileApplyOperationalError,
     ProfileApplyPlan,
 )
 from sb_manager.application.profile_details import (
@@ -55,10 +56,13 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.domain.protocol_material import SnellV6Material
 from sb_manager.protocols.catalog import (
     ConnectionPayload,
     ConnectionPayloadKind,
     ProfileConnectionInfo,
+    ProtocolCatalog,
+    SnellV6Handler,
 )
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
@@ -246,6 +250,23 @@ class FixedCoreStatusInspector:
             version=self.version,
             diagnostics="token=private-core-probe-details",
         )
+
+
+class FixedSnellV6MaterialSource:
+    def generate(self) -> SnellV6Material:
+        return SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
+
+
+def preview_snell_manager() -> Manager:
+    return Manager(
+        state_store=MemoryStateStore(),
+        draft_profile_preparer=ProtocolCatalog(
+            (SnellV6Handler(material_source=FixedSnellV6MaterialSource()),)
+        ),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
 
 
 class BlockingProfilePlanningManager(Manager):
@@ -544,7 +565,13 @@ class PreconditionFailingProfileApplier(FixedProfileApplyPlanner):
 class UnavailableProfileApplier(FixedProfileApplyPlanner):
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
         assert request.confirmed
-        raise ConfigurationApplyError("sudo authorization denied")
+        raise ProfileApplyOperationalError("sudo authorization denied")
+
+
+class UnsafeConfigurationApplyErrorProfileApplier(FixedProfileApplyPlanner):
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        assert request.confirmed
+        raise ConfigurationApplyError("validation rejected private-raw-apply-secret")
 
 
 class UnexpectedProfileApplier(FixedProfileApplyPlanner):
@@ -1447,12 +1474,7 @@ async def test_unknown_core_rejects_snell_with_preview_activation_guidance() -> 
 
 
 async def test_preview_core_applies_snell_and_reveals_only_a_surge_v6_policy() -> None:
-    manager = Manager(
-        state_store=MemoryStateStore(),
-        core_compatibility=ActiveCoreProtocolCompatibility(
-            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
-        ),
-    )
+    manager = preview_snell_manager()
     profile_applier = RecordingSnellProfileApplier()
     app = ManagerApp(manager=manager, profile_applier=profile_applier)
 
@@ -1502,12 +1524,7 @@ async def test_preview_core_applies_snell_and_reveals_only_a_surge_v6_policy() -
 
 
 async def test_apply_planning_incompatibility_is_typed_and_preserves_existing_draft() -> None:
-    manager = Manager(
-        state_store=MemoryStateStore(),
-        core_compatibility=ActiveCoreProtocolCompatibility(
-            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
-        ),
-    )
+    manager = preview_snell_manager()
     profile_applier = IncompatibleProfileApplyPlanner()
     app = ManagerApp(manager=manager, profile_applier=profile_applier)
 
@@ -1537,12 +1554,7 @@ async def test_apply_planning_incompatibility_is_typed_and_preserves_existing_dr
 
 
 async def test_core_change_after_snell_plan_is_typed_and_pre_mutation() -> None:
-    manager = Manager(
-        state_store=MemoryStateStore(),
-        core_compatibility=ActiveCoreProtocolCompatibility(
-            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
-        ),
-    )
+    manager = preview_snell_manager()
     profile_applier = ChangingCoreSnellProfileApplier()
     app = ManagerApp(manager=manager, profile_applier=profile_applier)
 
@@ -1584,12 +1596,7 @@ async def test_core_change_after_snell_plan_is_typed_and_pre_mutation() -> None:
 
 
 async def test_compatible_preview_core_change_requires_replanning_without_mutation() -> None:
-    manager = Manager(
-        state_store=MemoryStateStore(),
-        core_compatibility=ActiveCoreProtocolCompatibility(
-            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
-        ),
-    )
+    manager = preview_snell_manager()
     profile_applier = CompatibleChangingCoreSnellProfileApplier()
     app = ManagerApp(manager=manager, profile_applier=profile_applier)
 
@@ -2623,6 +2630,34 @@ async def test_operator_gets_actionable_guidance_when_helper_result_is_unknown()
 
         assert app.screen.query_one("#dashboard-title", Static).content == "服务总览"
         assert len(app.screen.query("#confirm-apply")) == 0
+
+
+async def test_raw_configuration_apply_error_uses_generic_non_disclosing_screen() -> None:
+    app = ManagerApp(
+        profile_applier=UnsafeConfigurationApplyErrorProfileApplier(),
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, ProfileCreationMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "不安全错误"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await pilot.click("#confirm-apply")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-unexpected-error-title", Static).content == (
+            "目录应用结果未知"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-raw-apply-secret" not in rendered
 
 
 async def test_unexpected_apply_failure_reports_unknown_state_without_disclosure() -> None:

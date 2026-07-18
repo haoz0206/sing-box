@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from sb_manager.domain.installation import ManagedProfile, ProfileStatus, ProtocolKind
 from sb_manager.domain.protocol_material import (
@@ -83,6 +83,14 @@ class IncompleteAppliedProfileError(ValueError):
     """An applied profile is missing material required to rebuild its inbound."""
 
 
+class IncompleteProfileMaterialError(ValueError):
+    """A profile is missing protocol material that must already be persisted."""
+
+
+class DraftPreparationUnsupportedError(ValueError):
+    """A protocol requiring persisted draft material has no capable handler."""
+
+
 class ConnectionPayloadKind(str, Enum):
     URI = "uri"
     SURGE_POLICY = "surge-policy"
@@ -127,6 +135,20 @@ class ProtocolHandler(Protocol):
     def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile: ...
 
 
+@runtime_checkable
+class DraftPreparingProtocolHandler(Protocol):
+    """Optional handler capability for material that must exist in drafts."""
+
+    def prepare_draft(self, profile: ManagedProfile) -> ManagedProfile: ...
+
+
+@runtime_checkable
+class MaterialValidatingProtocolHandler(Protocol):
+    """Optional handler capability for material required before host planning."""
+
+    def validate_material(self, profile: ManagedProfile) -> None: ...
+
+
 class ProtocolCatalog:
     """Hide protocol selection and materialization behind one operation."""
 
@@ -139,6 +161,25 @@ class ProtocolCatalog:
         except KeyError as error:
             raise UnsupportedProtocolError(profile.protocol.value) from error
         return handler.materialize(profile, listen_port)
+
+    def prepare_draft(self, profile: ManagedProfile) -> ManagedProfile:
+        try:
+            handler = self._handlers[profile.protocol]
+        except KeyError as error:
+            raise UnsupportedProtocolError(profile.protocol.value) from error
+        if not isinstance(handler, DraftPreparingProtocolHandler):
+            if profile.protocol is ProtocolKind.SNELL_V6:
+                raise DraftPreparationUnsupportedError(profile.protocol.value)
+            return profile
+        return handler.prepare_draft(profile)
+
+    def validate_material(self, profile: ManagedProfile) -> None:
+        try:
+            handler = self._handlers[profile.protocol]
+        except KeyError as error:
+            raise UnsupportedProtocolError(profile.protocol.value) from error
+        if isinstance(handler, MaterialValidatingProtocolHandler):
+            handler.validate_material(profile)
 
 
 class RealityHandler:
@@ -704,14 +745,25 @@ class SnellV6Handler:
     def __init__(self, *, material_source: SnellV6MaterialSource) -> None:
         self._material_source = material_source
 
-    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+    def prepare_draft(self, profile: ManagedProfile) -> ManagedProfile:
         material = profile.protocol_material
         if material is None:
-            if profile.status is ProfileStatus.APPLIED:
-                raise IncompleteAppliedProfileError(profile.profile_id)
             material = self._material_source.generate()
         if not isinstance(material, SnellV6Material):
             raise ProtocolMaterialMismatchError(profile.profile_id)
+        return replace(profile, protocol_material=material)
+
+    def validate_material(self, profile: ManagedProfile) -> None:
+        material = profile.protocol_material
+        if material is None:
+            raise IncompleteProfileMaterialError(profile.profile_id)
+        if not isinstance(material, SnellV6Material):
+            raise ProtocolMaterialMismatchError(profile.profile_id)
+
+    def materialize(self, profile: ManagedProfile, listen_port: int) -> MaterializedProfile:
+        self.validate_material(profile)
+        material = profile.protocol_material
+        assert isinstance(material, SnellV6Material)
 
         applied_profile = replace(
             profile,

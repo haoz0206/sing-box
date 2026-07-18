@@ -317,10 +317,15 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         inspector=core_inspector,
         policy=protocol_compatibility,
     )
+    protocol_catalog = create_protocol_catalog(
+        sing_box_binary=sing_box_binary,
+        reality_server_name=arguments.reality_server_name,
+    )
     manager = Manager(
         state_store=state_store,
         mutation_lock=mutation_lock,
         core_compatibility=core_compatibility,
+        draft_profile_preparer=protocol_catalog,
     )
     runtime_kind = RuntimeKind(arguments.runtime)
     runtime = create_runtime(
@@ -362,10 +367,6 @@ def create_app(  # noqa: PLR0915 - keep production capability composition explic
         state_store=state_store,
     )
     apply_history_reader = ApplyHistoryService(history_store=apply_history_store)
-    protocol_catalog = create_protocol_catalog(
-        sing_box_binary=sing_box_binary,
-        reality_server_name=arguments.reality_server_name,
-    )
     port_source = SocketPortSource()
     profile_applier = ProfileApplyService(
         state_store=state_store,

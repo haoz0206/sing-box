@@ -4,6 +4,11 @@ from dataclasses import dataclass, replace
 from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
+from sb_manager.application.disclosure import (
+    disclosure_secrets,
+    redact_text,
+    redact_transaction_result,
+)
 from sb_manager.application.manager import StateRevisionConflictError
 from sb_manager.application.protocol_compatibility import (
     ActiveCoreProtocolCompatibility,
@@ -43,6 +48,10 @@ class ApplyConfirmationRequiredError(PermissionError):
 
 class ProfileMaterializationError(ConfigurationApplyError):
     """A profile cannot be converted into a candidate host configuration."""
+
+
+class ProfileApplyOperationalError(ConfigurationApplyError):
+    """A sanitized system-boundary failure safe for operator disclosure."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +167,7 @@ class ProfileApplyService:
         )
         if retains_active_snell and current_version is None:
             raise CoreVersionUnknown(protocol=ProtocolKind.SNELL_V6)
+        self._protocol_catalog.validate_material(profile)
         listen_port = profile.listen_port
         if listen_port is None:
             listen_port = self._port_source.choose_available()
@@ -175,7 +185,19 @@ class ProfileApplyService:
             if installation.expected_config_sha256 is not None
             else ConfigTargetPrecondition.absent()
         )
-        transaction = self._applier.apply(document, precondition=precondition)
+        secrets_to_redact = disclosure_secrets(installation, document)
+        operational_error: ProfileApplyOperationalError | None = None
+        transaction: ApplyTransactionResult | None = None
+        try:
+            transaction = self._applier.apply(document, precondition=precondition)
+        except (OSError, ConfigurationApplyError) as error:
+            diagnostics, _ = redact_text(str(error), secrets_to_redact)
+            operational_error = ProfileApplyOperationalError(diagnostics)
+        else:
+            transaction, _ = redact_transaction_result(transaction, secrets_to_redact)
+        if operational_error is not None:
+            raise operational_error from None
+        assert transaction is not None
         if transaction.outcome is not ApplyOutcome.APPLIED:
             return ApplyProfileResult(transaction=transaction, committed_revision=None)
 

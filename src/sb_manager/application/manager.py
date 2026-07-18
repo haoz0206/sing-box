@@ -1,8 +1,8 @@
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
-from typing import TypeAlias
+from typing import Protocol, TypeAlias
 
 from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
 from sb_manager.domain.installation import (
@@ -12,6 +12,7 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
+from sb_manager.domain.protocol_material import SnellV6Material
 from sb_manager.seams.apply_lock import ApplyLock
 from sb_manager.seams.state_store import StateStore
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent, TlsIntent
@@ -134,6 +135,16 @@ class StateRevisionConflictError(RuntimeError):
         self.actual = actual
 
 
+class DraftPreparationUnavailableError(RuntimeError):
+    """A protocol requiring persisted draft material has no configured preparer."""
+
+
+class DraftProfilePreparer(Protocol):
+    """Prepare protocol-owned material before a draft enters desired state."""
+
+    def prepare_draft(self, profile: ManagedProfile) -> ManagedProfile: ...
+
+
 @dataclass(frozen=True, slots=True)
 class AcmeTlsRequest:
     """User-facing ACME inputs without internal storage policy."""
@@ -204,13 +215,14 @@ class ProfilePlan:
 class Manager:
     """Public application seam for manager use cases."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - explicit application seam dependencies
         self,
         state_store: StateStore | None = None,
         mutation_lock: ApplyLock | None = None,
         acme_data_directory: Path = Path("/var/lib/sing-box-manager/acme"),
         trusted_tls_directory: Path = Path("/etc/sing-box-manager/tls"),
         core_compatibility: ActiveCoreProtocolCompatibility | None = None,
+        draft_profile_preparer: DraftProfilePreparer | None = None,
     ) -> None:
         self._state_store = state_store
         self._mutation_lock = mutation_lock
@@ -219,6 +231,7 @@ class Manager:
         self._core_compatibility = core_compatibility or ActiveCoreProtocolCompatibility(
             inspector=None
         )
+        self._draft_profile_preparer = draft_profile_preparer
 
     def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
         issues: list[ValidationIssue] = []
@@ -408,6 +421,10 @@ class Manager:
                 expected=plan.base_revision,
                 actual=installation.revision,
             )
+        if self._draft_profile_preparer is None and plan.protocol is ProtocolKind.SNELL_V6:
+            raise DraftPreparationUnavailableError(
+                "Snell v6 draft material preparation is unavailable"
+            )
         profile = ManagedProfile(
             profile_name=plan.profile_name,
             protocol=plan.protocol,
@@ -419,6 +436,24 @@ class Manager:
             tls_intent=plan.tls_intent,
             transport_intent=plan.transport_intent,
         )
+        planned_profile = profile
+        if self._draft_profile_preparer is not None:
+            profile = self._draft_profile_preparer.prepare_draft(profile)
+        if plan.protocol is ProtocolKind.SNELL_V6:
+            preserves_planned_profile = (
+                replace(
+                    profile,
+                    protocol_material=planned_profile.protocol_material,
+                )
+                == planned_profile
+            )
+            if (
+                not isinstance(profile.protocol_material, SnellV6Material)
+                or not preserves_planned_profile
+            ):
+                raise DraftPreparationUnavailableError(
+                    "Snell v6 draft material preparation returned an invalid profile"
+                )
         state_store.save(
             ManagedInstallation(
                 schema_version=installation.schema_version,
