@@ -7,8 +7,11 @@ from sb_manager.adapters.file_apply_lock import FileApplyLock
 from sb_manager.artifacts.installation import (
     CoreActivation,
     CoreDistributionInstaller,
+    CoreInstallationCatalog,
     CoreInstallError,
+    CoreReleaseIdentity,
     CoreRollbackConflictError,
+    InstalledCoreRelease,
 )
 from sb_manager.seams.artifact_source import (
     ArtifactArchitecture,
@@ -63,6 +66,74 @@ def test_first_activation_uses_an_atomic_relative_current_link(tmp_path: Path) -
     assert activation.binary_path.resolve() == expected_distribution / "sing-box"
 
 
+def test_catalog_lists_exact_installed_releases_and_marks_the_active_target(
+    tmp_path: Path,
+) -> None:
+    installation_root = tmp_path / "installation"
+    core_installer = installer(tmp_path)
+    first = core_installer.activate(
+        staged_distribution(tmp_path, version="1.13.14", digest_character="a")
+    )
+    second = core_installer.activate(
+        staged_distribution(tmp_path, version="1.14.0-alpha.46", digest_character="b")
+    )
+
+    releases = CoreInstallationCatalog(installation_root=installation_root).list_installed()
+
+    assert releases == (
+        InstalledCoreRelease(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="a" * 64,
+            distribution_directory=first.distribution_directory,
+            target=first.activated_target,
+            active=False,
+        ),
+        InstalledCoreRelease(
+            version="1.14.0-alpha.46",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="b" * 64,
+            distribution_directory=second.distribution_directory,
+            target=second.activated_target,
+            active=True,
+        ),
+    )
+
+
+def test_retained_release_switch_rechecks_the_active_and_target_identities(
+    tmp_path: Path,
+) -> None:
+    core_installer = installer(tmp_path)
+    first = core_installer.activate(
+        staged_distribution(tmp_path, version="1.13.14", digest_character="a")
+    )
+    second = core_installer.activate(
+        staged_distribution(tmp_path, version="1.14.0-alpha.46", digest_character="b")
+    )
+
+    switched = core_installer.switch(
+        target=CoreReleaseIdentity(
+            version="1.13.14",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="a" * 64,
+        ),
+        expected_active=CoreReleaseIdentity(
+            version="1.14.0-alpha.46",
+            architecture=ArtifactArchitecture.AMD64,
+            source_sha256="b" * 64,
+        ),
+    )
+
+    assert switched == CoreActivation(
+        version="1.13.14",
+        distribution_directory=first.distribution_directory,
+        binary_path=tmp_path / "installation/current/sing-box",
+        activated_target=first.activated_target,
+        previous_target=second.activated_target,
+    )
+    assert switched.binary_path.resolve() == first.distribution_directory / "sing-box"
+
+
 def test_upgrade_retains_previous_distribution_and_can_roll_back(tmp_path: Path) -> None:
     core_installer = installer(tmp_path)
     first = core_installer.activate(
@@ -114,6 +185,22 @@ def test_staged_distribution_links_are_rejected_before_copy(tmp_path: Path) -> N
         installer(tmp_path).activate(staged)
 
     assert not (tmp_path / "installation").exists()
+
+
+def test_existing_release_symlink_is_rejected_without_writing_outside_installation(
+    tmp_path: Path,
+) -> None:
+    staged = staged_distribution(tmp_path, version="1.14.0", digest_character="a")
+    versions_directory = tmp_path / "installation/versions"
+    versions_directory.mkdir(parents=True)
+    release_path = versions_directory / f"1.14.0-{'a' * 64}"
+    release_path.symlink_to(staged.distribution_directory, target_is_directory=True)
+
+    with pytest.raises(CoreInstallError, match="real directory"):
+        installer(tmp_path).activate(staged)
+
+    assert not (staged.distribution_directory / ".sb-manager-release.json").exists()
+    assert not (tmp_path / "installation/current").exists()
 
 
 def test_untrusted_staged_digest_is_rejected_before_path_construction(tmp_path: Path) -> None:

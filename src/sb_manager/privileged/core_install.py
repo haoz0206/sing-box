@@ -18,6 +18,7 @@ from sb_manager.seams.artifact_source import (
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest
+from sb_manager.seams.core_switcher import CoreSwitchRequest
 
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 SHA256_HEX_LENGTH = 64
@@ -34,7 +35,7 @@ class PrivilegedCoreInstallPolicy:
 
 
 class PrivilegedCoreInstallService:
-    """Copy, re-verify, stage, and atomically activate one incoming core archive."""
+    """Activate an incoming archive or switch one exact retained core release."""
 
     def __init__(self, *, policy: PrivilegedCoreInstallPolicy) -> None:
         self._policy = policy
@@ -75,6 +76,17 @@ class PrivilegedCoreInstallService:
             private_archive.unlink(missing_ok=True)
             if staged_directory is not None:
                 shutil.rmtree(staged_directory, ignore_errors=True)
+
+    def switch_core(self, request: CoreSwitchRequest) -> CoreActivation:
+        """Switch only between identities already trusted by the local catalog."""
+
+        return CoreDistributionInstaller(
+            installation_root=self._policy.installation_root,
+            apply_lock=FileApplyLock(self._policy.lock_path),
+        ).switch(
+            target=request.target,
+            expected_active=request.expected_active,
+        )
 
     @staticmethod
     def _validate_request(request: CoreActivationRequest) -> None:

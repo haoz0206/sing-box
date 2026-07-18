@@ -38,6 +38,12 @@ software manual, not constants embedded in production policy.
    already installed exact target; otherwise the plan acquires and activates
    the frozen channel release. Arbitrary paths and unverified directories are
    never switch candidates.
+   Each newly installed distribution contains one schema-versioned manager
+   manifest written before the distribution is atomically published. The
+   manifest freezes version, architecture, and source SHA-256; all three must
+   match the directory identity and a self-verifying `sing-box` binary before
+   the release is listed. Pre-manifest distributions may remain active but are
+   not silently promoted to retained switch candidates.
 7. The TUI must distinguish update, already-current, and retained-release
    switch plans. Confirmed switching is non-returning until typed terminal
    evidence is available, and an unclassified post-confirmation failure remains
@@ -54,6 +60,8 @@ software manual, not constants embedded in production policy.
   a beta artifact.
 - Offline switching is possible only after an exact release has been installed
   and catalogued by the manager.
+- Existing pre-manifest distributions remain usable but require exact
+  reacquisition before they become trusted offline switch candidates.
 - Release discovery, installed-release inspection, network acquisition, and
   privileged switching remain separate seams with distinct failure evidence.
 

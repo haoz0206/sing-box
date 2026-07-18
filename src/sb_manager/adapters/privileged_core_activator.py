@@ -5,17 +5,18 @@ import subprocess
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.artifacts.installation import CoreActivation, CoreReleaseIdentity
 from sb_manager.seams.core_activator import (
     CoreActivationError,
     CoreActivationRequest,
 )
+from sb_manager.seams.core_switcher import CoreSwitchError, CoreSwitchRequest
 
 HELPER_SCHEMA_VERSION = 1
 HELPER_TIMEOUT_SECONDS = 120
 
 
-class PrivilegedCoreActivatorError(CoreActivationError):
+class PrivilegedCoreActivatorError(CoreActivationError, CoreSwitchError):
     """Base error for a failed or untrusted privileged activation."""
 
 
@@ -28,7 +29,7 @@ class PrivilegedCoreHelperProtocolError(PrivilegedCoreActivatorError):
 
 
 class PrivilegedCoreActivator:
-    """Request one exact activation and restore its complete typed evidence."""
+    """Request exact activation or retained switching through one fixed helper."""
 
     def __init__(self, *, helper_command: Sequence[str]) -> None:
         if not helper_command:
@@ -36,17 +37,38 @@ class PrivilegedCoreActivator:
         self._helper_command = tuple(helper_command)
 
     def activate_core(self, request: CoreActivationRequest) -> CoreActivation:
-        request_text = json.dumps(
-            {
+        return self._invoke(
+            request_document={
                 "schema_version": HELPER_SCHEMA_VERSION,
                 "operation": "activate-core",
                 "version": request.version,
                 "architecture": request.architecture.value,
                 "sha256": request.sha256,
             },
-            separators=(",", ":"),
-            sort_keys=True,
+            expected_status="activated",
+            expected_version=request.version,
         )
+
+    def switch_core(self, request: CoreSwitchRequest) -> CoreActivation:
+        return self._invoke(
+            request_document={
+                "schema_version": HELPER_SCHEMA_VERSION,
+                "operation": "switch-core",
+                "target": self._identity_document(request.target),
+                "expected_active": self._identity_document(request.expected_active),
+            },
+            expected_status="switched",
+            expected_version=request.target.version,
+        )
+
+    def _invoke(
+        self,
+        *,
+        request_document: dict[str, object],
+        expected_status: str,
+        expected_version: str,
+    ) -> CoreActivation:
+        request_text = json.dumps(request_document, separators=(",", ":"), sort_keys=True)
         try:
             completed = subprocess.run(
                 list(self._helper_command),
@@ -65,14 +87,19 @@ class PrivilegedCoreActivator:
             raise PrivilegedCoreHelperExecutionError(
                 diagnostics or f"Privileged helper exited with status {completed.returncode}"
             )
-        return self._parse_response(completed.stdout, request=request)
+        return self._parse_response(
+            completed.stdout,
+            expected_status=expected_status,
+            expected_version=expected_version,
+        )
 
     @classmethod
     def _parse_response(
         cls,
         response_text: str,
         *,
-        request: CoreActivationRequest,
+        expected_status: str,
+        expected_version: str,
     ) -> CoreActivation:
         try:
             response = json.loads(response_text, object_pairs_hook=cls._unique_object)
@@ -95,7 +122,7 @@ class PrivilegedCoreActivator:
                 f"Unsupported helper schema version: {schema_version!r}"
             )
         status = cls._string(response_object["status"], role="status")
-        if status != "activated":
+        if status != expected_status:
             raise PrivilegedCoreHelperProtocolError(f"Unsupported helper status: {status!r}")
         item = cls._object(
             response_object["activation"],
@@ -109,9 +136,9 @@ class PrivilegedCoreActivator:
             role="activation",
         )
         version = cls._string(item["version"], role="activation.version")
-        if version != request.version:
+        if version != expected_version:
             raise PrivilegedCoreHelperProtocolError(
-                f"Helper activation version {version!r} does not match request {request.version!r}"
+                f"Helper activation version {version!r} does not match request {expected_version!r}"
             )
         previous_target = item["previous_target"]
         if previous_target is not None:
@@ -134,6 +161,14 @@ class PrivilegedCoreActivator:
             ),
             previous_target=previous_target,
         )
+
+    @staticmethod
+    def _identity_document(identity: CoreReleaseIdentity) -> dict[str, object]:
+        return {
+            "version": identity.version,
+            "architecture": identity.architecture.value,
+            "sha256": identity.source_sha256,
+        }
 
     @staticmethod
     def _unique_object(pairs: Iterable[tuple[str, object]]) -> dict[str, object]:

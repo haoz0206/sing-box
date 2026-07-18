@@ -77,10 +77,12 @@ def main() -> None:
 
     request_text = sys.stdin.read(MAX_REQUEST_BYTES + 1)
     try:
+        core_service = PrivilegedCoreInstallService(policy=HOST_POLICY)
         result = execute_privileged_request(
             request_text,
             effective_user_id=os.geteuid(),
-            core_activator=PrivilegedCoreInstallService(policy=HOST_POLICY),
+            core_activator=core_service,
+            core_switcher=core_service,
             config_applier=HostConfigApplier(),
             config_inspector=FileConfigurationTargetInspector(
                 config_path=HOST_CONFIG_POLICY.config_path

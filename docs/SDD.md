@@ -822,6 +822,12 @@ plan kind: already current, acquire and activate, or switch retained. The plan
 freezes all identities before confirmation. Retained switching crosses a
 separate no-network privileged operation that accepts only a manager-catalogued
 relative target; acquisition continues to use the exact-version ADR-0003 path.
+New core distributions atomically publish a schema-versioned manager manifest
+beside the verified binary. A read-only local catalog lists a release only when
+its manifest version, architecture, and source SHA-256 match the immutable
+directory identity and the binary self-verifies that version. A pre-manifest
+distribution may remain the active runtime target, but is not a retained switch
+candidate until an exact release is acquired again through the trusted path.
 Every user-visible channel slice updates `docs/MANUAL.md` with only behavior
 that is actually available in that build.
 

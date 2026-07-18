@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Protocol
 
-from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.artifacts.installation import CoreActivation, CoreReleaseIdentity
 from sb_manager.privileged.config_apply import ApplyConfigRequest
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactRequest
 from sb_manager.seams.certificate_source import (
@@ -19,6 +19,7 @@ from sb_manager.seams.config_target import (
     LiveConfigObservation,
 )
 from sb_manager.seams.core_activator import CoreActivationRequest
+from sb_manager.seams.core_switcher import CoreSwitcher, CoreSwitchRequest
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult
 
 REQUEST_SCHEMA_VERSION = 1
@@ -31,6 +32,8 @@ ACTIVATE_CORE_FIELDS = {
     "architecture",
     "sha256",
 }
+SWITCH_CORE_FIELDS = {"schema_version", "operation", "target", "expected_active"}
+CORE_IDENTITY_FIELDS = {"version", "architecture", "sha256"}
 APPLY_CONFIG_FIELDS = {
     "schema_version",
     "operation",
@@ -64,6 +67,7 @@ def execute_privileged_request(  # noqa: PLR0912, PLR0913 - allowlisted operatio
     *,
     effective_user_id: int,
     core_activator: CoreActivator,
+    core_switcher: CoreSwitcher | None = None,
     config_applier: ConfigApplier | None = None,
     config_inspector: ConfigurationTargetInspector | None = None,
     certificate_source: CertificateSource | None = None,
@@ -84,6 +88,7 @@ def execute_privileged_request(  # noqa: PLR0912, PLR0913 - allowlisted operatio
     expected_fields = (
         {
             "activate-core": ACTIVATE_CORE_FIELDS,
+            "switch-core": SWITCH_CORE_FIELDS,
             "apply-config": APPLY_CONFIG_FIELDS,
             "inspect-config": INSPECT_CONFIG_FIELDS,
             "inspect-certificates": INSPECT_CERTIFICATES_FIELDS,
@@ -111,6 +116,19 @@ def execute_privileged_request(  # noqa: PLR0912, PLR0913 - allowlisted operatio
             raise PrivilegedProtocolError("inspect-certificates operation is not available")
         targets = _certificate_targets(raw_request["targets"])
         return _serialize_certificate_inspection(certificate_source.inspect(targets))
+    if operation == "switch-core":
+        if core_switcher is None:
+            raise PrivilegedProtocolError("switch-core operation is not available")
+        activation = core_switcher.switch_core(
+            CoreSwitchRequest(
+                target=_core_identity(raw_request["target"], role="target"),
+                expected_active=_core_identity(
+                    raw_request["expected_active"],
+                    role="expected_active",
+                ),
+            )
+        )
+        return _serialize_core_activation(activation, status="switched")
 
     sha256 = _required_sha256(raw_request)
     if operation == "apply-config":
@@ -142,10 +160,14 @@ def execute_privileged_request(  # noqa: PLR0912, PLR0913 - allowlisted operatio
             sha256=sha256,
         )
     )
+    return _serialize_core_activation(activation, status="activated")
+
+
+def _serialize_core_activation(activation: CoreActivation, *, status: str) -> str:
     return json.dumps(
         {
             "schema_version": REQUEST_SCHEMA_VERSION,
-            "status": "activated",
+            "status": status,
             "activation": {
                 "version": activation.version,
                 "distribution_directory": str(activation.distribution_directory),
@@ -196,6 +218,28 @@ def _optional_sha256(request: dict[str, object], field: str) -> str | None:
             f"Request field {field} must be null or 64 lowercase hex characters"
         )
     return value
+
+
+def _core_identity(value: object, *, role: str) -> CoreReleaseIdentity:
+    if not isinstance(value, dict) or not all(isinstance(key, str) for key in value):
+        raise PrivilegedProtocolError(f"Core {role} identity must be an object")
+    if set(value) != CORE_IDENTITY_FIELDS:
+        raise PrivilegedProtocolError(
+            f"Core {role} identity fields must be exactly {sorted(CORE_IDENTITY_FIELDS)}"
+        )
+    version = _required_string(value, "version")
+    architecture_value = _required_string(value, "architecture")
+    sha256 = _required_sha256(value)
+    try:
+        architecture = ArtifactArchitecture(architecture_value)
+        CoreArtifactRequest(version=version, architecture=architecture)
+    except ValueError as error:
+        raise PrivilegedProtocolError(str(error)) from error
+    return CoreReleaseIdentity(
+        version=version,
+        architecture=architecture,
+        source_sha256=sha256,
+    )
 
 
 def _certificate_targets(value: object) -> tuple[CertificateTarget, ...]:

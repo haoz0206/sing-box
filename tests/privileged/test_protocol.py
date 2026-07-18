@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from sb_manager.artifacts.installation import CoreActivation
+from sb_manager.artifacts.installation import CoreActivation, CoreReleaseIdentity
 from sb_manager.privileged.config_apply import ApplyConfigRequest
 from sb_manager.privileged.protocol import (
     PrivilegedProtocolError,
@@ -23,6 +23,7 @@ from sb_manager.seams.certificate_source import (
 from sb_manager.seams.config_target import LiveConfigObservation
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.core_activator import CoreActivationRequest
+from sb_manager.seams.core_switcher import CoreSwitchRequest
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.transactions.apply import ApplyOutcome, ApplyTransactionResult, CommitResult
 
@@ -39,6 +40,21 @@ class RecordingCoreActivator:
             binary_path=Path("/opt/sing-box-manager/core/current/sing-box"),
             activated_target="versions/release",
             previous_target=None,
+        )
+
+
+class RecordingCoreSwitcher:
+    def __init__(self) -> None:
+        self.requests: list[CoreSwitchRequest] = []
+
+    def switch_core(self, request: CoreSwitchRequest) -> CoreActivation:
+        self.requests.append(request)
+        return CoreActivation(
+            version=request.target.version,
+            distribution_directory=Path("/opt/sing-box-manager/core/versions/stable"),
+            binary_path=Path("/opt/sing-box-manager/core/current/sing-box"),
+            activated_target="versions/stable",
+            previous_target="versions/preview",
         )
 
 
@@ -132,6 +148,58 @@ def test_root_request_executes_one_allowlisted_operation_and_returns_redacted_js
             "binary_path": "/opt/sing-box-manager/core/current/sing-box",
             "activated_target": "versions/release",
             "previous_target": None,
+        },
+    }
+
+
+def test_root_switch_request_accepts_only_exact_release_identities() -> None:
+    switcher = RecordingCoreSwitcher()
+
+    result = execute_privileged_request(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "operation": "switch-core",
+                "target": {
+                    "version": "1.13.14",
+                    "architecture": "amd64",
+                    "sha256": "a" * 64,
+                },
+                "expected_active": {
+                    "version": "1.14.0-alpha.46",
+                    "architecture": "amd64",
+                    "sha256": "b" * 64,
+                },
+            }
+        ),
+        effective_user_id=0,
+        core_activator=RecordingCoreActivator(),
+        core_switcher=switcher,
+    )
+
+    assert switcher.requests == [
+        CoreSwitchRequest(
+            target=CoreReleaseIdentity(
+                version="1.13.14",
+                architecture=ArtifactArchitecture.AMD64,
+                source_sha256="a" * 64,
+            ),
+            expected_active=CoreReleaseIdentity(
+                version="1.14.0-alpha.46",
+                architecture=ArtifactArchitecture.AMD64,
+                source_sha256="b" * 64,
+            ),
+        )
+    ]
+    assert json.loads(result) == {
+        "schema_version": 1,
+        "status": "switched",
+        "activation": {
+            "version": "1.13.14",
+            "distribution_directory": "/opt/sing-box-manager/core/versions/stable",
+            "binary_path": "/opt/sing-box-manager/core/current/sing-box",
+            "activated_target": "versions/stable",
+            "previous_target": "versions/preview",
         },
     }
 
