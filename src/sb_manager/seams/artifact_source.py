@@ -1,4 +1,4 @@
-"""Public seam and trusted values for sing-box artifact acquisition."""
+"""Public seams and trusted values for sing-box release discovery and acquisition."""
 
 import re
 from dataclasses import dataclass
@@ -12,6 +12,13 @@ class ArtifactArchitecture(str, Enum):
 
     AMD64 = "amd64"
     ARM64 = "arm64"
+
+
+class CoreReleaseChannel(str, Enum):
+    """Operator-facing policy for resolving one exact upstream release."""
+
+    STABLE = "stable"
+    PREVIEW = "preview"
 
 
 class ArtifactTrustError(RuntimeError):
@@ -47,6 +54,21 @@ class CoreArtifactRequest:
             is None
         ):
             raise ValueError(f"Invalid artifact version: {self.version!r}")
+
+
+@dataclass(frozen=True, slots=True)
+class CoreRelease:
+    """Exact upstream release resolved from one read-only channel policy."""
+
+    channel: CoreReleaseChannel
+    version: str
+    prerelease: bool
+
+
+class CoreReleaseSource(Protocol):
+    """Resolve one channel policy to an exact trusted release without mutation."""
+
+    def latest(self, channel: CoreReleaseChannel) -> CoreRelease: ...
 
 
 @dataclass(frozen=True, slots=True)

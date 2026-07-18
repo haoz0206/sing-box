@@ -1,4 +1,4 @@
-"""Acquire trusted sing-box archives from official GitHub Releases."""
+"""Discover and acquire trusted sing-box releases from official GitHub metadata."""
 
 import hashlib
 import hmac
@@ -11,19 +11,79 @@ from sb_manager.seams.artifact_source import (
     ArtifactIntegrityError,
     ArtifactTrustError,
     CoreArtifactRequest,
+    CoreRelease,
+    CoreReleaseChannel,
     VerifiedCoreArtifact,
 )
 from sb_manager.seams.http_client import HttpClient
 
 
 class GitHubArtifactSource:
-    """Verify exact immutable SagerNet release assets before exposing them."""
+    """Resolve and verify exact immutable SagerNet releases before exposing them."""
 
     _RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/tags/v{version}"
+    _LATEST_RELEASE_API = "https://api.github.com/repos/SagerNet/sing-box/releases/latest"
+    _RELEASES_API = "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=100"
     _DOWNLOAD_ROOT = "https://github.com/SagerNet/sing-box/releases/download"
 
     def __init__(self, *, http_client: HttpClient) -> None:
         self._http_client = http_client
+
+    def latest(self, channel: CoreReleaseChannel) -> CoreRelease:
+        """Resolve a channel to an exact release without acquiring its asset."""
+
+        if channel is CoreReleaseChannel.PREVIEW:
+            raw_releases = self._http_client.get_json(self._RELEASES_API)
+            if not isinstance(raw_releases, list):
+                raise ArtifactTrustError("Release list is not a JSON array")
+            for raw_release in raw_releases:
+                if (
+                    isinstance(raw_release, Mapping)
+                    and raw_release.get("draft") is False
+                    and raw_release.get("prerelease") is True
+                    and raw_release.get("immutable") is True
+                ):
+                    self._require_published(raw_release)
+                    return CoreRelease(
+                        channel=channel,
+                        version=self._version_from_tag(raw_release.get("tag_name")),
+                        prerelease=True,
+                    )
+            raise ArtifactTrustError("No trusted preview release is available")
+
+        raw_metadata = self._http_client.get_json(self._LATEST_RELEASE_API)
+        if not isinstance(raw_metadata, Mapping):
+            raise ArtifactTrustError("Release metadata is not a JSON object")
+        if raw_metadata.get("draft") is not False:
+            raise ArtifactTrustError("Refusing a draft release")
+        if raw_metadata.get("immutable") is not True:
+            raise ArtifactTrustError("Release is not immutable")
+        if raw_metadata.get("prerelease") is not False:
+            raise ArtifactTrustError("Stable channel requires a non-prerelease")
+        self._require_published(raw_metadata)
+        return CoreRelease(
+            channel=channel,
+            version=self._version_from_tag(raw_metadata.get("tag_name")),
+            prerelease=False,
+        )
+
+    @staticmethod
+    def _version_from_tag(raw_tag: object) -> str:
+        if not isinstance(raw_tag, str):
+            raise ArtifactTrustError("Release tag is not a valid version")
+        match = re.fullmatch(
+            r"v([0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)",
+            raw_tag,
+        )
+        if match is None:
+            raise ArtifactTrustError("Release tag is not a valid version")
+        return match.group(1)
+
+    @staticmethod
+    def _require_published(metadata: Mapping[object, object]) -> None:
+        published_at = metadata.get("published_at")
+        if not isinstance(published_at, str) or not published_at:
+            raise ArtifactTrustError("Release is not published")
 
     def acquire(
         self,

@@ -84,6 +84,22 @@ diagnostics remain literal non-markup evidence, while an unclassified
 post-confirmation failure is a non-disclosing unknown activation result.
 _Avoid_: Latest-version discovery, automatic upgrade, retry after unknown result
 
+**Core release channel**:
+A read-only policy that resolves either the latest official stable immutable
+release or the latest official preview immutable prerelease to one exact
+version before planning. The preview channel is the requested beta/testing
+track, but preserves the upstream alpha, beta, or release-candidate stage in
+operator evidence. Discovery never authorizes a moving `latest` target.
+_Avoid_: Hardcoded version, implicit prerelease consent, privileged discovery
+
+**Core channel switch**:
+An operator-confirmed atomic selection of one exact manager-installed immutable
+core release associated with the chosen channel. A reviewed retained target may
+switch without downloading; a missing target requires a separate exact release
+acquisition and activation plan. Unknown post-confirmation results require
+current-link and binary-version inspection before retry.
+_Avoid_: Arbitrary symlink target, unverified directory, automatic channel tracking
+
 **Profile removal**:
 An operator-confirmed lifecycle transition that removes one exact profile from
 desired state. Removing a draft changes desired state only; removing an applied

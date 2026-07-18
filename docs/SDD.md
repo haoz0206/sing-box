@@ -795,6 +795,11 @@ protocols and workflows that explicitly communicate client verification needs.
 
 The artifact seam owns version discovery, acquisition, integrity verification,
 staging, replacement, and rollback. GitHub and local files are initial adapters.
+ADR-0023 adds two read-only discovery policies: `stable` resolves the latest
+official immutable non-prerelease, while `preview` resolves the latest official
+immutable prerelease and preserves its actual alpha/beta/rc stage. Discovery
+returns an exact version before planning and performs no download or mutation;
+the observed release numbers are never production constants.
 The initial network trust and staging policy is fixed by ADR-0003: exact
 immutable releases, mandatory SHA-256 verification, safe archive inspection,
 and version self-verification occur before the later privileged replacement
@@ -809,6 +814,16 @@ application plan returns stable warning identities; the presentation adapter
 renders form validation, warnings, immutable plan values, progress, terminal
 evidence, and recovery policy through the validated interface copy catalog.
 Typed diagnostics stay literal and use non-markup widgets.
+
+Core channel management deepens the same application module rather than adding
+screen-owned network calls. Its interface will report exact discovered channel
+releases, the active manager release, retained switch candidates, and one typed
+plan kind: already current, acquire and activate, or switch retained. The plan
+freezes all identities before confirmation. Retained switching crosses a
+separate no-network privileged operation that accepts only a manager-catalogued
+relative target; acquisition continues to use the exact-version ADR-0003 path.
+Every user-visible channel slice updates `docs/MANUAL.md` with only behavior
+that is actually available in that build.
 
 ### 7.8 Privileged helper
 

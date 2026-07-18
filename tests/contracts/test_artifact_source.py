@@ -9,6 +9,8 @@ from sb_manager.seams.artifact_source import (
     ArtifactIntegrityError,
     ArtifactTrustError,
     CoreArtifactRequest,
+    CoreRelease,
+    CoreReleaseChannel,
     VerifiedCoreArtifact,
 )
 
@@ -27,6 +29,110 @@ class FakeHttpClient:
     def download(self, url: str, destination: Path) -> None:
         self.downloads.append((url, destination))
         destination.write_bytes(self._payload)
+
+
+def test_latest_stable_channel_resolves_exact_immutable_release_without_downloading() -> None:
+    http = FakeHttpClient(
+        metadata={
+            "tag_name": "v1.13.14",
+            "draft": False,
+            "prerelease": False,
+            "immutable": True,
+            "published_at": "2026-06-25T09:11:52Z",
+        },
+        payload=b"must not be downloaded",
+    )
+
+    release = GitHubArtifactSource(http_client=http).latest(CoreReleaseChannel.STABLE)
+
+    assert release == CoreRelease(
+        channel=CoreReleaseChannel.STABLE,
+        version="1.13.14",
+        prerelease=False,
+    )
+    assert http.json_urls == ["https://api.github.com/repos/SagerNet/sing-box/releases/latest"]
+    assert http.downloads == []
+
+
+def test_latest_preview_channel_selects_first_trusted_prerelease_without_downloading() -> None:
+    http = FakeHttpClient(
+        metadata=[
+            {
+                "tag_name": "v1.13.14",
+                "draft": False,
+                "prerelease": False,
+                "immutable": True,
+            },
+            {
+                "tag_name": "v1.14.0-alpha.48",
+                "draft": True,
+                "prerelease": True,
+                "immutable": True,
+            },
+            {
+                "tag_name": "v1.14.0-alpha.47",
+                "draft": False,
+                "prerelease": True,
+                "immutable": False,
+            },
+            {
+                "tag_name": "v1.14.0-alpha.46",
+                "draft": False,
+                "prerelease": True,
+                "immutable": True,
+                "published_at": "2026-07-17T04:50:20Z",
+            },
+        ],
+        payload=b"must not be downloaded",
+    )
+
+    release = GitHubArtifactSource(http_client=http).latest(CoreReleaseChannel.PREVIEW)
+
+    assert release == CoreRelease(
+        channel=CoreReleaseChannel.PREVIEW,
+        version="1.14.0-alpha.46",
+        prerelease=True,
+    )
+    assert http.json_urls == [
+        "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=100"
+    ]
+    assert http.downloads == []
+
+
+def test_release_discovery_rejects_a_non_version_tag() -> None:
+    http = FakeHttpClient(
+        metadata={
+            "tag_name": "vlatest",
+            "draft": False,
+            "prerelease": False,
+            "immutable": True,
+            "published_at": "2026-06-25T09:11:52Z",
+        },
+        payload=b"must not be downloaded",
+    )
+
+    with pytest.raises(ArtifactTrustError, match="valid version"):
+        GitHubArtifactSource(http_client=http).latest(CoreReleaseChannel.STABLE)
+
+    assert http.downloads == []
+
+
+def test_release_discovery_rejects_unpublished_metadata() -> None:
+    http = FakeHttpClient(
+        metadata={
+            "tag_name": "v1.13.14",
+            "draft": False,
+            "prerelease": False,
+            "immutable": True,
+            "published_at": None,
+        },
+        payload=b"must not be downloaded",
+    )
+
+    with pytest.raises(ArtifactTrustError, match="published"):
+        GitHubArtifactSource(http_client=http).latest(CoreReleaseChannel.STABLE)
+
+    assert http.downloads == []
 
 
 def test_official_immutable_release_asset_is_verified_before_staging(tmp_path: Path) -> None:
