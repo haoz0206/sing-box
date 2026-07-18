@@ -81,6 +81,11 @@ The plan explains:
 Secrets are redacted in plans and logs unless the user explicitly requests a
 one-time reveal.
 
+Protocol-gated plans bind the exact active core version observed during
+planning. Channel labels are discovery intent, not capability evidence. Every
+later projection rechecks the exact version and desired-state revision before
+mutation; a changed or unknown gated capability terminates the stale plan.
+
 ### 4.3 Privilege is required only at apply time
 
 The TUI can start, inspect desired state, build profiles, and preview plans
@@ -250,11 +255,11 @@ List columns:
 - health;
 - applied revision.
 
-Profile detail shows connection information, share actions, generated artifact
-summary, recent apply result, and context-sensitive actions. The current
-implementation presents it as a scrollable read-only view with an explicit
-effect statement, stable profile identity and lifecycle status, server-address
-and listen-port intent even when no share URI exists, and capability-aware
+Profile detail shows typed client-artifact information, disclosure actions,
+generated artifact summary, recent apply result, and context-sensitive actions.
+The current implementation presents it as a scrollable read-only view with an
+explicit effect statement, stable profile identity and lifecycle status, server-address
+and listen-port intent even when no client artifact exists, and capability-aware
 buttons that only open existing plan or confirmation workflows. Detail,
 connection-disclosure, stale-read, and unexpected-read copy renders through the
 validated interface copy catalog. Removal is always planned and confirmed: a
@@ -276,14 +281,15 @@ classification, and successful clone refresh remain local implementation
 details. The root application owns report loading and top-level routing only;
 it does not duplicate lifecycle policy or screen composition.
 
-A connection share URI is a credential, not ordinary profile metadata. Profile
-details and successful first apply show the public endpoint and a disclosure
-warning, but do not mount the URI in a terminal control by default. The operator
-must explicitly reveal it for the current page; it appears in a read-only,
-selectable text area with an immediate conceal action. Concealing removes the
-URI and prevents another reveal on that page. No automatic clipboard write
-occurs, and leaving the page discards the revealed presentation state.
-Reopening either workflow starts hidden again.
+A typed client artifact is a credential, not ordinary profile metadata. It may
+be a share URI or a protocol-specific policy such as Snell's Surge policy.
+Profile details and successful first apply show the public endpoint and a
+disclosure warning, but do not mount the payload in a terminal control by
+default. The operator must explicitly reveal it for the current page; it
+appears in a read-only, selectable text area with an immediate conceal action.
+Concealing removes the payload and prevents another reveal on that page. No
+automatic clipboard write occurs, and leaving the page discards the revealed
+presentation state. Reopening either workflow starts hidden again.
 
 Profile metadata editing starts with display name and public server address.
 The stable identifier, protocol, credentials, TLS, and transport remain
@@ -364,14 +370,16 @@ The wizard uses progressive disclosure:
 
 The implemented entry journey asks for general setup, mobile/low-latency,
 restricted-network connection choices, or existing-client compatibility before
-showing protocol terminology. A pure application advisor returns three ordered
-exact protocol variants with stable rationale identities. Textual resolves each
-rationale into its reason and tradeoff through the validated interface copy
-catalog without recomputing policy, labels the first choice as a starting point
-rather than an automatic decision, and states that no recommendation guarantees
-connectivity. Selection opens the existing form and retains all normal plan and
-confirmation steps. An explicit advanced action exposes every supported
-protocol/transport variant without ranking. If the advisor fails unexpectedly,
+showing protocol terminology. A pure application advisor returns ordered exact
+protocol variants with stable rationale identities; compatibility includes the
+additional Snell choice while other purposes retain their catalogued set.
+Textual resolves each rationale into its reason and tradeoff through the
+validated interface copy catalog without recomputing policy, labels the first
+choice as a starting point rather than an automatic decision, and states that
+no recommendation guarantees connectivity. Selection opens the existing form
+and retains all normal plan and confirmation steps. An explicit advanced action
+exposes every supported protocol/transport variant without ranking. If the
+advisor fails unexpectedly,
 the recovery page hides the exception and offers direct selection immediately;
 the chosen variant still hands off to the existing guided form.
 
@@ -664,8 +672,10 @@ A named proxy endpoint managed as one user concept:
 ### 6.3 ProtocolSpec
 
 Protocol-specific validated intent. It owns capabilities, minimum supported
-sing-box version, generated inbound fragment, connection information, and
-protocol-specific validation.
+sing-box version, generated inbound fragment, typed client artifact, and
+protocol-specific validation. The exact observed or planned core version is
+capability truth; `stable` and `preview` labels are never substitutes for that
+evidence.
 
 ### 6.4 HostSnapshot
 
@@ -760,10 +770,18 @@ Responsibilities:
 - protocol capabilities and validation;
 - desired-state representation;
 - sing-box inbound generation;
-- connection/share information;
+- typed client-artifact generation;
 - version compatibility.
 
 Protocol implementations do not write files or restart processes.
+
+Snell is a deliberately bounded capability: only v6, default mode, and one
+top-level generated PSK are supported on sing-box `1.14.0-alpha.38` or newer.
+The handler emits no TLS, transport, multiplex, QUIC-proxy, v5, multi-user, or
+unsafe-mode shape. It returns an official Surge policy ending in `version=6`,
+not a custom `snell://` URI; the operator may rename its policy name in Surge.
+Unknown core evidence fails closed for Snell but does not disable ungated
+protocols.
 
 ### 7.4 Planning and transaction modules
 
@@ -781,6 +799,15 @@ Apply is effectful:
 8. run postconditions;
 9. commit the new applied revision;
 10. roll back on any failure after step 5.
+
+Configuration create, apply, edit, resume, pause, and removal recheck the exact
+active core against the complete projected result before their first mutation.
+Pausing or removing the final applied-and-enabled Snell profile remains a
+recovery path because the resulting projection no longer contains a Snell
+inbound. Core acquisition and retained-switch plans perform the inverse check:
+applied and enabled Snell blocks targets below `1.14.0-alpha.38`, while draft and paused
+Snell does not. Those plans bind the desired-state revision and stop before
+acquisition or switching when it changes.
 
 If a confirmed mutation worker fails before returning one of these typed
 terminal outcomes, Textual treats the complete effect as an unknown mutation
@@ -889,6 +916,11 @@ unprivileged and relies on operator-managed sudo/doas authorization. Blocking
 configuration validation, helper execution, runtime refresh, and health checks
 run in a Textual thread worker; only progress and screen transitions run on the
 UI thread, and duplicate confirmation is disabled while work is active.
+
+The privileged configuration policy validates only the exact generated schema.
+For Snell that is the v6/default/single-top-level-PSK allowlist. The helper does
+not discover, parse, or infer the active core version; application planning owns
+capability evidence and must reject incompatibility before invoking it.
 
 ### 7.9 Interface preference adapter
 
@@ -1086,21 +1118,29 @@ Current implementation status (2026-07-18):
   reports primary, backup, and corrupt-archive results as unknown and forbids
   direct retry;
 - purpose-first profile recommendation: adding a profile starts from four
-  operator outcomes, returns three protocol variants with stable rationale
-  identities from one pure application module, renders every reason, caveat,
+  operator outcomes and returns ordered variants with stable rationale
+  identities from one pure application module; compatibility adds Snell while
+  other purposes retain their catalogued set. It renders every reason, caveat,
   recovery action, and direct-choice label through the validated interface copy
   catalog, opens the existing guided form after selection, and retains an
-  unranked advanced list of all ten supported variants; an unavailable advisor
+  unranked advanced list of all supported variants; an unavailable advisor
   is non-disclosing and exposes the advanced path on the same recovery page;
 - complete vertical slices: VLESS Reality, Shadowsocks 2022, Hysteria2, Trojan,
-  AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC;
+  AnyTLS, TUIC, VLESS/VMess TLS WebSocket/gRPC, and version-gated Snell v6;
+- exact-version protocol capabilities: Snell planning, application, resume, and
+  every complete-configuration reprojection require an observed active core at
+  `1.14.0-alpha.38` or newer; Stable 1.13.x and unknown observations fail closed
+  before mutation, while applied-and-enabled Snell blocks incompatible core
+  targets and draft/paused Snell does not;
 - shared TLS strategies: the guided TUI emits the strictly allowlisted inline
   ACME subset shared by the current sing-box 1.13/1.14 compatibility window and
   supports an advanced root-managed certificate-file workflow constrained to
   `/etc/sing-box-manager/tls`;
-- release integration: product-generated configurations for every supported
-  protocol and the VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
-  against official Stable 1.13.14 and Preview 1.14.0-alpha.47;
+- release integration: product-generated configurations for the ungated
+  protocols and VLESS/VMess WebSocket/gRPC variants pass `sing-box check`
+  against official Stable 1.13.14 and Preview 1.14.0-alpha.47; Snell is rejected
+  before configuration generation on Stable and its exact v6/default shape
+  passes the official Preview 1.14.0-alpha.47 check;
 - release harness: a read-only systemd/OpenRC acceptance plan prints recovery
   actions and an authorization value bound to the exact runtime and service;
   execution refuses an unhealthy precondition, refreshes once, and requires a
@@ -1367,8 +1407,11 @@ Current implementation status (2026-07-18):
 - Recent service logs are bounded, control-cleaned, and credential-redacted
   before the TUI receives them; unavailable log access never changes the host.
 - Runtime and artifact adapters pass shared contract suites.
-- Supported protocols pass desired-state-to-config and connection-information
+- Supported protocols pass desired-state-to-config and typed client-artifact
   behavior examples.
+- Protocol-gated mutations bind and recheck the exact observed core version;
+  core-target plans bind desired-state revision and reject incompatible active
+  profiles before acquisition or switching.
 - No manager-owned file is written outside the transaction module.
 - No systemd/OpenRC command exists outside its runtime adapter.
 - No download exists outside an artifact adapter.

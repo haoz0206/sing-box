@@ -90,6 +90,34 @@ Preview 计划会显示预发布兼容性警告；digest-pinned Stable 计划会
 catalog。
 “安装或升级 sing-box 核心”入口仍保留，供需要手工指定精确版本的高级操作使用。
 
+## 配置 Snell v6
+
+Snell 是版本受限协议。规划时以当前 active 核心实际报告的精确版本为准，不能只看
+“Stable”或“Preview”通道名称。manager 只支持 sing-box `1.14.0-alpha.38` 或更新版本
+上的 Snell v6，并固定生成 default mode 和一个顶层 PSK；不提供 v5、多用户
+`users`/`userkey`、其他 mode、TLS、transport、multiplex、QUIC proxy 或自定义
+`snell://` 链接。
+
+Stable 1.13.x 不能规划、应用或恢复 Snell。若核心版本未知，只有 Snell 这类明确受版本
+限制的协议会保守停止；先从运维中心安装并激活能够报告所需版本的 Preview 核心，再
+返回配置页重新生成计划。旧计划不会因通道名称相同而继续使用：active 核心的精确
+版本变化后必须重新规划。
+
+应用并启用的 Snell 配置会阻止切换到不兼容的 Stable 核心；草案和已暂停配置不会。
+需要回到 Stable 时，先暂停 Snell，或移除最后一个正在应用且启用的 Snell 配置，再
+生成新的核心计划。核心计划绑定 desired-state revision；审阅后配置状态发生变化会在
+下载或切换前终止旧计划。
+
+Snell 的客户端结果是 Surge 策略，不是 URI：
+
+```text
+Name = snell, host, port, psk=<已隐藏>, version=6
+```
+
+在 Surge 中可以自行修改策略名称 `Name`。完整策略包含 PSK，默认不会挂载到界面；
+只能在私密终端中通过“显示一次”显式揭示，并可立即隐藏。文档、日志和错误引导都不
+应记录真实 PSK。
+
 ## 遇到“结果未知”
 
 不要立即重复执行。这表示请求已经进入激活边界，但界面没有可信终态；helper 可能因

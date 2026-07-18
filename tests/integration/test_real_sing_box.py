@@ -7,8 +7,13 @@ from pathlib import Path
 import pytest
 
 from sb_manager.adapters.generated_configuration import ProjectedGeneratedConfigurationInspector
+from sb_manager.adapters.sing_box_core_status import SingBoxCoreStatusInspector
 from sb_manager.adapters.sing_box_validator import SingBoxConfigValidator
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
+from sb_manager.application.protocol_compatibility import (
+    ProtocolCompatibilityPolicy,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.cli import create_protocol_catalog
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -58,6 +63,97 @@ def real_sing_box_binary() -> Path:
     if not binary.is_file():
         pytest.fail(f"SB_MANAGER_REAL_SING_BOX is not a file: {binary}")
     return binary
+
+
+def _materialize_snell_v6_document(real_sing_box_binary: Path) -> dict[str, object]:
+    materialized = create_protocol_catalog(
+        sing_box_binary=real_sing_box_binary,
+        reality_server_name="www.cloudflare.com",
+    ).materialize(
+        ManagedProfile(
+            profile_name="official-snell-v6-fixture",
+            protocol=ProtocolKind.SNELL_V6,
+            listen_port=18443,
+            port_selection=PortSelection.FIXED,
+            status=ProfileStatus.DRAFT,
+            profile_id="profile-1",
+            server_address="proxy.example.com",
+        ),
+        listen_port=18443,
+    )
+    return {
+        "inbounds": [materialized.inbound],
+        "outbounds": [{"type": "direct", "tag": "direct"}],
+    }
+
+
+def _write_json_document(path: Path, document: dict[str, object]) -> Path:
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return path
+
+
+def _inspect_configured_core_version(real_sing_box_binary: Path) -> str:
+    observation = SingBoxCoreStatusInspector(binary=real_sing_box_binary).inspect()
+    if not observation.available or observation.version is None:
+        pytest.fail(f"configured sing-box did not report an exact version: {real_sing_box_binary}")
+    return observation.version
+
+
+@pytest.mark.integration
+def test_capable_real_sing_box_accepts_generated_snell_v6_configuration(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    core_version = _inspect_configured_core_version(real_sing_box_binary)
+    compatibility = ProtocolCompatibilityPolicy()
+    if not compatibility.supports(ProtocolKind.SNELL_V6, core_version):
+        pytest.skip(f"configured core {core_version} predates Snell v6 support")
+    compatibility.require_supported(ProtocolKind.SNELL_V6, core_version)
+
+    document = _materialize_snell_v6_document(real_sing_box_binary)
+    inbounds = document["inbounds"]
+    assert isinstance(inbounds, list)
+    assert len(inbounds) == 1
+    inbound = inbounds[0]
+    assert isinstance(inbound, dict)
+    psk = inbound["psk"]
+    assert isinstance(psk, str)
+    assert inbound == {
+        "type": "snell",
+        "tag": "profile-1",
+        "listen": "::",
+        "listen_port": 18443,
+        "version": 6,
+        "psk": psk,
+        "mode": "default",
+    }
+    assert document["outbounds"] == [{"type": "direct", "tag": "direct"}]
+    ManagedConfigurationPolicy().validate(document)
+    config_path = _write_json_document(tmp_path / "snell-v6.json", document)
+
+    result = SingBoxConfigValidator(binary=real_sing_box_binary).validate(config_path)
+
+    assert result.valid
+    if psk in result.diagnostics:
+        pytest.fail("sing-box check diagnostics disclosed the generated Snell PSK")
+
+
+@pytest.mark.integration
+def test_legacy_real_sing_box_rejects_snell_v6_before_configuration(
+    real_sing_box_binary: Path,
+    tmp_path: Path,
+) -> None:
+    core_version = _inspect_configured_core_version(real_sing_box_binary)
+    compatibility = ProtocolCompatibilityPolicy()
+    if compatibility.supports(ProtocolKind.SNELL_V6, core_version):
+        pytest.skip(f"configured core {core_version} already supports Snell v6")
+
+    with pytest.raises(ProtocolUnsupportedByCore) as caught:
+        compatibility.require_supported(ProtocolKind.SNELL_V6, core_version)
+
+    assert caught.value.protocol is ProtocolKind.SNELL_V6
+    assert caught.value.observed_version == core_version
+    assert tuple(tmp_path.iterdir()) == ()
 
 
 @pytest.mark.integration

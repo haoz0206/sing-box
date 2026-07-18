@@ -132,10 +132,32 @@ recoverable host.
 Generated configuration currently uses the strictly allowlisted inline ACME
 shape shared by sing-box 1.13 and 1.14. On 2026-07-18 the complete real-binary
 suite passed all 15 cases against official Stable `1.13.14` and Preview
-`1.14.0-alpha.47`. That covers every supported protocol plus both WebSocket and
-gRPC variants for VLESS and VMess. Inline ACME is deprecated in 1.14 and is
+`1.14.0-alpha.47`. That dated run covered the then-supported protocols plus both
+WebSocket and gRPC variants for VLESS and VMess. Snell was added afterward and
+its separate opt-in official-core acceptance passed against Stable `1.13.14`
+for typed pre-generation rejection and Preview `1.14.0-alpha.47` for the exact
+bounded generated configuration. The result is recorded in
+`docs/acceptance/2026-07-18-snell-v6-preview-support.md`; it must not be inferred
+from the earlier 15-case result. Inline ACME is deprecated in 1.14 and is
 scheduled for removal in 1.16, so a version-capability projection is required
 before either supported channel reaches 1.16.
+
+| Protocol capability | Stable 1.13.x | Exact active core `>=1.14.0-alpha.38` |
+|---|---|---|
+| Existing ungated protocols | supported by their existing contracts | supported by their existing contracts |
+| Snell v6, default mode, one top-level PSK | unsupported | supported |
+
+Snell capability follows the exact version reported by the active or planned
+core, not the `stable` or `preview` channel label. Unknown evidence fails closed
+for Snell only. The manager does not support Snell v5, multi-user shapes, unsafe
+modes, TLS, transport, multiplex, QUIC proxy, or a custom URI. Applied and
+enabled Snell blocks an incompatible core target; draft and paused Snell does
+not. Its credential-bearing client artifact is an official Surge policy and is
+hidden until explicit reveal. See [ADR-0025](adr/0025-core-version-protocol-capabilities.md),
+the official [sing-box inbound](https://sing-box.sagernet.org/configuration/inbound/snell/)
+and [outbound](https://sing-box.sagernet.org/configuration/outbound/snell/)
+references, the [changelog](https://sing-box.sagernet.org/changelog/), and the
+[Surge policy format](https://manual.nssurge.com/policy/proxy.html).
 
 Artifact trust remains a separate release gate. On 2026-07-18 the opt-in
 official-artifact acceptance passed unprivileged download and exact digest
@@ -144,7 +166,7 @@ safe staging, version self-verification, isolated activation, and rollback for
 both current discoveries. It did not traverse the helper subprocess, JSON
 protocol, EUID check, or sudo/doas authorization described above.
 
-| Channel | Observed version | Trust mode | Official amd64 SHA-256 |
+| Channel | Observed version | Trust mode | Official amd64 archive SHA-256 |
 |---|---|---|---|
 | Stable | `1.13.14` | `digest-pinned-stable` | `f48703461a15476951ac4967cdad339d986f4b8096b4eb3ff0829a500502d697` |
 | Preview | `1.14.0-alpha.47` | `immutable-release` | `39387ea20a1b44fc123c106fb4b2cf961b98f5550e55a516f446498a163336e1` |
@@ -156,6 +178,11 @@ reviewed ADR-0003 digest-pinned fallback because GitHub reported
 depends on GitHub API/CDN availability, DNS, TLS, rate limits, upstream metadata
 stability, and available bandwidth, so elapsed time and transient failures can
 vary independently of deterministic contract tests.
+
+Normal contract, behavior, acceptance, and privileged-policy tests are
+deterministic, rootless, and network-independent. Real-core integration is an
+explicit opt-in check selected by `SB_MANAGER_REAL_SING_BOX`; it depends on a
+trusted external executable and is not part of the default deterministic gate.
 
 To reproduce the Stable observation, bind both the expected trust mode and the
 full digest explicitly:
