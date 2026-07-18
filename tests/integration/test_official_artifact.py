@@ -12,7 +12,9 @@ from sb_manager.privileged.core_install import (
     PrivilegedCoreInstallPolicy,
     PrivilegedCoreInstallService,
 )
-from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactTrustMode
+
+SHA256_HEXDIGEST_LENGTH = 64
 
 
 @pytest.mark.integration
@@ -46,6 +48,11 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
             allow_prerelease=os.environ.get("SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE") == "1",
         )
     )
+    expected_trust_mode = os.environ.get("SB_MANAGER_ARTIFACT_TRUST_MODE")
+    if expected_trust_mode is None:
+        pytest.fail("SB_MANAGER_ARTIFACT_TRUST_MODE is required")
+    assert plan.artifact.trust_mode is CoreArtifactTrustMode(expected_trust_mode)
+    assert len(plan.artifact.sha256) == SHA256_HEXDIGEST_LENGTH
     activation = core_updates.execute(plan, confirmed=True).activation
 
     assert activation.version == version
