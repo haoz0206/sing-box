@@ -48,7 +48,7 @@ from sb_manager.application.apply_history import (
 from sb_manager.application.certificate_diagnostics import CertificateDiagnosticsService
 from sb_manager.application.config_adoption import ConfigAdoptionService
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
-from sb_manager.application.core_update import CoreUpdateService
+from sb_manager.application.core_update import CoreChannelService, CoreUpdateService
 from sb_manager.application.diagnostics_center import (
     DiagnosticsCenterInspectors,
     DiagnosticsCenterService,
@@ -69,6 +69,7 @@ from sb_manager.application.profile_editing import ProfileEditingService
 from sb_manager.application.profile_removal import ProfileRemovalService
 from sb_manager.application.service_logs import ServiceLogService
 from sb_manager.application.state_recovery import StateRecoveryService
+from sb_manager.artifacts.installation import CoreInstallationCatalog
 from sb_manager.host_certificate_policy import MANAGED_CERTIFICATE_ROOTS
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
@@ -94,6 +95,7 @@ from sb_manager.ui.app import ManagerApp, ManagerAppHostTools, ManagerAppInterfa
 from sb_manager.ui.screens.settings import EffectiveSettings
 
 MANAGED_CORE_BINARY = Path("/opt/sing-box-manager/core/current/sing-box")
+MANAGED_CORE_ROOT = MANAGED_CORE_BINARY.parent.parent
 
 
 def default_preferences_file() -> Path:
@@ -194,7 +196,9 @@ def create_protocol_catalog(
     )
 
 
-def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
+def create_app(  # noqa: PLR0915 - keep production capability composition explicit
+    argv: Sequence[str] | None = None,
+) -> ManagerApp:
     """Build the TUI with production adapters selected from command arguments."""
     parser = argparse.ArgumentParser(
         prog="sb-manager",
@@ -351,10 +355,18 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         applier=applier,
         apply_lock=mutation_lock,
     )
+    core_artifacts = GitHubArtifactSource(http_client=UrllibHttpClient())
+    core_controller = PrivilegedCoreActivator(helper_command=privileged_helper_command)
     core_updater = CoreUpdateService(
-        artifact_source=GitHubArtifactSource(http_client=UrllibHttpClient()),
-        core_activator=PrivilegedCoreActivator(helper_command=privileged_helper_command),
+        artifact_source=core_artifacts,
+        core_activator=core_controller,
         incoming_directory=arguments.privileged_incoming_dir,
+    )
+    core_channels = CoreChannelService(
+        release_source=core_artifacts,
+        core_inventory=CoreInstallationCatalog(installation_root=MANAGED_CORE_ROOT),
+        core_updater=core_updater,
+        core_switcher=core_controller,
     )
     host_diagnostics = RuntimeHostDiagnostics(runtime=runtime)
     host_readiness = HostReadinessService(
@@ -368,6 +380,7 @@ def create_app(argv: Sequence[str] | None = None) -> ManagerApp:
         manager=manager,
         profile_applier=profile_applier,
         core_updater=core_updater,
+        core_channel_manager=core_channels,
         interface_tools=ManagerAppInterfaceTools(
             preference_service=InterfacePreferenceService(
                 store=JsonInterfacePreferenceStore(arguments.preferences_file)

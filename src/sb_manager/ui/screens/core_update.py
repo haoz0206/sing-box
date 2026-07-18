@@ -28,7 +28,7 @@ WARNING_COPY: dict[CoreUpdateWarning, UiText] = {
 }
 
 
-class _CoreUpdateResultScreen(Screen[None]):
+class CoreUpdateResultScreen(Screen[None]):
     """Present the complete evidence returned by a successful activation."""
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -91,7 +91,7 @@ class _CoreUpdateResultScreen(Screen[None]):
         yield Footer()
 
 
-class _CoreUpdateErrorScreen(Screen[None]):
+class CoreUpdateErrorScreen(Screen[None]):
     """Distinguish acquisition failure from an unknown privileged host result."""
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -139,7 +139,7 @@ class _CoreUpdateErrorScreen(Screen[None]):
         yield Footer()
 
 
-class _CoreUpdatePlanningErrorScreen(Screen[None]):
+class CoreUpdatePlanningErrorScreen(Screen[None]):
     """Report an unexpected read-only core-update planning failure safely."""
 
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -260,7 +260,7 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
         except CoreArtifactAcquisitionError as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                _CoreUpdateErrorScreen(
+                CoreUpdateErrorScreen(
                     str(error),
                     host_result_unknown=False,
                     copy_catalog=self.copy,
@@ -270,7 +270,7 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
         except CoreActivationError as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                _CoreUpdateErrorScreen(
+                CoreUpdateErrorScreen(
                     str(error),
                     host_result_unknown=True,
                     copy_catalog=self.copy,
@@ -280,7 +280,7 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
         except Exception:
             self.app.call_from_thread(
                 self.push_terminal_screen,
-                _CoreUpdateErrorScreen(
+                CoreUpdateErrorScreen(
                     self.copy.text(UiText.CORE_UPDATE_ERROR_UNEXPECTED_DETAILS),
                     host_result_unknown=True,
                     copy_catalog=self.copy,
@@ -289,7 +289,7 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
             return
         self.app.call_from_thread(
             self.push_terminal_screen,
-            _CoreUpdateResultScreen(result, self.copy),
+            CoreUpdateResultScreen(result, self.copy),
         )
 
 
@@ -393,6 +393,6 @@ class CoreUpdateFormScreen(Screen[None]):
             error.update(self.copy.text(UiText.CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT))
             return
         except Exception:
-            self.app.push_screen(_CoreUpdatePlanningErrorScreen(self.copy))
+            self.app.push_screen(CoreUpdatePlanningErrorScreen(self.copy))
             return
         self.app.push_screen(_CoreUpdatePlanScreen(self.core_updater, plan, self.copy))

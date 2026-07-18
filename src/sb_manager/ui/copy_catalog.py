@@ -598,6 +598,28 @@ class UiText(str, Enum):
     CORE_UPDATE_ERROR_UNKNOWN_SAFETY = "core_update.error.unknown.safety"
     CORE_UPDATE_ERROR_ACQUISITION_SAFETY = "core_update.error.acquisition.safety"
     CORE_UPDATE_ERROR_UNEXPECTED_DETAILS = "core_update.error.unexpected_details"
+    CORE_CHANNEL_OPEN = "core_channel.open"
+    CORE_CHANNEL_TITLE = "core_channel.title"
+    CORE_CHANNEL_GUIDANCE = "core_channel.guidance"
+    CORE_CHANNEL_STABLE = "core_channel.stable"
+    CORE_CHANNEL_PREVIEW = "core_channel.preview"
+    CORE_CHANNEL_LOADING = "core_channel.loading"
+    CORE_CHANNEL_ERROR_ARCHITECTURE = "core_channel.error.architecture"
+    CORE_CHANNEL_CURRENT_TITLE = "core_channel.current.title"
+    CORE_CHANNEL_CURRENT_VERSION = "core_channel.current.version"
+    CORE_CHANNEL_CURRENT_SAFETY = "core_channel.current.safety"
+    CORE_CHANNEL_PLAN_TITLE = "core_channel.plan.title"
+    CORE_CHANNEL_PLAN_ACTION = "core_channel.plan.action"
+    CORE_CHANNEL_ACTION_SWITCH = "core_channel.action.switch"
+    CORE_CHANNEL_ACTION_ACQUIRE = "core_channel.action.acquire"
+    CORE_CHANNEL_PLAN_TARGET_SHA256 = "core_channel.plan.target_sha256"
+    CORE_CHANNEL_PLAN_ACTIVE_SHA256 = "core_channel.plan.active_sha256"
+    CORE_CHANNEL_PLAN_SAFETY_SWITCH = "core_channel.plan.safety.switch"
+    CORE_CHANNEL_PLAN_SAFETY_ACQUIRE = "core_channel.plan.safety.acquire"
+    CORE_CHANNEL_PLAN_CONFIRM_SWITCH = "core_channel.plan.confirm.switch"
+    CORE_CHANNEL_PLAN_CONFIRM_ACQUIRE = "core_channel.plan.confirm.acquire"
+    CORE_CHANNEL_PLAN_PROGRESS_SWITCH = "core_channel.plan.progress.switch"
+    CORE_CHANNEL_PLAN_PROGRESS_ACQUIRE = "core_channel.plan.progress.acquire"
     CONFIG_ADOPTION_PLAN_LOADING = "config_adoption.plan.loading"
     CONFIG_ADOPTION_PLAN_TITLE = "config_adoption.plan.title"
     CONFIG_ADOPTION_PLAN_FINGERPRINT = "config_adoption.plan.fingerprint"
@@ -965,6 +987,13 @@ _EXPECTED_FIELDS.update(
         UiText.CORE_UPDATE_RESULT_BINARY: frozenset({"path"}),
         UiText.CORE_UPDATE_RESULT_TARGET: frozenset({"target"}),
         UiText.CORE_UPDATE_RESULT_PREVIOUS: frozenset({"target"}),
+        UiText.CORE_CHANNEL_LOADING: frozenset({"channel"}),
+        UiText.CORE_CHANNEL_CURRENT_TITLE: frozenset({"channel"}),
+        UiText.CORE_CHANNEL_CURRENT_VERSION: frozenset({"version"}),
+        UiText.CORE_CHANNEL_PLAN_TITLE: frozenset({"channel"}),
+        UiText.CORE_CHANNEL_PLAN_ACTION: frozenset({"action"}),
+        UiText.CORE_CHANNEL_PLAN_TARGET_SHA256: frozenset({"sha256"}),
+        UiText.CORE_CHANNEL_PLAN_ACTIVE_SHA256: frozenset({"sha256"}),
         UiText.CONFIG_ADOPTION_PLAN_FINGERPRINT: frozenset({"sha256"}),
         UiText.CONFIG_ADOPTION_RESULT_REVISION: frozenset({"revision"}),
         UiText.STATE_RECOVERY_AVAILABLE_BACKUP: frozenset({"revision", "profiles"}),
@@ -1735,6 +1764,39 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CORE_UPDATE_ERROR_ACQUISITION_SAFETY: ("尚未请求特权激活，当前核心保持不变。"),
         UiText.CORE_UPDATE_ERROR_UNEXPECTED_DETAILS: (
             "发生意外错误。底层错误未显示，以避免泄露敏感信息。"
+        ),
+        UiText.CORE_CHANNEL_OPEN: "管理 Stable / Preview 通道",
+        UiText.CORE_CHANNEL_TITLE: "Stable / Preview 核心通道",
+        UiText.CORE_CHANNEL_GUIDANCE: (
+            "选择通道后会只读查询官方最新版本并检查本机可信安装。"
+            "只有需要下载或切换时才会显示确认计划。"
+        ),
+        UiText.CORE_CHANNEL_STABLE: "检查 Stable 通道",
+        UiText.CORE_CHANNEL_PREVIEW: "检查 Preview (Beta/测试) 通道",
+        UiText.CORE_CHANNEL_LOADING: "正在查询 {channel} 并检查本机版本…",
+        UiText.CORE_CHANNEL_ERROR_ARCHITECTURE: "请选择服务器架构。",
+        UiText.CORE_CHANNEL_CURRENT_TITLE: "{channel} 已是当前版本",
+        UiText.CORE_CHANNEL_CURRENT_VERSION: "精确版本：{version}",
+        UiText.CORE_CHANNEL_CURRENT_SAFETY: ("当前版本已符合所选通道，无需下载、切换或确认。"),
+        UiText.CORE_CHANNEL_PLAN_TITLE: "确认 {channel} 通道操作",
+        UiText.CORE_CHANNEL_PLAN_ACTION: "操作：{action}",
+        UiText.CORE_CHANNEL_ACTION_SWITCH: "切换到已安装版本 (无需下载)",
+        UiText.CORE_CHANNEL_ACTION_ACQUIRE: "下载、校验并激活精确版本",
+        UiText.CORE_CHANNEL_PLAN_TARGET_SHA256: "目标制品 SHA-256：{sha256}",
+        UiText.CORE_CHANNEL_PLAN_ACTIVE_SHA256: "当前制品 SHA-256：{sha256}",
+        UiText.CORE_CHANNEL_PLAN_SAFETY_SWITCH: (
+            "当前仅预览; 确认后 helper 只切换已验证的 retained release，不访问网络。"
+        ),
+        UiText.CORE_CHANNEL_PLAN_SAFETY_ACQUIRE: (
+            "当前仅预览; 确认后才会下载、校验并原子激活这个精确版本。"
+        ),
+        UiText.CORE_CHANNEL_PLAN_CONFIRM_SWITCH: "确认离线切换",
+        UiText.CORE_CHANNEL_PLAN_CONFIRM_ACQUIRE: "确认下载并激活",
+        UiText.CORE_CHANNEL_PLAN_PROGRESS_SWITCH: (
+            "操作已确认，正在重新验证已安装版本并切换。完成前无法返回。"
+        ),
+        UiText.CORE_CHANNEL_PLAN_PROGRESS_ACQUIRE: (
+            "操作已确认，正在下载、校验并激活。完成前无法返回。"
         ),
         UiText.CONFIG_ADOPTION_PLAN_LOADING: "正在检查现有配置…",
         UiText.CONFIG_ADOPTION_PLAN_TITLE: "确认现有配置接管计划",

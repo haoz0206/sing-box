@@ -16,7 +16,7 @@ from sb_manager.application.certificate_diagnostics import (
     CertificateDiagnosticsReport,
 )
 from sb_manager.application.config_adoption import ConfigAdopter
-from sb_manager.application.core_update import CoreUpdater
+from sb_manager.application.core_update import CoreChannelManager, CoreUpdater
 from sb_manager.application.dashboard import (
     DashboardActionKind,
     DashboardEvidence,
@@ -230,11 +230,12 @@ class ManagerApp(App[None]):
         DashboardActionKind.ADD_PROFILE: UiText.DASHBOARD_ACTION_ADD_PROFILE,
     }
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 - explicit TUI capability composition seam
         self,
         manager: Manager | None = None,
         profile_applier: ProfileApplier | None = None,
         core_updater: CoreUpdater | None = None,
+        core_channel_manager: CoreChannelManager | None = None,
         host_tools: ManagerAppHostTools | None = None,
         interface_tools: ManagerAppInterfaceTools | None = None,
     ) -> None:
@@ -244,6 +245,7 @@ class ManagerApp(App[None]):
         self.manager = manager or Manager(state_store=MemoryStateStore())
         self.profile_applier = profile_applier
         self.core_updater = core_updater
+        self.core_channel_manager = core_channel_manager
         self.host_diagnostics = tools.host_diagnostics
         self.diagnostics_center = tools.diagnostics_center
         self.host_diagnostics_report: HostDiagnosticsReport | None = None
@@ -834,6 +836,7 @@ class ManagerApp(App[None]):
         self.push_screen(
             OperationsScreen(
                 core_updater=self.core_updater,
+                core_channel_manager=self.core_channel_manager,
                 service_log_reader=self.service_log_reader,
                 apply_history_reader=self.apply_history_reader,
                 copy_catalog=self.copy_catalog,

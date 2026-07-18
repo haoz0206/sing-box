@@ -434,6 +434,20 @@ is invoked only after the operator selects its task. A capability absent from
 the current startup mode is represented by an explanation and no clickable
 control, so the page never advertises an action that cannot work.
 
+The core-channel slice adds one guided Stable/Preview entry beside the advanced
+exact-version form. The operator chooses architecture and channel before a
+background worker resolves one official immutable release and compares it with
+the manager-owned installed catalog. The application returns exactly one of
+three frozen plans: already current, switch one retained release, or acquire
+and activate one missing release. Already-current evidence has no confirmation
+control. Both host-changing plans show the exact version before confirmation;
+retained switching also shows target and reviewed-current SHA-256 identities
+and states that it performs no download. Preview preserves the upstream
+alpha/beta/rc version and always displays prerelease risk instead of presenting
+the track as a stable beta promise. A confirmed operation locks navigation
+until terminal evidence arrives. Any unclassified post-confirmation failure is
+an unknown mutation result and does not offer immediate retry.
+
 ### 5.7 Diagnostics
 
 Presents actionable checks rather than raw logs first:
@@ -816,7 +830,7 @@ evidence, and recovery policy through the validated interface copy catalog.
 Typed diagnostics stay literal and use non-markup widgets.
 
 Core channel management deepens the same application module rather than adding
-screen-owned network calls. Its interface will report exact discovered channel
+screen-owned network calls. Its interface reports exact discovered channel
 releases, the active manager release, retained switch candidates, and one typed
 plan kind: already current, acquire and activate, or switch retained. The plan
 freezes all identities before confirmation. Retained switching crosses a

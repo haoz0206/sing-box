@@ -322,10 +322,11 @@ def test_cli_composes_systemd_and_openrc_service_log_drill_down(tmp_path: Path) 
     assert openrc_arguments.read_text(encoding="utf-8") == ""
 
 
-def test_cli_composes_an_exact_core_update_path() -> None:
+def test_cli_composes_core_lifecycle_paths() -> None:
     app = create_app([])
 
     assert app.core_updater is not None
+    assert app.core_channel_manager is not None
     plan = app.core_updater.plan(
         PlanCoreUpdateRequest(
             version="1.14.0-alpha.45",
