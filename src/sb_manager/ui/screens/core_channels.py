@@ -21,7 +21,7 @@ from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.seams.core_switcher import CoreSwitchError
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
-from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
+from sb_manager.ui.core_artifact_copy import artifact_evidence_widgets, artifact_warning_widgets
 from sb_manager.ui.screens.core_update import CoreUpdateErrorScreen, CoreUpdateResultScreen
 
 _ChannelPlanningOutcome = CoreChannelPlan | None
@@ -161,37 +161,16 @@ class CoreChannelPlanScreen(ConfirmedOperationScreen[None]):
                 markup=False,
             )
             if self.plan.exact_update is not None:
-                artifact = self.plan.exact_update.artifact
-                yield Static(
-                    self.copy.text(
-                        UiText.CORE_UPDATE_PLAN_ASSET,
-                        asset=artifact.asset_name,
-                    ),
-                    id="core-channel-plan-asset",
-                    markup=False,
+                yield from artifact_evidence_widgets(
+                    self.copy,
+                    self.plan.exact_update.artifact,
+                    field_id_prefix="core-channel-plan",
                 )
-                yield Static(
-                    self.copy.text(
-                        UiText.CORE_UPDATE_PLAN_SHA256,
-                        sha256=artifact.sha256,
-                    ),
-                    id="core-channel-plan-sha256",
-                    markup=False,
+                yield from artifact_warning_widgets(
+                    self.copy,
+                    self.plan.exact_update.warnings,
+                    warning_id_prefix="core-channel-warning",
                 )
-                yield Static(
-                    self.copy.text(
-                        UiText.CORE_UPDATE_PLAN_TRUST,
-                        trust=self.copy.text(TRUST_COPY[artifact.trust_mode]),
-                    ),
-                    id="core-channel-plan-trust",
-                    markup=False,
-                )
-                for index, warning in enumerate(self.plan.exact_update.warnings):
-                    yield Static(
-                        self.copy.text(WARNING_COPY[warning]),
-                        id=f"core-channel-warning-{index}",
-                        markup=False,
-                    )
             if self.plan.target is not None:
                 yield Static(
                     self.copy.text(

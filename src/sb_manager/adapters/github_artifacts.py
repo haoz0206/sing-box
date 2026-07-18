@@ -140,7 +140,7 @@ class GitHubArtifactSource:
         )
 
     def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
-        metadata = self._release_metadata(request, require_immutable=False)
+        metadata = self._release_metadata(request)
         asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
         asset = self._find_asset(metadata, asset_name)
         sha256 = self._sha256(asset)
@@ -169,8 +169,6 @@ class GitHubArtifactSource:
     def _release_metadata(
         self,
         request: CoreArtifactRequest,
-        *,
-        require_immutable: bool = True,
     ) -> Mapping[object, object]:
         raw_metadata = self._http_client.get_json(self._RELEASE_API.format(version=request.version))
         if not isinstance(raw_metadata, Mapping):
@@ -190,8 +188,6 @@ class GitHubArtifactSource:
             raise ArtifactTrustError("Release prerelease classification is inconsistent")
         if prerelease and not request.allow_prerelease:
             raise ArtifactTrustError("Prerelease requires explicit permission")
-        if require_immutable and not immutable:
-            raise ArtifactTrustError("Release is not immutable")
         return raw_metadata
 
     @staticmethod

@@ -21,7 +21,7 @@ from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
-from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
+from sb_manager.ui.core_artifact_copy import artifact_evidence_widgets, artifact_warning_widgets
 
 _PlanningOutcome = CoreUpdatePlan | UiText | None
 
@@ -206,29 +206,10 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
                 id="core-update-plan-architecture",
                 markup=False,
             )
-            yield Static(
-                self.copy.text(
-                    UiText.CORE_UPDATE_PLAN_ASSET,
-                    asset=self.plan.asset_name,
-                ),
-                id="core-update-plan-asset",
-                markup=False,
-            )
-            yield Static(
-                self.copy.text(
-                    UiText.CORE_UPDATE_PLAN_SHA256,
-                    sha256=self.plan.artifact.sha256,
-                ),
-                id="core-update-plan-sha256",
-                markup=False,
-            )
-            yield Static(
-                self.copy.text(
-                    UiText.CORE_UPDATE_PLAN_TRUST,
-                    trust=self.copy.text(TRUST_COPY[self.plan.artifact.trust_mode]),
-                ),
-                id="core-update-plan-trust",
-                markup=False,
+            yield from artifact_evidence_widgets(
+                self.copy,
+                self.plan.artifact,
+                field_id_prefix="core-update-plan",
             )
             yield Static(
                 self.copy.text(
@@ -238,12 +219,11 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
                 id="core-update-plan-source",
                 markup=False,
             )
-            for index, warning in enumerate(self.plan.warnings):
-                yield Static(
-                    self.copy.text(WARNING_COPY[warning]),
-                    id=f"core-update-warning-{index}",
-                    markup=False,
-                )
+            yield from artifact_warning_widgets(
+                self.copy,
+                self.plan.warnings,
+                warning_id_prefix="core-update-warning",
+            )
             yield Static(
                 self.copy.text(UiText.CORE_UPDATE_PLAN_SAFETY),
                 id="core-update-plan-safety",
