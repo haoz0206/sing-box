@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -14,8 +15,6 @@ from sb_manager.privileged.core_install import (
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreArtifactTrustMode
 
-SHA256_HEXDIGEST_LENGTH = 64
-
 
 @pytest.mark.integration
 def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: Path) -> None:
@@ -29,6 +28,22 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
         selected_architecture = ArtifactArchitecture(architecture)
     except ValueError:
         pytest.fail("SB_MANAGER_ARTIFACT_ARCHITECTURE must be amd64 or arm64")
+    expected_trust_mode_value = os.environ.get("SB_MANAGER_ARTIFACT_TRUST_MODE")
+    expected_sha256 = os.environ.get("SB_MANAGER_ARTIFACT_SHA256")
+    if expected_trust_mode_value is None:
+        pytest.fail("SB_MANAGER_ARTIFACT_TRUST_MODE is required")
+    if expected_sha256 is None:
+        pytest.fail("SB_MANAGER_ARTIFACT_SHA256 is required")
+    try:
+        expected_trust_mode = CoreArtifactTrustMode(expected_trust_mode_value)
+    except ValueError:
+        pytest.fail(
+            "SB_MANAGER_ARTIFACT_TRUST_MODE must be immutable-release or digest-pinned-stable"
+        )
+    if re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None:
+        pytest.fail(
+            "SB_MANAGER_ARTIFACT_SHA256 must be exactly 64 lowercase hexadecimal characters"
+        )
 
     policy = PrivilegedCoreInstallPolicy(
         incoming_directory=tmp_path / "incoming",
@@ -48,11 +63,8 @@ def test_official_release_is_acquired_staged_and_atomically_activated(tmp_path: 
             allow_prerelease=os.environ.get("SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE") == "1",
         )
     )
-    expected_trust_mode = os.environ.get("SB_MANAGER_ARTIFACT_TRUST_MODE")
-    if expected_trust_mode is None:
-        pytest.fail("SB_MANAGER_ARTIFACT_TRUST_MODE is required")
-    assert plan.artifact.trust_mode is CoreArtifactTrustMode(expected_trust_mode)
-    assert len(plan.artifact.sha256) == SHA256_HEXDIGEST_LENGTH
+    assert plan.artifact.trust_mode is expected_trust_mode
+    assert plan.artifact.sha256 == expected_sha256
     activation = core_updates.execute(plan, confirmed=True).activation
 
     assert activation.version == version
