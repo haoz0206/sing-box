@@ -258,3 +258,16 @@ async def test_advanced_operator_can_still_choose_an_exact_protocol_variant() ->
         assert app.screen.query_one("#vmess-grpc-form-title", Static).content == (
             "配置 VMess TLS gRPC"
         )
+
+
+async def test_direct_protocol_selection_includes_preview_only_snell_v6() -> None:
+    app = ManagerApp(manager=Manager(state_store=MemoryStateStore()))
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await pilot.click("#choose-protocol-directly")
+
+        snell = app.screen.query_one("#protocol-snell-v6", Button)
+        assert snell.name == "snell-v6"
+        assert "Snell v6" in str(snell.label)
+        assert "Preview / 1.14+" in str(snell.label)

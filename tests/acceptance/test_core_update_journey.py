@@ -17,7 +17,10 @@ from sb_manager.application.core_update import (
     CoreUpdateWarning,
     PlanCoreUpdateRequest,
 )
-from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
+from sb_manager.application.protocol_compatibility import (
+    CoreTargetIncompatibleWithDesiredState,
+    ProtocolCompatibilityPolicy,
+)
 from sb_manager.artifacts.installation import CoreActivation
 from sb_manager.domain.installation import (
     ManagedInstallation,
@@ -42,6 +45,22 @@ VERSION = "1.14.0-alpha.45"
 STABLE_VERSION = "1.13.14"
 PREVIEW_SHA256 = "a" * 64
 STABLE_SHA256 = "b" * 64
+
+
+class SentinelCompatibilityPolicy(ProtocolCompatibilityPolicy):
+    def require_profiles_supported(
+        self,
+        profiles: object,
+        *,
+        target_version: str,
+    ) -> None:
+        error = CoreTargetIncompatibleWithDesiredState(
+            target_version=target_version,
+            blocking_profile_ids=("private-id-sentinel",),
+            blocking_profile_names=("Surge 手机",),
+        )
+        error.args = ("raw-exception-sentinel material-sentinel inbound-json-sentinel",)
+        raise error
 
 
 class CoreUpdateMarkerCatalog:
@@ -263,7 +282,7 @@ async def test_applied_snell_rejects_stable_review_before_artifact_acquisition(
         core_activator=activator,
         incoming_directory=tmp_path / "incoming",
         state_store=MemoryStateStore(installation_with_active_snell()),
-        compatibility=ProtocolCompatibilityPolicy(),
+        compatibility=SentinelCompatibilityPolicy(),
         apply_lock=JourneyApplyLock(),
     )
     app = ManagerApp(core_updater=updater)
@@ -276,7 +295,18 @@ async def test_applied_snell_rejects_stable_review_before_artifact_acquisition(
         await app.workers.wait_for_complete()
         await pilot.pause()
 
-        assert app.screen.query_one("#core-update-planning-error")
+        assert app.screen.query_one("#core-target-compatibility")
+        assert app.screen.query_one("#core-target-version", Static).content == (
+            f"目标核心：{STABLE_VERSION}"
+        )
+        assert app.screen.query_one("#core-target-blockers", Static).content == (
+            "阻止切换的配置：Surge 手机"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-id-sentinel" not in rendered
+        assert "raw-exception-sentinel" not in rendered
+        assert "material-sentinel" not in rendered
+        assert "inbound-json-sentinel" not in rendered
         assert not app.screen.query("#core-update-plan")
 
     assert artifacts.inspect_requests == []

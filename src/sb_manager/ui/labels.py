@@ -11,4 +11,5 @@ PROTOCOL_LABELS: dict[ProtocolKind, str] = {
     ProtocolKind.TUIC: "TUIC",
     ProtocolKind.VLESS_TLS: "VLESS TLS",
     ProtocolKind.VMESS_TLS: "VMess TLS",
+    ProtocolKind.SNELL_V6: "Snell v6",
 }

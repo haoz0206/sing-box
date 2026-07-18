@@ -27,6 +27,7 @@ class ProtocolVariant(str, Enum):
     VLESS_GRPC = "vless-grpc"
     VMESS_WEBSOCKET = "vmess-websocket"
     VMESS_GRPC = "vmess-grpc"
+    SNELL_V6 = "snell-v6"
 
 
 class RecommendationRationale(str, Enum):
@@ -44,6 +45,7 @@ class RecommendationRationale(str, Enum):
     COMPATIBILITY_TROJAN = "compatibility.trojan"
     COMPATIBILITY_SHADOWSOCKS = "compatibility.shadowsocks"
     COMPATIBILITY_VMESS_WEBSOCKET = "compatibility.vmess-websocket"
+    COMPATIBILITY_SNELL_V6 = "compatibility.snell-v6"
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +89,10 @@ class ProfileRecommendationService:
                     ProtocolRecommendation(
                         variant=ProtocolVariant.VMESS_WEBSOCKET,
                         rationale=RecommendationRationale.COMPATIBILITY_VMESS_WEBSOCKET,
+                    ),
+                    ProtocolRecommendation(
+                        variant=ProtocolVariant.SNELL_V6,
+                        rationale=RecommendationRationale.COMPATIBILITY_SNELL_V6,
                     ),
                 ),
             )

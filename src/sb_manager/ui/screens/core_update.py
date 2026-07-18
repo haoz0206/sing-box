@@ -17,13 +17,16 @@ from sb_manager.application.core_update import (
     CoreUpdateResult,
     PlanCoreUpdateRequest,
 )
+from sb_manager.application.protocol_compatibility import (
+    CoreTargetIncompatibleWithDesiredState,
+)
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.core_artifact_copy import artifact_evidence_widgets, artifact_warning_widgets
 
-_PlanningOutcome = CoreUpdatePlan | UiText | None
+_PlanningOutcome = CoreUpdatePlan | UiText | CoreTargetIncompatibleWithDesiredState | None
 
 
 class CoreUpdateResultScreen(Screen[None]):
@@ -164,6 +167,54 @@ class CoreUpdatePlanningErrorScreen(Screen[None]):
             yield Static(
                 self.copy.text(UiText.CORE_UPDATE_PLANNING_ERROR_SAFETY),
                 id="core-update-planning-error-safety",
+                markup=False,
+            )
+        yield Footer()
+
+
+class CoreTargetCompatibilityScreen(Screen[None]):
+    """Show structured blocker identities for a rejected core target."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(
+        self,
+        error: CoreTargetIncompatibleWithDesiredState,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+    ) -> None:
+        super().__init__()
+        self.error = error
+        self.copy = copy_catalog
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="core-target-compatibility"):
+            yield Static(
+                self.copy.text(UiText.CORE_TARGET_COMPATIBILITY_TITLE),
+                id="core-target-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.CORE_TARGET_COMPATIBILITY_VERSION,
+                    version=self.error.target_version,
+                ),
+                id="core-target-version",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.CORE_TARGET_COMPATIBILITY_BLOCKERS,
+                    names=", ".join(self.error.blocking_profile_names),
+                ),
+                id="core-target-blockers",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(UiText.CORE_TARGET_COMPATIBILITY_SAFETY),
+                id="core-target-safety",
                 markup=False,
             )
         yield Footer()
@@ -405,6 +456,9 @@ class CoreUpdateFormScreen(Screen[None]):
                 UiText.CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT,
             )
             return
+        except CoreTargetIncompatibleWithDesiredState as error:
+            self.app.call_from_thread(self._show_target_incompatibility, generation, error)
+            return
         except Exception:
             self.app.call_from_thread(self._show_planning_error, generation)
             return
@@ -443,6 +497,10 @@ class CoreUpdateFormScreen(Screen[None]):
         if isinstance(outcome, UiText):
             error.update(self.copy.text(outcome))
             return
+        if isinstance(outcome, CoreTargetIncompatibleWithDesiredState):
+            error.update("")
+            self.app.push_screen(CoreTargetCompatibilityScreen(outcome, self.copy))
+            return
         if outcome is None:
             self.app.push_screen(CoreUpdatePlanningErrorScreen(self.copy))
             return
@@ -462,6 +520,13 @@ class CoreUpdateFormScreen(Screen[None]):
 
     def _show_planning_error(self, generation: int) -> None:
         self._deliver_or_defer_planning(generation, None)
+
+    def _show_target_incompatibility(
+        self,
+        generation: int,
+        error: CoreTargetIncompatibleWithDesiredState,
+    ) -> None:
+        self._deliver_or_defer_planning(generation, error)
 
     def _show_plan(self, generation: int, plan: CoreUpdatePlan) -> None:
         self._deliver_or_defer_planning(generation, plan)

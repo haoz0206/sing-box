@@ -19,7 +19,10 @@ from sb_manager.application.core_update import (
     PlanCoreChannelRequest,
     PlanCoreUpdateRequest,
 )
-from sb_manager.application.protocol_compatibility import ProtocolCompatibilityPolicy
+from sb_manager.application.protocol_compatibility import (
+    CoreTargetIncompatibleWithDesiredState,
+    ProtocolCompatibilityPolicy,
+)
 from sb_manager.artifacts.installation import (
     CoreActivation,
     CoreReleaseIdentity,
@@ -47,6 +50,22 @@ from sb_manager.ui.app import ManagerApp
 from sb_manager.ui.screens.core_channels import CoreChannelSelectionScreen
 
 EXPECTED_PLANNING_ATTEMPTS = 2
+
+
+class SentinelCompatibilityPolicy(ProtocolCompatibilityPolicy):
+    def require_profiles_supported(
+        self,
+        profiles: object,
+        *,
+        target_version: str,
+    ) -> None:
+        error = CoreTargetIncompatibleWithDesiredState(
+            target_version=target_version,
+            blocking_profile_ids=("private-id-sentinel",),
+            blocking_profile_names=("Surge 手机",),
+        )
+        error.args = ("raw-exception-sentinel material-sentinel inbound-json-sentinel",)
+        raise error
 
 
 class NeverCalledExactUpdater:
@@ -355,7 +374,7 @@ async def test_applied_snell_rejects_retained_stable_before_acquire_or_switch(
     tmp_path: Path,
 ) -> None:
     state_store = MemoryStateStore(installation_with_active_snell())
-    compatibility = ProtocolCompatibilityPolicy()
+    compatibility = SentinelCompatibilityPolicy()
     source = JourneyCoreSource()
     controller = JourneyCoreController()
     apply_lock = JourneyApplyLock()
@@ -384,7 +403,16 @@ async def test_applied_snell_rejects_retained_stable_before_acquire_or_switch(
         await app.workers.wait_for_complete()
         await pilot.pause()
 
-        assert app.screen.query_one("#core-channel-planning-error")
+        assert app.screen.query_one("#core-target-compatibility")
+        assert app.screen.query_one("#core-target-version", Static).content == ("目标核心：1.13.14")
+        assert app.screen.query_one("#core-target-blockers", Static).content == (
+            "阻止切换的配置：Surge 手机"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-id-sentinel" not in rendered
+        assert "raw-exception-sentinel" not in rendered
+        assert "material-sentinel" not in rendered
+        assert "inbound-json-sentinel" not in rendered
         assert not app.screen.query("#core-channel-plan")
 
     assert source.release_channels == [CoreReleaseChannel.STABLE]

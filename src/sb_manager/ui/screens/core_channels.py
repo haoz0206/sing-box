@@ -16,15 +16,22 @@ from sb_manager.application.core_update import (
     CoreChannelPlanKind,
     PlanCoreChannelRequest,
 )
+from sb_manager.application.protocol_compatibility import (
+    CoreTargetIncompatibleWithDesiredState,
+)
 from sb_manager.seams.artifact_source import ArtifactArchitecture, CoreReleaseChannel
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.seams.core_switcher import CoreSwitchError
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 from sb_manager.ui.core_artifact_copy import artifact_evidence_widgets, artifact_warning_widgets
-from sb_manager.ui.screens.core_update import CoreUpdateErrorScreen, CoreUpdateResultScreen
+from sb_manager.ui.screens.core_update import (
+    CoreTargetCompatibilityScreen,
+    CoreUpdateErrorScreen,
+    CoreUpdateResultScreen,
+)
 
-_ChannelPlanningOutcome = CoreChannelPlan | None
+_ChannelPlanningOutcome = CoreChannelPlan | CoreTargetIncompatibleWithDesiredState | None
 
 
 def _channel_label(channel: CoreReleaseChannel) -> str:
@@ -374,6 +381,13 @@ class CoreChannelSelectionScreen(Screen[None]):
             plan = self.core_channels.plan(
                 PlanCoreChannelRequest(channel=channel, architecture=architecture)
             )
+        except CoreTargetIncompatibleWithDesiredState as error:
+            self.app.call_from_thread(
+                self._show_target_incompatibility,
+                generation,
+                error,
+            )
+            return
         except Exception:
             self.app.call_from_thread(
                 self._show_planning_error,
@@ -416,6 +430,9 @@ class CoreChannelSelectionScreen(Screen[None]):
         if outcome is None:
             self.app.push_screen(CoreChannelPlanningErrorScreen(self.copy))
             return
+        if isinstance(outcome, CoreTargetIncompatibleWithDesiredState):
+            self.app.push_screen(CoreTargetCompatibilityScreen(outcome, self.copy))
+            return
         if outcome.kind is CoreChannelPlanKind.ALREADY_CURRENT:
             self.app.push_screen(CoreChannelCurrentScreen(outcome, self.copy))
             return
@@ -431,6 +448,13 @@ class CoreChannelSelectionScreen(Screen[None]):
 
     def _show_planning_error(self, generation: int) -> None:
         self._deliver_or_defer_planning(generation, None)
+
+    def _show_target_incompatibility(
+        self,
+        generation: int,
+        error: CoreTargetIncompatibleWithDesiredState,
+    ) -> None:
+        self._deliver_or_defer_planning(generation, error)
 
     def _show_plan(self, generation: int, plan: CoreChannelPlan) -> None:
         self._deliver_or_defer_planning(generation, plan)

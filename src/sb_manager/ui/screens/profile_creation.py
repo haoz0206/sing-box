@@ -32,6 +32,12 @@ from sb_manager.application.profile_apply import (
     ProfileApplyPlan,
 )
 from sb_manager.application.profile_recommendation import ProtocolVariant
+from sb_manager.application.protocol_compatibility import (
+    SNELL_V6_INTRODUCTION,
+    CoreVersionChanged,
+    ProtocolCompatibilityError,
+    ProtocolCompatibilityPolicy,
+)
 from sb_manager.domain.installation import ManagedInstallation, PortSelection, ProtocolKind
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
@@ -151,6 +157,14 @@ VMESS_GRPC_PROFILE = GuidedProfileDefinition(
     uses_tls=True,
     uses_grpc=True,
 )
+SNELL_V6_PROFILE = GuidedProfileDefinition(
+    protocol=ProtocolKind.SNELL_V6,
+    form_id="snell-v6-form",
+    title_id="snell-v6-form-title",
+    guidance_id="snell-v6-guidance",
+    title_key=UiText.PROFILE_CREATION_FORM_TITLE_SNELL_V6,
+    guidance_key=UiText.PROFILE_CREATION_FORM_GUIDANCE_SNELL_V6,
+)
 GUIDED_PROFILES_BY_VARIANT: dict[ProtocolVariant, GuidedProfileDefinition] = {
     ProtocolVariant.VLESS_REALITY: REALITY_PROFILE,
     ProtocolVariant.SHADOWSOCKS: SHADOWSOCKS_PROFILE,
@@ -162,6 +176,7 @@ GUIDED_PROFILES_BY_VARIANT: dict[ProtocolVariant, GuidedProfileDefinition] = {
     ProtocolVariant.VLESS_GRPC: VLESS_GRPC_PROFILE,
     ProtocolVariant.VMESS_WEBSOCKET: VMESS_WEBSOCKET_PROFILE,
     ProtocolVariant.VMESS_GRPC: VMESS_GRPC_PROFILE,
+    ProtocolVariant.SNELL_V6: SNELL_V6_PROFILE,
 }
 
 
@@ -486,6 +501,16 @@ class ApplyConfirmationScreen(ConfirmedOperationScreen[None]):
     def execute_apply(self, request: ApplyProfileRequest) -> None:
         try:
             result = self.profile_applier.apply_profile(request)
+        except ProtocolCompatibilityError as error:
+            self.app.call_from_thread(
+                self.push_terminal_screen,
+                ProtocolCompatibilityErrorScreen(
+                    error,
+                    self.copy,
+                    draft_exists=True,
+                ),
+            )
+            return
         except ConfigurationApplyError as error:
             self.app.call_from_thread(
                 self.push_terminal_screen,
@@ -523,6 +548,7 @@ class DraftSavedScreen(Screen[None]):
         self.installation = installation
         self.profile_applier = profile_applier
         self.copy = copy_catalog
+        self._apply_planning_generation = 0
         try:
             self.profile = next(
                 profile for profile in installation.profiles if profile.profile_id == profile_id
@@ -567,14 +593,63 @@ class DraftSavedScreen(Screen[None]):
     @on(Button.Pressed, "#apply-draft")
     def open_apply_confirmation(self) -> None:
         if self.profile_applier is not None:
-            plan = self.profile_applier.plan_profile(self.profile.profile_id)
-            self.app.push_screen(
-                ApplyConfirmationScreen(
-                    plan,
-                    self.profile_applier,
-                    copy_catalog=self.copy,
-                )
+            self._apply_planning_generation += 1
+            generation = self._apply_planning_generation
+            self.query_one("#apply-draft", Button).disabled = True
+            self._plan_apply_worker(self.profile.profile_id, generation)
+
+    @work(thread=True, exclusive=True)
+    def _plan_apply_worker(self, profile_id: str, generation: int) -> None:
+        assert self.profile_applier is not None
+        try:
+            plan = self.profile_applier.plan_profile(profile_id)
+        except ProtocolCompatibilityError as error:
+            self.app.call_from_thread(self._show_apply_compatibility_error, generation, error)
+        except Exception:
+            self.app.call_from_thread(self._show_apply_planning_error, generation)
+        else:
+            self.app.call_from_thread(self._show_apply_confirmation, generation, plan)
+
+    def _current_apply_planning(self, generation: int) -> bool:
+        return self.is_mounted and generation == self._apply_planning_generation
+
+    def _restore_apply_button(self) -> None:
+        self.query_one("#apply-draft", Button).disabled = False
+
+    def _show_apply_compatibility_error(
+        self,
+        generation: int,
+        error: ProtocolCompatibilityError,
+    ) -> None:
+        if not self._current_apply_planning(generation):
+            return
+        self._restore_apply_button()
+        self.app.push_screen(
+            ProtocolCompatibilityErrorScreen(
+                error,
+                self.copy,
+                draft_exists=True,
             )
+        )
+
+    def _show_apply_planning_error(self, generation: int) -> None:
+        if not self._current_apply_planning(generation):
+            return
+        self._restore_apply_button()
+        self.app.push_screen(ProfilePlanningUnexpectedErrorScreen(self.copy))
+
+    def _show_apply_confirmation(self, generation: int, plan: ProfileApplyPlan) -> None:
+        if not self._current_apply_planning(generation):
+            return
+        self._restore_apply_button()
+        assert self.profile_applier is not None
+        self.app.push_screen(
+            ApplyConfirmationScreen(
+                plan,
+                self.profile_applier,
+                copy_catalog=self.copy,
+            )
+        )
 
     @on(Button.Pressed, "#draft-return-dashboard")
     def return_to_dashboard(self) -> None:
@@ -605,6 +680,7 @@ class PlanPreviewScreen(Screen[None]):
         GeneratedValue.TUIC_PASSWORD: (UiText.PROFILE_CREATION_PLAN_GENERATED_TUIC_PASSWORD),
         GeneratedValue.VLESS_UUID: UiText.PROFILE_CREATION_PLAN_GENERATED_VLESS_UUID,
         GeneratedValue.VMESS_UUID: UiText.PROFILE_CREATION_PLAN_GENERATED_VMESS_UUID,
+        GeneratedValue.SNELL_PSK: UiText.PROFILE_CREATION_PLAN_GENERATED_SNELL_PSK,
         GeneratedValue.TLS_CERTIFICATE: (UiText.PROFILE_CREATION_PLAN_GENERATED_TLS_CERTIFICATE),
     }
 
@@ -880,6 +956,111 @@ class ProfilePlanningUnexpectedErrorScreen(Screen[None]):
         yield Footer()
 
 
+class ProtocolCompatibilityErrorScreen(Screen[None]):
+    """Render structured core compatibility evidence without secret material."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        ("escape", "app.pop_screen", SIMPLIFIED_CHINESE.text(UiText.COMMON_RETURN))
+    ]
+
+    def __init__(
+        self,
+        error: ProtocolCompatibilityError,
+        copy_catalog: CopyCatalog = SIMPLIFIED_CHINESE,
+        *,
+        draft_exists: bool = False,
+    ) -> None:
+        super().__init__()
+        self.copy = copy_catalog
+        self.protocol = getattr(error, "protocol", ProtocolKind.SNELL_V6)
+        self.observed_version = getattr(error, "observed_version", None)
+        self.minimum_version = getattr(error, "minimum_version", SNELL_V6_INTRODUCTION)
+        self.expected_version = getattr(error, "expected_version", None)
+        self.compatible_core_change = (
+            isinstance(error, CoreVersionChanged)
+            and self.observed_version is not None
+            and ProtocolCompatibilityPolicy().supports(
+                self.protocol,
+                self.observed_version,
+            )
+        )
+        self.draft_exists = draft_exists
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Vertical(id="protocol-compatibility-error"):
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_CREATION_COMPATIBILITY_CHANGED_TITLE
+                    if self.compatible_core_change
+                    else UiText.PROFILE_CREATION_COMPATIBILITY_TITLE,
+                    **(
+                        {}
+                        if self.compatible_core_change
+                        else {"protocol": PROTOCOL_LABELS[self.protocol]}
+                    ),
+                ),
+                id="protocol-compatibility-title",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_CREATION_COMPATIBILITY_PROTOCOL,
+                    protocol=PROTOCOL_LABELS[self.protocol],
+                ),
+                id="protocol-compatibility-protocol",
+                markup=False,
+            )
+            if self.observed_version is not None:
+                if self.expected_version is not None:
+                    yield Static(
+                        self.copy.text(
+                            UiText.PROFILE_CREATION_COMPATIBILITY_EXPECTED,
+                            version=self.expected_version,
+                        ),
+                        id="protocol-compatibility-expected",
+                        markup=False,
+                    )
+                yield Static(
+                    self.copy.text(
+                        UiText.PROFILE_CREATION_COMPATIBILITY_OBSERVED,
+                        version=self.observed_version,
+                    ),
+                    id="protocol-compatibility-observed",
+                    markup=False,
+                )
+            if not self.compatible_core_change:
+                yield Static(
+                    self.copy.text(
+                        UiText.PROFILE_CREATION_COMPATIBILITY_MINIMUM,
+                        version=self.minimum_version,
+                    ),
+                    id="protocol-compatibility-minimum",
+                    markup=False,
+                )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_CREATION_COMPATIBILITY_SAFETY_APPLY
+                    if self.draft_exists
+                    else UiText.PROFILE_CREATION_COMPATIBILITY_SAFETY
+                ),
+                id="protocol-compatibility-safety",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_CHANGED
+                    if self.compatible_core_change
+                    else UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_UNKNOWN
+                    if self.observed_version is None
+                    else UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_STABLE
+                ),
+                id="protocol-compatibility-recovery",
+                markup=False,
+            )
+        yield Footer()
+
+
 class GuidedProfileScreen(Screen[None]):
     """Collect common intent using protocol-specific operator guidance."""
 
@@ -945,6 +1126,7 @@ class GuidedProfileScreen(Screen[None]):
         self.definition = definition
         self.profile_applier = profile_applier
         self.copy = copy_catalog
+        self._planning_generation = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -1192,9 +1374,58 @@ class GuidedProfileScreen(Screen[None]):
             tls=tls,
             transport=transport,
         )
-        plan = self._plan_profile(request)
-        if plan is None:
+        self._planning_generation += 1
+        generation = self._planning_generation
+        self.query_one("#preview-plan", Button).disabled = True
+        self._plan_profile_worker(request, generation)
+
+    @work(thread=True, exclusive=True)
+    def _plan_profile_worker(self, request: PlanProfileRequest, generation: int) -> None:
+        try:
+            plan = self.manager.plan_profile(request)
+        except ProtocolCompatibilityError as error:
+            self.app.call_from_thread(self._show_compatibility_error, generation, error)
+        except PlanValidationError as error:
+            self.app.call_from_thread(self._show_validation, generation, error)
+        except Exception:
+            self.app.call_from_thread(self._show_unexpected_error, generation)
+        else:
+            self.app.call_from_thread(self._show_plan, generation, plan)
+
+    def _current_planning(self, generation: int) -> bool:
+        return self.is_mounted and generation == self._planning_generation
+
+    def _restore_planning_button(self) -> None:
+        self.query_one("#preview-plan", Button).disabled = False
+
+    def _show_compatibility_error(
+        self,
+        generation: int,
+        error: ProtocolCompatibilityError,
+    ) -> None:
+        if not self._current_planning(generation):
             return
+        self._restore_planning_button()
+        self.app.push_screen(ProtocolCompatibilityErrorScreen(error, self.copy))
+
+    def _show_validation(self, generation: int, error: PlanValidationError) -> None:
+        if not self._current_planning(generation):
+            return
+        self._restore_planning_button()
+        for issue in error.issues:
+            if error_selector := self.ERROR_SELECTORS.get(issue.field):
+                self.query_one(error_selector, Static).update(self._validation_issue_text(issue))
+
+    def _show_unexpected_error(self, generation: int) -> None:
+        if not self._current_planning(generation):
+            return
+        self._restore_planning_button()
+        self.app.push_screen(ProfilePlanningUnexpectedErrorScreen(self.copy))
+
+    def _show_plan(self, generation: int, plan: ProfilePlan) -> None:
+        if not self._current_planning(generation):
+            return
+        self._restore_planning_button()
         self.app.push_screen(
             PlanPreviewScreen(
                 self.manager,
@@ -1203,20 +1434,6 @@ class GuidedProfileScreen(Screen[None]):
                 self.copy,
             )
         )
-
-    def _plan_profile(self, request: PlanProfileRequest) -> ProfilePlan | None:
-        try:
-            return self.manager.plan_profile(request)
-        except PlanValidationError as error:
-            for issue in error.issues:
-                if error_selector := self.ERROR_SELECTORS.get(issue.field):
-                    self.query_one(error_selector, Static).update(
-                        self._validation_issue_text(issue)
-                    )
-            return None
-        except Exception:
-            self.app.push_screen(ProfilePlanningUnexpectedErrorScreen(self.copy))
-            return None
 
     def _validation_issue_text(self, issue: ValidationIssue) -> str:
         key = self.VALIDATION_COPY[issue.code]

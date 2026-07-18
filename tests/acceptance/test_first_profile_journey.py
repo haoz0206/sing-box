@@ -1,5 +1,7 @@
+import asyncio
 import time
 from pathlib import Path
+from threading import Event
 from typing import cast
 
 from textual.containers import VerticalScroll
@@ -41,6 +43,11 @@ from sb_manager.application.profile_details import (
     ProfileDetails,
     ProfileDetailsNotFoundError,
 )
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionChanged,
+    ProtocolUnsupportedByCore,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
@@ -55,6 +62,7 @@ from sb_manager.protocols.catalog import (
 )
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
+from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
 from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transactions.apply import (
@@ -214,6 +222,10 @@ async def open_direct_protocol_selection(
     await pilot.pause()
 
 
+async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
+    assert await asyncio.to_thread(event.wait, timeout)
+
+
 class FixedProfileApplyPlanner:
     def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
         return ProfileApplyPlan(
@@ -222,6 +234,51 @@ class FixedProfileApplyPlanner:
             expected_revision=1,
             observed_core_version=None,
         )
+
+
+class FixedCoreStatusInspector:
+    def __init__(self, version: str | None) -> None:
+        self.version = version
+
+    def inspect(self) -> CoreStatusObservation:
+        return CoreStatusObservation(
+            available=self.version is not None,
+            version=self.version,
+            diagnostics="token=private-core-probe-details",
+        )
+
+
+class BlockingProfilePlanningManager(Manager):
+    def __init__(self) -> None:
+        super().__init__(state_store=MemoryStateStore())
+        self.planning_started = Event()
+        self.release_planning = Event()
+        self.planning_returned = Event()
+
+    def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
+        self.planning_started.set()
+        assert self.release_planning.wait(timeout=1)
+        plan = super().plan_profile(request)
+        self.planning_returned.set()
+        return plan
+
+
+class SequencedProfilePlanningManager(Manager):
+    def __init__(self) -> None:
+        super().__init__(state_store=MemoryStateStore())
+        self.requests: list[PlanProfileRequest] = []
+        self.planning_started = (Event(), Event())
+        self.release_planning = (Event(), Event())
+        self.planning_returned = (Event(), Event())
+
+    def plan_profile(self, request: PlanProfileRequest) -> ProfilePlan:
+        generation = len(self.requests)
+        self.requests.append(request)
+        self.planning_started[generation].set()
+        assert self.release_planning[generation].wait(timeout=1)
+        plan = super().plan_profile(request)
+        self.planning_returned[generation].set()
+        return plan
 
 
 class RecordingProfileApplier(FixedProfileApplyPlanner):
@@ -271,6 +328,107 @@ class RecordingProfileApplier(FixedProfileApplyPlanner):
                     ),
                 ),
             ),
+        )
+
+
+class RecordingSnellProfileApplier(RecordingProfileApplier):
+    def __init__(self) -> None:
+        super().__init__(
+            profile_name="Surge 手机",
+            observed_core_version="1.14.0-alpha.47",
+        )
+
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        self.requests.append(request)
+        return ApplyProfileResult(
+            transaction=ApplyTransactionResult(
+                outcome=ApplyOutcome.APPLIED,
+                validation=ConfigValidationResult(valid=True, diagnostics="valid"),
+                runtime_refresh=RuntimeRefreshResult(success=True, diagnostics="reloaded"),
+                postcondition=RuntimePostcondition(healthy=True, diagnostics="active"),
+                rollback=None,
+            ),
+            committed_revision=2,
+            connection_info=ProfileConnectionInfo(
+                server_address="vpn.example.com",
+                server_port=4433,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.SURGE_POLICY,
+                    content=(
+                        "Snell-profile-1 = snell, vpn.example.com, 4433, "
+                        "psk=private-snell-psk, version=6"
+                    ),
+                ),
+            ),
+        )
+
+
+class ChangingCoreSnellProfileApplier(RecordingSnellProfileApplier):
+    def __init__(self, current_core_version: str = "1.13.9") -> None:
+        super().__init__()
+        self.current_core_version = current_core_version
+        self.host_mutation_requests: list[ApplyProfileRequest] = []
+
+    def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
+        if request.expected_core_version != self.current_core_version:
+            self.requests.append(request)
+            raise CoreVersionChanged(
+                expected_version=request.expected_core_version or "unknown",
+                observed_version=self.current_core_version,
+            )
+        self.host_mutation_requests.append(request)
+        return super().apply_profile(request)
+
+
+class CompatibleChangingCoreSnellProfileApplier(ChangingCoreSnellProfileApplier):
+    def __init__(self) -> None:
+        super().__init__(current_core_version="1.14.0-alpha.48")
+
+
+class BlockingProfileApplyPlanner(RecordingProfileApplier):
+    def __init__(self) -> None:
+        super().__init__()
+        self.planning_started = Event()
+        self.release_planning = Event()
+        self.planning_returned = Event()
+
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planning_started.set()
+        assert self.release_planning.wait(timeout=1)
+        plan = super().plan_profile(profile_id)
+        self.planning_returned.set()
+        return plan
+
+
+class SequencedProfileApplyPlanner(RecordingProfileApplier):
+    def __init__(self) -> None:
+        super().__init__()
+        self.planning_started = (Event(), Event())
+        self.release_planning = (Event(), Event())
+        self.planning_returned = (Event(), Event())
+
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        generation = len(self.planned_profile_ids)
+        self.planned_profile_ids.append(profile_id)
+        self.planning_started[generation].set()
+        assert self.release_planning[generation].wait(timeout=1)
+        plan = ProfileApplyPlan(
+            profile_id=profile_id,
+            profile_name=f"current-{generation + 1}",
+            expected_revision=generation + 1,
+            observed_core_version=None,
+        )
+        self.planning_returned[generation].set()
+        return plan
+
+
+class IncompatibleProfileApplyPlanner(RecordingProfileApplier):
+    def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
+        self.planned_profile_ids.append(profile_id)
+        raise ProtocolUnsupportedByCore(
+            protocol=ProtocolKind.SNELL_V6,
+            observed_version="1.13.9",
+            minimum_version="1.14.0-alpha.38",
         )
 
 
@@ -1209,6 +1367,380 @@ async def test_operator_gets_a_guided_reality_form() -> None:
         assert server_address.placeholder == "例如：vpn.example.com 或 203.0.113.10"
         assert listen_port.placeholder == "留空自动选择"
         assert str(preview_button.label) == "预览变更计划"
+
+
+async def test_stable_core_rejects_snell_preview_without_draft_or_secret_disclosure() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.13.9")
+        ),
+    )
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+
+        assert app.screen.query_one("#snell-v6-form-title", Static).content == "配置 Snell v6"
+        assert not app.screen.query("#tls-strategy")
+        assert not app.screen.query("#websocket-path")
+        assert not app.screen.query("#grpc-service-name")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        app.screen.query_one("#server-address", Input).value = "vpn.example.com"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.pause()
+
+        assert app.screen.query_one("#protocol-compatibility-title", Static).content == (
+            "当前核心无法使用 Snell v6"
+        )
+        assert app.screen.query_one("#protocol-compatibility-protocol", Static).content == (
+            "协议：Snell v6"
+        )
+        assert app.screen.query_one("#protocol-compatibility-observed", Static).content == (
+            "当前核心：1.13.9"
+        )
+        assert app.screen.query_one("#protocol-compatibility-minimum", Static).content == (
+            "最低版本：1.14.0-alpha.38"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "Stable 1.13.x" in rendered
+        assert "private-core-probe-details" not in rendered
+        assert "psk" not in rendered.lower()
+        assert manager.get_installation().profiles == ()
+
+
+async def test_unknown_core_rejects_snell_with_preview_activation_guidance() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector(None)
+        ),
+    )
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        await pilot.click("#preview-plan")
+        await pilot.pause()
+
+        assert not app.screen.query("#protocol-compatibility-observed")
+        recovery = app.screen.query_one("#protocol-compatibility-recovery", Static)
+        assert "无法确认当前生效核心版本" in str(recovery.content)
+        assert "安装并激活 Preview 1.14.0-alpha.38" in str(recovery.content)
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-core-probe-details" not in rendered
+        assert "psk" not in rendered.lower()
+        assert not app.screen.query("#connection-share-payload")
+        assert manager.get_installation().profiles == ()
+
+
+async def test_preview_core_applies_snell_and_reveals_only_a_surge_v6_policy() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+    profile_applier = RecordingSnellProfileApplier()
+    app = ManagerApp(manager=manager, profile_applier=profile_applier)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        app.screen.query_one("#server-address", Input).value = "vpn.example.com"
+        app.screen.query_one("#listen-port", Input).value = "4433"
+        await pilot.click("#preview-plan")
+        await pilot.pause()
+
+        assert app.screen.query_one("#plan-protocol", Static).content == "协议：Snell v6"
+        assert app.screen.query_one("#plan-generated", Static).content == ("自动生成：Snell v6 PSK")
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#confirm-apply")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert profile_applier.requests == [
+            ApplyProfileRequest(
+                profile_id="profile-1",
+                expected_revision=1,
+                confirmed=True,
+                expected_core_version="1.14.0-alpha.47",
+            )
+        ]
+        assert not app.screen.query("#connection-share-payload")
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-snell-psk" not in rendered
+
+        await pilot.click("#reveal-connection-share")
+
+        assert str(app.screen.query_one("#connection-share-label").render()) == "Surge 策略"
+        policy = app.screen.query_one("#connection-share-payload", TextArea).text
+        assert policy == (
+            "Snell-profile-1 = snell, vpn.example.com, 4433, psk=private-snell-psk, version=6"
+        )
+        assert "version=6" in policy
+
+        await pilot.click("#hide-connection-share")
+        assert not app.screen.query("#connection-share-payload")
+
+
+async def test_apply_planning_incompatibility_is_typed_and_preserves_existing_draft() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+    profile_applier = IncompatibleProfileApplyPlanner()
+    app = ManagerApp(manager=manager, profile_applier=profile_applier)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        await pilot.click("#preview-plan")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#protocol-compatibility-observed", Static).content == (
+            "当前核心：1.13.9"
+        )
+        assert app.screen.query_one("#protocol-compatibility-safety", Static).content == (
+            "草案仍保留; 未修改 managed configuration 或运行中的服务。"
+        )
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "尚未创建草案" not in rendered
+        assert "snell-v6 requires" not in rendered
+        assert manager.get_installation().profiles[0].status is ProfileStatus.DRAFT
+
+
+async def test_core_change_after_snell_plan_is_typed_and_pre_mutation() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+    profile_applier = ChangingCoreSnellProfileApplier()
+    app = ManagerApp(manager=manager, profile_applier=profile_applier)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        app.screen.query_one("#server-address", Input).value = "vpn.example.com"
+        await pilot.click("#preview-plan")
+        await pilot.pause()
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#confirm-apply")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#protocol-compatibility-observed", Static).content == (
+            "当前核心：1.13.9"
+        )
+        assert profile_applier.host_mutation_requests == []
+        assert profile_applier.requests == [
+            ApplyProfileRequest(
+                profile_id="profile-1",
+                expected_revision=1,
+                confirmed=True,
+                expected_core_version="1.14.0-alpha.47",
+            )
+        ]
+        assert not app.screen.query("#connection-share-payload")
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "private-snell-psk" not in rendered
+        assert app.screen.query_one("#protocol-compatibility-safety", Static).content == (
+            "草案仍保留; 未修改 managed configuration 或运行中的服务。"
+        )
+        assert "尚未创建草案" not in rendered
+
+
+async def test_compatible_preview_core_change_requires_replanning_without_mutation() -> None:
+    manager = Manager(
+        state_store=MemoryStateStore(),
+        core_compatibility=ActiveCoreProtocolCompatibility(
+            inspector=FixedCoreStatusInspector("1.14.0-alpha.47")
+        ),
+    )
+    profile_applier = CompatibleChangingCoreSnellProfileApplier()
+    app = ManagerApp(manager=manager, profile_applier=profile_applier)
+
+    async with app.run_test(size=(100, 60)) as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-snell-v6")
+        app.screen.query_one("#profile-name", Input).value = "Surge 手机"
+        await pilot.click("#preview-plan")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#confirm-apply")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#protocol-compatibility-title", Static).content == (
+            "核心版本在规划后发生变化"
+        )
+        assert app.screen.query_one("#protocol-compatibility-protocol", Static).content == (
+            "协议：Snell v6"
+        )
+        assert app.screen.query_one("#protocol-compatibility-expected", Static).content == (
+            "规划时核心：1.14.0-alpha.47"
+        )
+        assert app.screen.query_one("#protocol-compatibility-observed", Static).content == (
+            "当前核心：1.14.0-alpha.48"
+        )
+        assert not app.screen.query("#protocol-compatibility-minimum")
+        assert app.screen.query_one("#protocol-compatibility-safety", Static).content == (
+            "草案仍保留; 未修改 managed configuration 或运行中的服务。"
+        )
+        recovery = app.screen.query_one("#protocol-compatibility-recovery", Static)
+        assert "重新预览" in str(recovery.content)
+        rendered = "\n".join(str(widget.content) for widget in app.screen.query(Static))
+        assert "Stable 1.13.x" not in rendered
+        assert "安装并激活 Preview" not in rendered
+        assert "private-snell-psk" not in rendered
+        assert not app.screen.query("#connection-share-payload")
+        assert profile_applier.host_mutation_requests == []
+        assert manager.get_installation().profiles[0].status is ProfileStatus.DRAFT
+
+
+async def test_leaving_profile_form_discards_stale_planning_completion() -> None:
+    manager = BlockingProfilePlanningManager()
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "后台规划"
+        await pilot.click("#preview-plan")
+        await wait_for_thread_event(manager.planning_started)
+
+        assert app.screen.query_one("#preview-plan", Button).disabled
+        await pilot.press("escape")
+        manager.release_planning.set()
+        await wait_for_thread_event(manager.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert not app.screen.query("#plan-preview")
+
+
+async def test_leaving_saved_draft_discards_stale_apply_planning_completion() -> None:
+    profile_applier = BlockingProfileApplyPlanner()
+    app = ManagerApp(profile_applier=profile_applier)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "后台应用规划"
+        await pilot.click("#preview-plan")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await wait_for_thread_event(profile_applier.planning_started)
+
+        assert app.screen.query_one("#apply-draft", Button).disabled
+        await pilot.press("escape")
+        profile_applier.release_planning.set()
+        await wait_for_thread_event(profile_applier.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert not app.screen.query("#apply-confirmation")
+
+
+async def test_only_current_profile_planning_generation_opens_plan_or_restores_button() -> None:
+    manager = SequencedProfilePlanningManager()
+    app = ManagerApp(manager=manager)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "stale-plan"
+        await pilot.click("#preview-plan")
+        await wait_for_thread_event(manager.planning_started[0])
+
+        app.screen.query_one("#profile-name", Input).value = "current-plan"
+        app.screen.preview_plan()
+        await wait_for_thread_event(manager.planning_started[1])
+        manager.release_planning[0].set()
+        await wait_for_thread_event(manager.planning_returned[0])
+        await pilot.pause()
+
+        assert app.screen.query_one("#preview-plan", Button).disabled
+        assert not app.screen.query("#plan-preview")
+
+        manager.release_planning[1].set()
+        await wait_for_thread_event(manager.planning_returned[1])
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#plan-profile", Static).content == "配置：current-plan"
+        assert not app.screen_stack[-2].query_one("#preview-plan", Button).disabled
+
+
+async def test_only_current_apply_planning_generation_opens_confirmation() -> None:
+    profile_applier = SequencedProfileApplyPlanner()
+    app = ManagerApp(profile_applier=profile_applier)
+
+    async with app.run_test() as pilot:
+        await pilot.click("#dashboard-primary-action")
+        await open_direct_protocol_selection(app, pilot)
+        await pilot.click("#protocol-vless-reality")
+        app.screen.query_one("#profile-name", Input).value = "apply-generation"
+        await pilot.click("#preview-plan")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        await pilot.click("#save-draft")
+        await pilot.click("#apply-draft")
+        await wait_for_thread_event(profile_applier.planning_started[0])
+
+        app.screen.open_apply_confirmation()
+        await wait_for_thread_event(profile_applier.planning_started[1])
+        profile_applier.release_planning[0].set()
+        await wait_for_thread_event(profile_applier.planning_returned[0])
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-draft", Button).disabled
+        assert not app.screen.query("#apply-confirmation")
+
+        profile_applier.release_planning[1].set()
+        await wait_for_thread_event(profile_applier.planning_returned[1])
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#apply-confirm-profile", Static).content == ("配置：current-2")
+        assert not app.screen_stack[-2].query_one("#apply-draft", Button).disabled
 
 
 async def test_operator_can_preview_a_reality_plan_without_changing_the_host() -> None:

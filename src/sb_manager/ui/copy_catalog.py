@@ -453,6 +453,7 @@ class UiText(str, Enum):
         "profile_recommendation.variant.vmess_websocket"
     )
     PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC = "profile_recommendation.variant.vmess_grpc"
+    PROFILE_RECOMMENDATION_VARIANT_SNELL_V6 = "profile_recommendation.variant.snell_v6"
     PROFILE_RECOMMENDATION_RANKING_TITLE = "profile_recommendation.ranking.title"
     PROFILE_RECOMMENDATION_RANKING_CAVEAT = "profile_recommendation.ranking.caveat"
     PROFILE_RECOMMENDATION_RANKING_CHOICE_PRIMARY = "profile_recommendation.ranking.choice.primary"
@@ -490,6 +491,7 @@ class UiText(str, Enum):
     PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC = (
         "profile_recommendation.direct.choice.vmess_grpc"
     )
+    PROFILE_RECOMMENDATION_DIRECT_CHOICE_SNELL_V6 = "profile_recommendation.direct.choice.snell_v6"
     PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_REASON = (
         "profile_recommendation.rationale.general_vless_reality.reason"
     )
@@ -562,6 +564,12 @@ class UiText(str, Enum):
     PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF = (
         "profile_recommendation.rationale.compatibility_vmess_websocket.tradeoff"
     )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_REASON = (
+        "profile_recommendation.rationale.compatibility_snell_v6.reason"
+    )
+    PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_TRADEOFF = (
+        "profile_recommendation.rationale.compatibility_snell_v6.tradeoff"
+    )
     CORE_UPDATE_FORM_TITLE = "core_update.form.title"
     CORE_UPDATE_OPEN = "core_update.open"
     CORE_UPDATE_FORM_GUIDANCE = "core_update.form.guidance"
@@ -599,6 +607,10 @@ class UiText(str, Enum):
     CORE_UPDATE_PLANNING_ERROR_TITLE = "core_update.planning_error.title"
     CORE_UPDATE_PLANNING_ERROR_DETAILS = "core_update.planning_error.details"
     CORE_UPDATE_PLANNING_ERROR_SAFETY = "core_update.planning_error.safety"
+    CORE_TARGET_COMPATIBILITY_TITLE = "core_target.compatibility.title"
+    CORE_TARGET_COMPATIBILITY_VERSION = "core_target.compatibility.version"
+    CORE_TARGET_COMPATIBILITY_BLOCKERS = "core_target.compatibility.blockers"
+    CORE_TARGET_COMPATIBILITY_SAFETY = "core_target.compatibility.safety"
     CORE_UPDATE_ERROR_UNKNOWN_TITLE = "core_update.error.unknown.title"
     CORE_UPDATE_ERROR_ACQUISITION_TITLE = "core_update.error.acquisition.title"
     CORE_UPDATE_ERROR_UNKNOWN_SAFETY = "core_update.error.unknown.safety"
@@ -732,6 +744,8 @@ class UiText(str, Enum):
     )
     PROFILE_CREATION_FORM_TITLE_VMESS_GRPC = "profile_creation.form.title.vmess_grpc"
     PROFILE_CREATION_FORM_GUIDANCE_VMESS_GRPC = "profile_creation.form.guidance.vmess_grpc"
+    PROFILE_CREATION_FORM_TITLE_SNELL_V6 = "profile_creation.form.title.snell_v6"
+    PROFILE_CREATION_FORM_GUIDANCE_SNELL_V6 = "profile_creation.form.guidance.snell_v6"
     PROFILE_CREATION_FORM_PROFILE_NAME_LABEL = "profile_creation.form.profile_name_label"
     PROFILE_CREATION_FORM_PROFILE_NAME_PLACEHOLDER = (
         "profile_creation.form.profile_name_placeholder"
@@ -777,6 +791,23 @@ class UiText(str, Enum):
     PROFILE_CREATION_PLANNING_ERROR_TITLE = "profile_creation.planning_error.title"
     PROFILE_CREATION_PLANNING_ERROR_DETAILS = "profile_creation.planning_error.details"
     PROFILE_CREATION_PLANNING_ERROR_SAFETY = "profile_creation.planning_error.safety"
+    PROFILE_CREATION_COMPATIBILITY_TITLE = "profile_creation.compatibility.title"
+    PROFILE_CREATION_COMPATIBILITY_CHANGED_TITLE = "profile_creation.compatibility.changed.title"
+    PROFILE_CREATION_COMPATIBILITY_PROTOCOL = "profile_creation.compatibility.protocol"
+    PROFILE_CREATION_COMPATIBILITY_EXPECTED = "profile_creation.compatibility.expected"
+    PROFILE_CREATION_COMPATIBILITY_OBSERVED = "profile_creation.compatibility.observed"
+    PROFILE_CREATION_COMPATIBILITY_MINIMUM = "profile_creation.compatibility.minimum"
+    PROFILE_CREATION_COMPATIBILITY_SAFETY = "profile_creation.compatibility.safety"
+    PROFILE_CREATION_COMPATIBILITY_SAFETY_APPLY = "profile_creation.compatibility.safety.apply"
+    PROFILE_CREATION_COMPATIBILITY_RECOVERY_STABLE = (
+        "profile_creation.compatibility.recovery.stable"
+    )
+    PROFILE_CREATION_COMPATIBILITY_RECOVERY_UNKNOWN = (
+        "profile_creation.compatibility.recovery.unknown"
+    )
+    PROFILE_CREATION_COMPATIBILITY_RECOVERY_CHANGED = (
+        "profile_creation.compatibility.recovery.changed"
+    )
     PROFILE_CREATION_PLAN_TITLE = "profile_creation.plan.title"
     PROFILE_CREATION_PLAN_PROFILE = "profile_creation.plan.profile"
     PROFILE_CREATION_PLAN_PROTOCOL = "profile_creation.plan.protocol"
@@ -814,6 +845,7 @@ class UiText(str, Enum):
     PROFILE_CREATION_PLAN_GENERATED_TUIC_PASSWORD = "profile_creation.plan.generated.tuic_password"
     PROFILE_CREATION_PLAN_GENERATED_VLESS_UUID = "profile_creation.plan.generated.vless_uuid"
     PROFILE_CREATION_PLAN_GENERATED_VMESS_UUID = "profile_creation.plan.generated.vmess_uuid"
+    PROFILE_CREATION_PLAN_GENERATED_SNELL_PSK = "profile_creation.plan.generated.snell_psk"
     PROFILE_CREATION_PLAN_GENERATED_TLS_CERTIFICATE = (
         "profile_creation.plan.generated.tls_certificate"
     )
@@ -992,6 +1024,8 @@ _EXPECTED_FIELDS.update(
         UiText.CORE_UPDATE_PLAN_SHA256: frozenset({"sha256"}),
         UiText.CORE_UPDATE_PLAN_TRUST: frozenset({"trust"}),
         UiText.CORE_UPDATE_PLAN_SOURCE: frozenset({"source"}),
+        UiText.CORE_TARGET_COMPATIBILITY_VERSION: frozenset({"version"}),
+        UiText.CORE_TARGET_COMPATIBILITY_BLOCKERS: frozenset({"names"}),
         UiText.CORE_UPDATE_RESULT_VERSION: frozenset({"version"}),
         UiText.CORE_UPDATE_RESULT_BINARY: frozenset({"path"}),
         UiText.CORE_UPDATE_RESULT_TARGET: frozenset({"target"}),
@@ -1015,6 +1049,11 @@ _EXPECTED_FIELDS.update(
         UiText.STATE_RECOVERY_UNSUPPORTED_GUIDANCE: frozenset({"schema"}),
         UiText.PROFILE_CREATION_VALIDATION_TLS_CERTIFICATE_PATH_UNTRUSTED: frozenset({"path"}),
         UiText.PROFILE_CREATION_VALIDATION_TLS_KEY_PATH_UNTRUSTED: frozenset({"path"}),
+        UiText.PROFILE_CREATION_COMPATIBILITY_TITLE: frozenset({"protocol"}),
+        UiText.PROFILE_CREATION_COMPATIBILITY_PROTOCOL: frozenset({"protocol"}),
+        UiText.PROFILE_CREATION_COMPATIBILITY_EXPECTED: frozenset({"version"}),
+        UiText.PROFILE_CREATION_COMPATIBILITY_OBSERVED: frozenset({"version"}),
+        UiText.PROFILE_CREATION_COMPATIBILITY_MINIMUM: frozenset({"version"}),
         UiText.PROFILE_CREATION_PLAN_PROFILE: frozenset({"name"}),
         UiText.PROFILE_CREATION_PLAN_PROTOCOL: frozenset({"protocol"}),
         UiText.PROFILE_CREATION_PLAN_PORT: frozenset({"port"}),
@@ -1629,6 +1668,7 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_GRPC: "VLESS TLS · gRPC",
         UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_WEBSOCKET: "VMess TLS · WebSocket",
         UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC: "VMess TLS · gRPC",
+        UiText.PROFILE_RECOMMENDATION_VARIANT_SNELL_V6: "Snell v6",
         UiText.PROFILE_RECOMMENDATION_RANKING_TITLE: "{purpose}的推荐顺序",
         UiText.PROFILE_RECOMMENDATION_RANKING_CAVEAT: (
             "推荐只帮助缩小选择，不承诺连通性或适用于所有网络。"
@@ -1660,6 +1700,7 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VLESS_GRPC: "VLESS TLS · gRPC",
         UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_WEBSOCKET: ("VMess TLS · 旧客户端兼容"),
         UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC: ("VMess TLS · gRPC 兼容"),
+        UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_SNELL_V6: ("Snell v6 · Preview / 1.14+"),
         UiText.PROFILE_RECOMMENDATION_GENERAL_VLESS_REALITY_REASON: (
             "无需管理自有 TLS 证书，向导所需信息最少"
         ),
@@ -1728,6 +1769,12 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF: (
             "新部署不默认推荐，并需要 TLS 与 WebSocket"
         ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_REASON: (
+            "面向需要 Surge Snell v6 策略的既有客户端"
+        ),
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_TRADEOFF: (
+            "仅 Preview 核心 1.14.0-alpha.38 或更新版本可应用; Stable 1.13.x 不支持"
+        ),
         UiText.CORE_UPDATE_FORM_TITLE: "安装或升级 sing-box 核心",
         UiText.CORE_UPDATE_OPEN: "安装或升级 sing-box 核心",
         UiText.CORE_UPDATE_FORM_GUIDANCE: (
@@ -1777,6 +1824,12 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.CORE_UPDATE_PLANNING_ERROR_SAFETY: (
             "尚未下载发行资产，也未请求核心激活。请重新打开核心更新页后再试。"
+        ),
+        UiText.CORE_TARGET_COMPATIBILITY_TITLE: "目标核心与已应用配置不兼容",
+        UiText.CORE_TARGET_COMPATIBILITY_VERSION: "目标核心：{version}",
+        UiText.CORE_TARGET_COMPATIBILITY_BLOCKERS: "阻止切换的配置：{names}",
+        UiText.CORE_TARGET_COMPATIBILITY_SAFETY: (
+            "检查在下载或切换之前停止; 核心、配置和服务均未改变。"
         ),
         UiText.CORE_UPDATE_ERROR_UNKNOWN_TITLE: "无法确认核心激活结果",
         UiText.CORE_UPDATE_ERROR_ACQUISITION_TITLE: "核心下载或校验失败",
@@ -1968,6 +2021,11 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_CREATION_FORM_GUIDANCE_VMESS_GRPC: (
             "旧客户端兼容的 VMess，使用标准 gRPC 传输。"
         ),
+        UiText.PROFILE_CREATION_FORM_TITLE_SNELL_V6: "配置 Snell v6",
+        UiText.PROFILE_CREATION_FORM_GUIDANCE_SNELL_V6: (
+            "仅当当前生效核心报告 1.14.0-alpha.38 或更新版本时可应用; Stable 1.13.x "
+            "无法应用。向导只生成 Snell v6 默认模式，客户端制品是 Surge 策略，不是 URI。"
+        ),
         UiText.PROFILE_CREATION_FORM_PROFILE_NAME_LABEL: "配置名称",
         UiText.PROFILE_CREATION_FORM_PROFILE_NAME_PLACEHOLDER: "例如：手机",
         UiText.PROFILE_CREATION_FORM_SERVER_ADDRESS_LABEL: "服务器地址",
@@ -2005,6 +2063,29 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_CREATION_PLANNING_ERROR_SAFETY: (
             "尚未创建草案，也未修改服务器。请返回后重新填写，或先检查 desired state 文件访问。"
         ),
+        UiText.PROFILE_CREATION_COMPATIBILITY_TITLE: "当前核心无法使用 {protocol}",
+        UiText.PROFILE_CREATION_COMPATIBILITY_CHANGED_TITLE: "核心版本在规划后发生变化",
+        UiText.PROFILE_CREATION_COMPATIBILITY_PROTOCOL: "协议：{protocol}",
+        UiText.PROFILE_CREATION_COMPATIBILITY_EXPECTED: "规划时核心：{version}",
+        UiText.PROFILE_CREATION_COMPATIBILITY_OBSERVED: "当前核心：{version}",
+        UiText.PROFILE_CREATION_COMPATIBILITY_MINIMUM: "最低版本：{version}",
+        UiText.PROFILE_CREATION_COMPATIBILITY_SAFETY: (
+            "检查在创建草案或修改服务器之前停止; 没有任何配置被写入。"
+        ),
+        UiText.PROFILE_CREATION_COMPATIBILITY_SAFETY_APPLY: (
+            "草案仍保留; 未修改 managed configuration 或运行中的服务。"
+        ),
+        UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_STABLE: (
+            "Stable 1.13.x 无法应用 Snell v6。请安装并激活 Preview "
+            "1.14.0-alpha.38 或更新版本后重新规划。"
+        ),
+        UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_UNKNOWN: (
+            "无法确认当前生效核心版本。请先安装并激活 Preview 1.14.0-alpha.38 "
+            "或更新版本，再重新规划。"
+        ),
+        UiText.PROFILE_CREATION_COMPATIBILITY_RECOVERY_CHANGED: (
+            "当前核心仍支持 Snell v6，但已不是规划时版本。请返回草案并重新预览应用计划。"
+        ),
         UiText.PROFILE_CREATION_PLAN_TITLE: "确认变更计划",
         UiText.PROFILE_CREATION_PLAN_PROFILE: "配置：{name}",
         UiText.PROFILE_CREATION_PLAN_PROTOCOL: "协议：{protocol}",
@@ -2034,6 +2115,7 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.PROFILE_CREATION_PLAN_GENERATED_TUIC_PASSWORD: "TUIC 认证密码",
         UiText.PROFILE_CREATION_PLAN_GENERATED_VLESS_UUID: "VLESS UUID",
         UiText.PROFILE_CREATION_PLAN_GENERATED_VMESS_UUID: "VMess UUID",
+        UiText.PROFILE_CREATION_PLAN_GENERATED_SNELL_PSK: "Snell v6 PSK",
         UiText.PROFILE_CREATION_PLAN_GENERATED_TLS_CERTIFICATE: "TLS 证书",
         UiText.PROFILE_CREATION_PLAN_SAFETY: "当前仅预览，不会修改服务器。",
         UiText.PROFILE_CREATION_PLAN_SAVE_DRAFT: "保存为草案",

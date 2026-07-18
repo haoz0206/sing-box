@@ -7,7 +7,12 @@ from sb_manager.application.profile_recommendation import (
     RecommendationRationale,
 )
 
-EXPECTED_RECOMMENDATION_COUNT = 3
+EXPECTED_RECOMMENDATION_COUNT = {
+    ProfilePurpose.GENERAL: 3,
+    ProfilePurpose.LOW_LATENCY: 3,
+    ProfilePurpose.RESTRICTED_NETWORK: 3,
+    ProfilePurpose.COMPATIBILITY: 4,
+}
 
 
 def test_general_service_recommendations_start_with_low_setup_complexity() -> None:
@@ -54,18 +59,30 @@ def test_compatibility_recommendations_keep_legacy_choice_as_an_explicit_tradeof
         ProtocolVariant.TROJAN,
         ProtocolVariant.SHADOWSOCKS,
         ProtocolVariant.VMESS_WEBSOCKET,
+        ProtocolVariant.SNELL_V6,
     )
     assert (
         report.recommendations[2].rationale is RecommendationRationale.COMPATIBILITY_VMESS_WEBSOCKET
     )
 
 
+def test_compatibility_choices_include_snell_with_preview_tradeoff() -> None:
+    report = ProfileRecommendationService().recommend(ProfilePurpose.COMPATIBILITY)
+
+    snell = next(
+        item for item in report.recommendations if item.variant is ProtocolVariant.SNELL_V6
+    )
+
+    assert snell.rationale is RecommendationRationale.COMPATIBILITY_SNELL_V6
+
+
 @pytest.mark.parametrize("purpose", tuple(ProfilePurpose))
-def test_every_purpose_returns_three_distinct_explained_variants(
+def test_every_purpose_returns_distinct_explained_variants(
     purpose: ProfilePurpose,
 ) -> None:
     report = ProfileRecommendationService().recommend(purpose)
 
-    assert len(report.recommendations) == EXPECTED_RECOMMENDATION_COUNT
-    assert len({item.variant for item in report.recommendations}) == EXPECTED_RECOMMENDATION_COUNT
-    assert len({item.rationale for item in report.recommendations}) == EXPECTED_RECOMMENDATION_COUNT
+    expected_count = EXPECTED_RECOMMENDATION_COUNT[purpose]
+    assert len(report.recommendations) == expected_count
+    assert len({item.variant for item in report.recommendations}) == expected_count
+    assert len({item.rationale for item in report.recommendations}) == expected_count

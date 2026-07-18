@@ -36,6 +36,7 @@ VARIANT_LABELS: dict[ProtocolVariant, UiText] = {
     ProtocolVariant.VLESS_GRPC: UiText.PROFILE_RECOMMENDATION_VARIANT_VLESS_GRPC,
     ProtocolVariant.VMESS_WEBSOCKET: (UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_WEBSOCKET),
     ProtocolVariant.VMESS_GRPC: UiText.PROFILE_RECOMMENDATION_VARIANT_VMESS_GRPC,
+    ProtocolVariant.SNELL_V6: UiText.PROFILE_RECOMMENDATION_VARIANT_SNELL_V6,
 }
 
 RATIONALE_COPY: dict[RecommendationRationale, tuple[UiText, UiText]] = {
@@ -86,6 +87,10 @@ RATIONALE_COPY: dict[RecommendationRationale, tuple[UiText, UiText]] = {
     RecommendationRationale.COMPATIBILITY_VMESS_WEBSOCKET: (
         UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_REASON,
         UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_VMESS_WEBSOCKET_TRADEOFF,
+    ),
+    RecommendationRationale.COMPATIBILITY_SNELL_V6: (
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_REASON,
+        UiText.PROFILE_RECOMMENDATION_COMPATIBILITY_SNELL_V6_TRADEOFF,
     ),
 }
 
@@ -369,6 +374,11 @@ class DirectProtocolSelectionScreen(Screen[ProtocolVariant | None]):
             ProtocolVariant.VMESS_GRPC,
             "vmess-grpc",
             UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_VMESS_GRPC,
+        ),
+        (
+            ProtocolVariant.SNELL_V6,
+            "snell-v6",
+            UiText.PROFILE_RECOMMENDATION_DIRECT_CHOICE_SNELL_V6,
         ),
     )
 
