@@ -436,13 +436,17 @@ control, so the page never advertises an action that cannot work.
 
 The core-channel slice adds one guided Stable/Preview entry beside the advanced
 exact-version form. The operator chooses architecture and channel before a
-background worker resolves one official immutable release and compares it with
-the manager-owned installed catalog. The application returns exactly one of
+background worker resolves one official release and compares it with the
+manager-owned installed catalog. Stable prefers immutable metadata and may use
+the digest-pinned fallback defined by ADR-0003; Preview remains immutable-only.
+The application returns exactly one of
 three frozen plans: already current, switch one retained release, or acquire
 and activate one missing release. Already-current evidence has no confirmation
 control. Both host-changing plans show the exact version before confirmation;
-retained switching also shows target and reviewed-current SHA-256 identities
-and states that it performs no download. Preview preserves the upstream
+acquisition also shows the exact asset, complete SHA-256, trust mode, and any
+digest-pinned warning. Retained switching shows target and reviewed-current
+SHA-256 identities and states that it performs no download. Preview preserves
+the upstream
 alpha/beta/rc version and always displays prerelease risk instead of presenting
 the track as a stable beta promise. A confirmed operation locks navigation
 until terminal evidence arrives. Any unclassified post-confirmation failure is
@@ -816,32 +820,53 @@ communicate client verification needs.
 The artifact seam owns version discovery, acquisition, integrity verification,
 staging, replacement, and rollback. GitHub and local files are initial adapters.
 ADR-0023 adds two read-only discovery policies: `stable` resolves the latest
-official immutable non-prerelease, while `preview` resolves the latest official
-immutable prerelease and preserves its actual alpha/beta/rc stage. Discovery
+official non-prerelease and prefers immutable evidence with a tightly scoped
+digest-pinned fallback, while `preview` resolves the latest official immutable
+prerelease and preserves its actual alpha/beta/rc stage. Discovery
 returns an exact version before planning and performs no download or mutation;
 the observed release numbers are never production constants.
-The initial network trust and staging policy is fixed by ADR-0003: exact
-immutable releases, mandatory SHA-256 verification, safe archive inspection,
-and version self-verification occur before the later privileged replacement
-seam. The TUI exposes this as an exact-version plan/confirm workflow. Blocking
-metadata, download, and helper calls run in a Textual thread worker; UI updates
-return to the application thread. Acquisition failures are reported before any
-privileged request, while helper failures conservatively report an unknown host
-activation result. An unclassified exception after core-update confirmation is
-also non-disclosing and is conservatively presented as an unknown activation
-result, because it may have occurred before or after the atomic switch. The
-application plan returns stable warning identities; the presentation adapter
-renders form validation, warnings, immutable plan values, progress, terminal
-evidence, and recovery policy through the validated interface copy catalog.
-Typed diagnostics stay literal and use non-markup widgets.
+The network trust policy is fixed by ADR-0003. `CoreArtifactTrustMode` records
+`immutable-release` or `digest-pinned-stable`; immutable Preview remains the
+minimum prerelease policy. `PlannedCoreArtifact` freezes the exact version,
+architecture, asset name, official URL, API SHA-256, immutable/prerelease flags,
+and trust mode inside `CoreUpdatePlan`. Execution re-inspects metadata for
+whole-value equality before downloading and hashes the downloaded bytes against
+the frozen digest. The subsequent activation seam safely stages the archive and
+self-verifies its version before atomic replacement.
+The `CoreArtifactSource` protocol makes the two phases explicit:
+`inspect(CoreArtifactRequest) -> PlannedCoreArtifact` is read-only, while
+`acquire(PlannedCoreArtifact, destination_directory=...)` accepts only the
+previously frozen evidence.
+
+The exact-version form and channel form perform metadata planning in exclusive
+Textual thread workers and return UI changes to the application thread. A
+generation identity discards superseded exact-version results, while a
+temporarily covered form defers its result until screen resume. Download and
+helper execution also remain off the UI thread. A planning or acquisition
+failure before the helper starts is non-mutating and the active core remains
+unchanged. Once the helper has started, a helper failure or unclassified
+exception is conservatively an unknown activation result because it may have
+occurred before or after the atomic switch; the TUI withholds immediate retry
+and directs the operator to read-only identity and health evidence. Stable
+digest-pinned plans expose the complete SHA-256, trust mode, and warning before
+confirmation. Typed diagnostics stay literal and use non-markup widgets.
+
+The TDD seam separates deterministic release metadata inspection, frozen-plan
+equality, byte hashing, safe staging, activation, local inventory, and UI worker
+delivery. Contract tests inject ordered HTTP responses to prove exact URL and
+digest validation plus metadata-drift rejection without relying on the live
+network; headless TUI tests control worker completion and screen-resume order.
 
 Core channel management deepens the same application module rather than adding
 screen-owned network calls. Its interface reports exact discovered channel
 releases, the active manager release, retained switch candidates, and one typed
-plan kind: already current, acquire and activate, or switch retained. The plan
-freezes all identities before confirmation. Retained switching crosses a
-separate no-network privileged operation that accepts only a manager-catalogued
-relative target; acquisition continues to use the exact-version ADR-0003 path.
+plan kind: already current, acquire and activate, or switch retained. An
+acquisition plan embeds the complete `PlannedCoreArtifact` and freezes all
+identities before confirmation. Already-current and retained-switch plans use
+only local manifest identities and contain no network artifact component.
+Retained switching crosses a separate no-network privileged operation that
+accepts only a manager-catalogued relative target; acquisition continues to use
+the exact-version ADR-0003 path.
 New core distributions atomically publish a schema-versioned manager manifest
 beside the verified binary. A read-only local catalog lists a release only when
 its manifest version, architecture, and source SHA-256 match the immutable
@@ -944,8 +969,9 @@ separate design.
 ## 10. Security and reliability requirements
 
 - No TLS verification bypass for downloads.
-- Integrity verification before installing artifacts when a trustworthy digest
-  is available; otherwise the plan identifies the weaker trust level.
+- Mandatory API SHA-256 verification before installing network artifacts;
+  `digest-pinned-stable` is the only accepted weaker release-metadata trust
+  mode, is limited to non-prerelease Stable, and is explicit in the plan.
 - Secrets represented by dedicated redacting value objects.
 - No secrets in normal logs, exceptions, plans, or snapshots.
 - Atomic writes use same-filesystem staging and replacement.
@@ -1017,7 +1043,7 @@ the release acceptance criteria. It is not translated function by function.
 - Hysteria2, TUIC, AnyTLS, Shadowsocks, Trojan, VMess/VLESS transports.
 - Each protocol delivered as a complete UI-to-config vertical slice.
 
-Current implementation status (2026-07-17):
+Current implementation status (2026-07-18):
 
 - keyboard-first contextual navigation: the Footer exposes help and only the
   dashboard actions currently safe to open; `a`, `p`, `n`, `s`, `d`, `o`, and
@@ -1075,8 +1101,10 @@ Current implementation status (2026-07-17):
   actions and an authorization value bound to the exact runtime and service;
   execution refuses an unhealthy precondition, refreshes once, and requires a
   healthy postcondition;
-- artifact acquisition: exact immutable official releases require an API
-  SHA-256, safe archive staging, and staged core version self-verification;
+- artifact acquisition: exact official artifacts require an API SHA-256, safe
+  archive staging, and staged core version self-verification; immutable release
+  metadata is preferred, mutable Stable alone may use the digest-pinned fallback,
+  and Preview remains immutable-only;
 - artifact activation: isolated-root tests and the real official artifact prove
   versioned distributions, an atomic relative `current` link, retained prior
   versions, and conflict-aware rollback;

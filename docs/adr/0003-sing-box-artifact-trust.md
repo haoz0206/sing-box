@@ -1,4 +1,4 @@
-# ADR-0003: Trust exact immutable sing-box release artifacts
+# ADR-0003: Prefer immutable sing-box artifacts with a pinned Stable fallback
 
 Status: Accepted  
 Date: 2026-07-16
@@ -11,7 +11,10 @@ prereleases require deliberate consent, archives can contain unsafe paths, and
 TLS alone does not prove that downloaded bytes match the published asset.
 
 GitHub's Releases API exposes an asset `digest` such as `sha256:...`. Immutable
-releases lock their tag and assets and provide release attestations:
+releases lock their tag and assets and provide release attestations. However,
+the latest official Stable release can temporarily remain mutable while still
+publishing an exact official asset URL and API SHA-256. The manager can freeze
+and revalidate that evidence before downloading it.
 
 - <https://docs.github.com/en/rest/releases/releases>
 - <https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases>
@@ -24,25 +27,38 @@ repository. Acquisition follows these rules:
 1. The request names an exact version and supported Linux Go architecture.
    There is no implicit `latest` request.
 2. A prerelease is rejected unless the request explicitly permits it.
-3. The release must be published, non-draft, and immutable.
+3. The release must be published and non-draft. An immutable release uses the
+   `immutable-release` trust mode. A mutable release is accepted only when it
+   is non-prerelease Stable and satisfies every remaining rule; it uses the
+   visibly weaker `digest-pinned-stable` trust mode. Mutable prereleases are
+   always rejected, so Preview remains immutable-only.
 4. Exactly one expected asset name must exist:
    `sing-box-{version}-linux-{architecture}.tar.gz`.
-5. The API must provide a `sha256` digest. Missing, malformed, or unsupported
-   digests fail closed.
-6. Downloaded bytes are hashed and compared with constant-time equality before
+5. The asset URL must exactly equal the official
+   `SagerNet/sing-box/releases/download/v{version}/{asset_name}` URL. The API
+   must provide a `sha256` digest. Missing, malformed, or unsupported digests
+   fail closed.
+6. Before confirmation, a `PlannedCoreArtifact` freezes the exact version,
+   architecture, asset name, official URL, SHA-256, immutable and prerelease
+   flags, and `CoreArtifactTrustMode`. Execution re-reads the release metadata
+   and rejects any difference from that frozen evidence with instructions to
+   create and review a new plan.
+7. Downloaded bytes are hashed and compared with constant-time equality before
    any archive member is read or executable is run.
-7. Staging reads only regular files below the archive's single expected root.
+8. Staging reads only regular files below the archive's single expected root.
    It never calls unrestricted `extractall`, and rejects links, absolute paths,
    traversal, duplicate core binaries, and a missing core binary.
-8. The staged `sing-box` executable must self-report the requested version
+9. The staged `sing-box` executable must self-report the requested version
    before it can cross the privileged installation seam.
-9. Acquisition and staging run without root. A later minimal privileged seam
+10. Acquisition and staging run without root. A later minimal privileged seam
    performs the atomic host replacement from a verified staged manifest.
 
 The application plan represents prerelease compatibility risk with a stable
 `CoreUpdateWarning` identity. The Textual presentation adapter renders that
-warning, all validation guidance, immutable plan labels, progress, activation
-evidence, and recovery policy through the validated interface copy catalog.
+warning, all validation guidance, frozen plan labels, the full SHA-256 and trust
+mode, progress, activation evidence, and recovery policy through the validated
+interface copy catalog. A digest-pinned Stable plan carries a separate warning
+before confirmation.
 Typed acquisition and helper diagnostics remain literal evidence with markup
 disabled; application policy does not produce locale-authored warning text.
 
@@ -51,11 +67,12 @@ requires fixture and host evidence before adding another enum member.
 
 ## Consequences
 
-- Updates are reproducible and auditable by version, asset name, and digest.
+- Updates are reproducible and auditable by version, asset name, official URL,
+  digest, and trust mode.
 - GitHub metadata and asset delivery are both required; offline installation
   will use a separate local-file adapter with an operator-supplied digest.
-- Older mutable releases or releases without API digests are intentionally
-  unsupported by the network adapter.
+- Mutable Stable releases without an exact official URL or API digest, and all
+  mutable prereleases, are intentionally unsupported by the network adapter.
 - The manager cannot silently follow upstream prereleases.
 - Privilege is not required for network access, parsing, hashing, extraction,
   or binary inspection.

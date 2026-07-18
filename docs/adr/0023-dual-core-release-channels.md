@@ -13,23 +13,29 @@ artifact currently selected. Channel discovery also changes over time, while
 the existing acquisition and privileged activation seams require an exact,
 reviewable version.
 
-The initial observed releases on 2026-07-17 are stable `1.13.14` and preview
-`1.14.0-alpha.46`. These values are evidence for acceptance tests and the
-software manual, not constants embedded in production policy.
+The later acceptance observation on 2026-07-18 resolved stable `1.13.14` and
+preview `1.14.0-alpha.47`. These dated values are evidence for acceptance tests
+and the software manual, not constants embedded in production policy.
 
 ## Decision
 
 1. The application exposes two semantic channels: `stable` and `preview`.
    User-facing copy may explain preview as the requested beta/testing channel,
    but must display the actual alpha, beta, or rc version returned upstream.
-2. Stable resolves only a published, non-draft, immutable release with
-   `prerelease=false`. Preview resolves only a published, non-draft, immutable
-   release with `prerelease=true`.
+2. Stable resolves a published, non-draft release with `prerelease=false` and
+   prefers `immutable-release`. When upstream reports Stable as mutable, it may
+   use ADR-0003's `digest-pinned-stable` fallback only with the exact official
+   asset URL and API SHA-256. Preview resolves a published, non-draft,
+   immutable release with `prerelease=true`; mutable Preview artifacts remain
+   rejected.
 3. Discovery is read-only. It returns one exact version and channel identity;
    it never downloads, installs, activates, or edits desired state.
-4. A later update plan freezes the discovered exact version, architecture,
-   asset name, source, warning identities, and observed active/installed state.
-   Confirmation never authorizes a moving “latest” target.
+4. A later acquisition plan embeds a `PlannedCoreArtifact`, freezing the
+   discovered exact version, architecture, asset name, official URL, SHA-256,
+   trust mode, release flags, warning identities, and observed
+   active/installed state. Confirmation never authorizes a moving “latest”
+   target. Acquisition re-inspects the frozen upstream metadata and rejects
+   drift before download.
 5. Exact-version acquisition continues through ADR-0003. Preview acquisition
    retains explicit prerelease consent even when discovery originated from the
    preview channel.
@@ -44,6 +50,8 @@ software manual, not constants embedded in production policy.
    match the directory identity and a self-verifying `sing-box` binary before
    the release is listed. Pre-manifest distributions may remain active but are
    not silently promoted to retained switch candidates.
+   Current and retained-switch plans use only these local manifest identities;
+   they do not contain upstream acquisition components or perform network I/O.
 7. The TUI must distinguish update, already-current, and retained-release
    switch plans. Confirmed switching is non-returning until typed terminal
    evidence is available, and an unclassified post-confirmation failure remains
@@ -55,7 +63,8 @@ software manual, not constants embedded in production policy.
 
 - Upstream version movement changes discovery results but cannot change an
   already reviewed plan.
-- Stable and preview can evolve independently without hardcoded release values.
+- Stable and preview can evolve independently without hardcoded release values,
+  while making their different trust floors explicit.
 - The preview channel can currently select an alpha release without calling it
   a beta artifact.
 - Offline switching is possible only after an exact release has been installed

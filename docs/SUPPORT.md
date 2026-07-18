@@ -1,7 +1,7 @@
 # Supported platform matrix
 
 Status: pre-release support contract  
-Last updated: 2026-07-16
+Last updated: 2026-07-18
 
 ## Python
 
@@ -71,6 +71,8 @@ SB_MANAGER_ARTIFACT_DOWNLOAD=download \
 SB_MANAGER_ARTIFACT_VERSION=1.14.0-alpha.47 \
 SB_MANAGER_ARTIFACT_ARCHITECTURE=amd64 \
 SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE=1 \
+SB_MANAGER_ARTIFACT_TRUST_MODE=immutable-release \
+SB_MANAGER_ARTIFACT_SHA256=39387ea20a1b44fc123c106fb4b2cf961b98f5550e55a516f446498a163336e1 \
 .venv/bin/pytest -q tests/integration/test_official_artifact.py
 ```
 
@@ -128,11 +130,32 @@ gRPC variants for VLESS and VMess. Inline ACME is deprecated in 1.14 and is
 scheduled for removal in 1.16, so a version-capability projection is required
 before either supported channel reaches 1.16.
 
-Artifact trust remains a separate release gate. Preview `1.14.0-alpha.47` is an
-immutable GitHub release and passed the official download, digest, safe-staging,
-isolated activation, and rollback test. Current Stable `1.13.14` has per-asset
-GitHub SHA-256 digests but the release API reports `immutable=false`; ADR-0003
-therefore rejects production discovery/acquisition. Its compatibility run used
-the exact official amd64 digest in disposable staging and is not evidence that
-the production network installer accepts Stable. Supporting that release needs
-an explicit trust-policy decision rather than a silent fallback.
+Artifact trust remains a separate release gate. On 2026-07-18 the opt-in
+official-artifact acceptance passed download, exact digest verification, safe
+staging, isolated activation, and rollback for both current discoveries:
+
+| Channel | Observed version | Trust mode | Official amd64 SHA-256 |
+|---|---|---|---|
+| Stable | `1.13.14` | `digest-pinned-stable` | `f48703461a15476951ac4967cdad339d986f4b8096b4eb3ff0829a500502d697` |
+| Preview | `1.14.0-alpha.47` | `immutable-release` | `39387ea20a1b44fc123c106fb4b2cf961b98f5550e55a516f446498a163336e1` |
+
+These are dated acceptance observations, not production constants or a promise
+that either channel will retain the same version or digest. Stable used the
+reviewed ADR-0003 digest-pinned fallback because GitHub reported
+`immutable=false`; Preview remained immutable. Re-running this live acceptance
+depends on GitHub API/CDN availability, DNS, TLS, rate limits, upstream metadata
+stability, and available bandwidth, so elapsed time and transient failures can
+vary independently of deterministic contract tests.
+
+To reproduce the Stable observation, bind both the expected trust mode and the
+full digest explicitly:
+
+```bash
+SB_MANAGER_ARTIFACT_DOWNLOAD=download \
+SB_MANAGER_ARTIFACT_VERSION=1.13.14 \
+SB_MANAGER_ARTIFACT_ARCHITECTURE=amd64 \
+SB_MANAGER_ARTIFACT_ALLOW_PRERELEASE=0 \
+SB_MANAGER_ARTIFACT_TRUST_MODE=digest-pinned-stable \
+SB_MANAGER_ARTIFACT_SHA256=f48703461a15476951ac4967cdad339d986f4b8096b4eb3ff0829a500502d697 \
+.venv/bin/pytest -q tests/integration/test_official_artifact.py
+```
