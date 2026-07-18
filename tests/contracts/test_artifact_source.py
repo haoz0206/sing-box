@@ -92,9 +92,10 @@ def test_planned_artifact_rejects_inconsistent_trust_evidence(
         )
 
 
-def test_planned_artifact_rejects_an_invalid_digest() -> None:
+@pytest.mark.parametrize("sha256", ("A" * 64, "a" * 63, "g" * 64))
+def test_planned_artifact_rejects_an_invalid_digest(sha256: str) -> None:
     with pytest.raises(ValueError, match="SHA-256"):
-        replace(planned_artifact(), sha256="not-a-digest")
+        replace(planned_artifact(), sha256=sha256)
 
 
 def test_latest_stable_channel_resolves_exact_immutable_release_without_downloading() -> None:

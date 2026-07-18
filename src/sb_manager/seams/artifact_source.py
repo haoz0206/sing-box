@@ -108,8 +108,7 @@ class PlannedCoreArtifact:
         if re.fullmatch(r"[0-9a-f]{64}", self.sha256) is None:
             raise ValueError("Planned artifact SHA-256 is invalid")
         trust_is_consistent = (
-            self.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE
-            and self.release_immutable
+            self.trust_mode is CoreArtifactTrustMode.IMMUTABLE_RELEASE and self.release_immutable
         ) or (
             self.trust_mode is CoreArtifactTrustMode.DIGEST_PINNED_STABLE
             and not self.release_immutable
