@@ -17,6 +17,7 @@ from sb_manager.tls.catalog import AcmeTlsIntent, OperatorFileTlsIntent
 from sb_manager.transports.catalog import GrpcTransportIntent, WebSocketTransportIntent
 
 ACME_DIRECTORY = Path("/var/lib/sing-box-manager/acme")
+GENERATED_SNELL_PSK_LENGTH = 43
 
 
 def snell_document() -> dict[str, object]:
@@ -99,6 +100,7 @@ def generated_document(  # noqa: PLR0913 - compact product-catalog fixture build
     ("protocol", "transport"),
     (
         (ProtocolKind.VLESS_REALITY, None),
+        (ProtocolKind.SNELL_V6, None),
         (ProtocolKind.SHADOWSOCKS, None),
         (ProtocolKind.HYSTERIA2, None),
         (ProtocolKind.TROJAN, None),
@@ -115,9 +117,17 @@ def test_every_product_generated_protocol_is_inside_privileged_policy(
     protocol: ProtocolKind,
     transport: WebSocketTransportIntent | GrpcTransportIntent | None,
 ) -> None:
-    ManagedConfigurationPolicy().validate(
-        generated_document(tmp_path, protocol, transport=transport)
-    )
+    document = generated_document(tmp_path, protocol, transport=transport)
+    if protocol is ProtocolKind.SNELL_V6:
+        inbounds = document["inbounds"]
+        assert isinstance(inbounds, list)
+        inbound = inbounds[0]
+        assert isinstance(inbound, dict)
+        psk = inbound["psk"]
+        assert isinstance(psk, str)
+        assert len(psk) == GENERATED_SNELL_PSK_LENGTH
+
+    ManagedConfigurationPolicy().validate(document)
 
 
 def test_bounded_snell_v6_is_inside_privileged_policy() -> None:
