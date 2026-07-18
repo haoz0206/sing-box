@@ -572,6 +572,7 @@ class UiText(str, Enum):
     CORE_UPDATE_FORM_ARCHITECTURE_ARM64 = "core_update.form.architecture.arm64"
     CORE_UPDATE_FORM_PRERELEASE_CONSENT = "core_update.form.prerelease_consent"
     CORE_UPDATE_FORM_PREVIEW = "core_update.form.preview"
+    CORE_UPDATE_FORM_PLANNING = "core_update.form.planning"
     CORE_UPDATE_FORM_ERROR_INVALID_VERSION = "core_update.form.error.invalid_version"
     CORE_UPDATE_FORM_ERROR_ARCHITECTURE = "core_update.form.error.architecture"
     CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT = "core_update.form.error.prerelease_consent"
@@ -579,8 +580,13 @@ class UiText(str, Enum):
     CORE_UPDATE_PLAN_VERSION = "core_update.plan.version"
     CORE_UPDATE_PLAN_ARCHITECTURE = "core_update.plan.architecture"
     CORE_UPDATE_PLAN_ASSET = "core_update.plan.asset"
+    CORE_UPDATE_PLAN_SHA256 = "core_update.plan.sha256"
+    CORE_UPDATE_PLAN_TRUST = "core_update.plan.trust"
     CORE_UPDATE_PLAN_SOURCE = "core_update.plan.source"
+    CORE_UPDATE_TRUST_IMMUTABLE = "core_update.trust.immutable"
+    CORE_UPDATE_TRUST_DIGEST_PINNED = "core_update.trust.digest_pinned"
     CORE_UPDATE_PLAN_WARNING_PRERELEASE = "core_update.plan.warning.prerelease"
+    CORE_UPDATE_PLAN_WARNING_MUTABLE_RELEASE = "core_update.plan.warning.mutable_release"
     CORE_UPDATE_PLAN_SAFETY = "core_update.plan.safety"
     CORE_UPDATE_PLAN_CONFIRM = "core_update.plan.confirm"
     CORE_UPDATE_PLAN_PROGRESS = "core_update.plan.progress"
@@ -982,6 +988,8 @@ _EXPECTED_FIELDS.update(
         UiText.CORE_UPDATE_PLAN_VERSION: frozenset({"version"}),
         UiText.CORE_UPDATE_PLAN_ARCHITECTURE: frozenset({"architecture"}),
         UiText.CORE_UPDATE_PLAN_ASSET: frozenset({"asset"}),
+        UiText.CORE_UPDATE_PLAN_SHA256: frozenset({"sha256"}),
+        UiText.CORE_UPDATE_PLAN_TRUST: frozenset({"trust"}),
         UiText.CORE_UPDATE_PLAN_SOURCE: frozenset({"source"}),
         UiText.CORE_UPDATE_RESULT_VERSION: frozenset({"version"}),
         UiText.CORE_UPDATE_RESULT_BINARY: frozenset({"path"}),
@@ -1719,7 +1727,9 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         ),
         UiText.CORE_UPDATE_FORM_TITLE: "安装或升级 sing-box 核心",
         UiText.CORE_UPDATE_OPEN: "安装或升级 sing-box 核心",
-        UiText.CORE_UPDATE_FORM_GUIDANCE: "只接受官方 immutable release 的精确版本。",
+        UiText.CORE_UPDATE_FORM_GUIDANCE: (
+            "只接受官方精确版本; Stable 使用已冻结摘要审查，Preview 只接受 immutable release。"
+        ),
         UiText.CORE_UPDATE_FORM_VERSION_LABEL: "精确版本",
         UiText.CORE_UPDATE_FORM_VERSION_PLACEHOLDER: "精确版本，例如 1.14.0-alpha.45",
         UiText.CORE_UPDATE_FORM_ARCHITECTURE_LABEL: "服务器架构",
@@ -1727,6 +1737,7 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CORE_UPDATE_FORM_ARCHITECTURE_ARM64: "ARM64 (arm64)",
         UiText.CORE_UPDATE_FORM_PRERELEASE_CONSENT: "我接受预发布版本的兼容性风险",
         UiText.CORE_UPDATE_FORM_PREVIEW: "预览核心更新计划",
+        UiText.CORE_UPDATE_FORM_PLANNING: "正在检查官方发行元数据并冻结制品摘要…",
         UiText.CORE_UPDATE_FORM_ERROR_INVALID_VERSION: (
             "版本格式无效。请输入完整版本，例如 1.14.0 或 1.14.0-alpha.45。"
         ),
@@ -1738,8 +1749,15 @@ SIMPLIFIED_CHINESE = CopyCatalog(
         UiText.CORE_UPDATE_PLAN_VERSION: "版本：{version}",
         UiText.CORE_UPDATE_PLAN_ARCHITECTURE: "架构：{architecture}",
         UiText.CORE_UPDATE_PLAN_ASSET: "发行资产：{asset}",
+        UiText.CORE_UPDATE_PLAN_SHA256: "制品 SHA-256：{sha256}",
+        UiText.CORE_UPDATE_PLAN_TRUST: "信任方式：{trust}",
         UiText.CORE_UPDATE_PLAN_SOURCE: "来源：{source}",
+        UiText.CORE_UPDATE_TRUST_IMMUTABLE: "上游 immutable release",
+        UiText.CORE_UPDATE_TRUST_DIGEST_PINNED: "Stable 摘要冻结",
         UiText.CORE_UPDATE_PLAN_WARNING_PRERELEASE: ("这是预发布核心; 仅在接受兼容性风险时继续。"),
+        UiText.CORE_UPDATE_PLAN_WARNING_MUTABLE_RELEASE: (
+            "上游 Stable release 可变；本次操作只接受上方已冻结的 SHA-256。"  # noqa: RUF001
+        ),
         UiText.CORE_UPDATE_PLAN_SAFETY: ("当前仅预览; 尚未下载文件，也不会修改服务器。"),
         UiText.CORE_UPDATE_PLAN_CONFIRM: "确认下载并激活",
         UiText.CORE_UPDATE_PLAN_PROGRESS: ("操作已确认，正在下载、校验并激活。完成前无法返回。"),

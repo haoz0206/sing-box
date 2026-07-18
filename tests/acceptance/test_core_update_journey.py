@@ -1,4 +1,5 @@
 from pathlib import Path
+from threading import Event
 from typing import cast
 
 from textual.pilot import Pilot
@@ -22,6 +23,9 @@ from sb_manager.ui.app import ManagerApp, ManagerAppInterfaceTools
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 VERSION = "1.14.0-alpha.45"
+STABLE_VERSION = "1.13.14"
+PREVIEW_SHA256 = "a" * 64
+STABLE_SHA256 = "b" * 64
 
 
 class CoreUpdateMarkerCatalog:
@@ -35,10 +39,16 @@ class CoreUpdateMarkerCatalog:
             "core_update.form.guidance": "目录核心更新说明",
             "core_update.form.version_placeholder": "目录精确版本",
             "core_update.form.preview": "目录预览计划",
+            "core_update.form.planning": "目录正在冻结制品摘要",
             "core_update.form.error.invalid_version": "目录版本格式错误",
             "core_update.form.error.prerelease_consent": "目录预发布确认",
             "core_update.plan.title": "目录核心计划",
+            "core_update.plan.sha256": f"目录 SHA-256 {values.get('sha256', '')}",
+            "core_update.plan.trust": f"目录信任方式 {values.get('trust', '')}",
+            "core_update.trust.immutable": "目录 immutable 信任",
+            "core_update.trust.digest_pinned": "目录 Stable 摘要信任",
             "core_update.plan.warning.prerelease": "目录预发布风险",
+            "core_update.plan.warning.mutable_release": "目录 Stable 可变警告",
             "core_update.plan.safety": "目录计划安全说明",
             "core_update.plan.confirm": "目录确认激活",
             "core_update.result.title": "目录激活成功",
@@ -65,6 +75,7 @@ class RecordingCoreUpdater:
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
         self.plan_requests.append(request)
         asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
+        prerelease = "-" in request.version.partition("+")[0]
         return CoreUpdatePlan(
             artifact=PlannedCoreArtifact(
                 version=request.version,
@@ -74,13 +85,21 @@ class RecordingCoreUpdater:
                     "https://github.com/SagerNet/sing-box/releases/download/"
                     f"v{request.version}/{asset_name}"
                 ),
-                sha256="a" * 64,
-                trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
-                release_immutable=True,
-                prerelease=True,
+                sha256=PREVIEW_SHA256 if prerelease else STABLE_SHA256,
+                trust_mode=(
+                    CoreArtifactTrustMode.IMMUTABLE_RELEASE
+                    if prerelease
+                    else CoreArtifactTrustMode.DIGEST_PINNED_STABLE
+                ),
+                release_immutable=prerelease,
+                prerelease=prerelease,
             ),
             mutates_host=False,
-            warnings=(CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,),
+            warnings=(
+                (CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK,)
+                if prerelease
+                else (CoreUpdateWarning.DIGEST_PINNED_MUTABLE_RELEASE,)
+            ),
         )
 
     def execute(self, plan: CoreUpdatePlan, *, confirmed: bool) -> CoreUpdateResult:
@@ -125,6 +144,19 @@ class PrereleaseConsentCoreUpdater(RecordingCoreUpdater):
         raise CorePrereleaseConsentRequiredError("private prerelease diagnostics")
 
 
+class BlockingPlanningCoreUpdater(RecordingCoreUpdater):
+    def __init__(self) -> None:
+        super().__init__()
+        self.planning_started = Event()
+        self.release_planning = Event()
+
+    def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
+        self.planning_started.set()
+        if not self.release_planning.wait(timeout=2):
+            raise RuntimeError("planning test release timed out")
+        return super().plan(request)
+
+
 async def open_core_form(pilot: Pilot[None]) -> None:
     await pilot.click("#open-operations")
     await pilot.click("#manage-core")
@@ -140,6 +172,7 @@ async def open_core_plan(
     await pilot.press(*VERSION)
     await pilot.click("#allow-prerelease")
     await pilot.click("#preview-core-update")
+    await pilot.pause()
     assert updater.plan_requests == [
         PlanCoreUpdateRequest(
             version=VERSION,
@@ -183,6 +216,7 @@ async def test_invalid_core_version_uses_safe_catalog_guidance() -> None:
         await pilot.click("#core-version")
         await pilot.press(*"latest")
         await pilot.click("#preview-core-update")
+        await pilot.pause()
 
         assert app.screen.query_one("#core-update-form-error", Static).content == (
             "目录版本格式错误"
@@ -202,6 +236,7 @@ async def test_prerelease_requires_catalog_rendered_explicit_consent() -> None:
         await pilot.click("#core-version")
         await pilot.press(*VERSION)
         await pilot.click("#preview-core-update")
+        await pilot.pause()
 
         assert app.screen.query_one("#core-update-form-error", Static).content == ("目录预发布确认")
 
@@ -219,6 +254,12 @@ async def test_core_update_copy_catalog_renders_semantic_plan_warning() -> None:
         await open_core_plan(app, updater, pilot)
 
         assert app.screen.query_one("#core-update-plan-title", Static).content == ("目录核心计划")
+        assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
+            f"目录 SHA-256 {PREVIEW_SHA256}"
+        )
+        assert app.screen.query_one("#core-update-plan-trust", Static).content == (
+            "目录信任方式 目录 immutable 信任"
+        )
         assert app.screen.query_one("#core-update-warning-0", Static).content == ("目录预发布风险")
         assert app.screen.query_one("#core-update-plan-safety", Static).content == (
             "目录计划安全说明"
@@ -266,6 +307,7 @@ async def test_operator_can_preview_an_exact_core_update_without_mutation() -> N
         await pilot.press(*VERSION)
         await pilot.click("#allow-prerelease")
         await pilot.click("#preview-core-update")
+        await pilot.pause()
 
         assert updater.plan_requests[0].architecture is ArtifactArchitecture.AMD64
         assert app.screen.query_one("#core-update-plan-title", Static).content == (
@@ -274,6 +316,94 @@ async def test_operator_can_preview_an_exact_core_update_without_mutation() -> N
         assert app.screen.query_one("#core-update-plan-safety", Static).content == (
             "当前仅预览; 尚未下载文件，也不会修改服务器。"
         )
+        assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
+            f"制品 SHA-256：{PREVIEW_SHA256}"
+        )
+        assert app.screen.query_one("#core-update-plan-trust", Static).content == (
+            "信任方式：上游 immutable release"
+        )
+        assert app.screen.query_one("#core-update-warning-0", Static).content == (
+            "这是预发布核心; 仅在接受兼容性风险时继续。"
+        )
+
+
+async def test_exact_version_planning_is_non_blocking_and_shows_full_digest() -> None:
+    updater = BlockingPlanningCoreUpdater()
+    app = ManagerApp(
+        core_updater=updater,
+        interface_tools=ManagerAppInterfaceTools(
+            copy_catalog=cast(CopyCatalog, CoreUpdateMarkerCatalog())
+        ),
+    )
+
+    async with app.run_test() as pilot:
+        await open_core_form(pilot)
+        await pilot.click("#core-version")
+        await pilot.press(*VERSION)
+        await pilot.click("#allow-prerelease")
+        await pilot.click("#preview-core-update")
+        await pilot.pause()
+
+        assert updater.planning_started.wait(timeout=1)
+        assert app.screen.query_one("#preview-core-update", Button).disabled
+        assert app.screen.query_one("#core-update-form-error", Static).content == (
+            "目录正在冻结制品摘要"
+        )
+
+        updater.release_planning.set()
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
+            f"目录 SHA-256 {PREVIEW_SHA256}"
+        )
+
+
+async def test_leaving_exact_version_form_discards_stale_planning_completion() -> None:
+    updater = BlockingPlanningCoreUpdater()
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await open_core_form(pilot)
+        await pilot.click("#core-version")
+        await pilot.press(*VERSION)
+        await pilot.click("#allow-prerelease")
+        await pilot.click("#preview-core-update")
+        await pilot.pause()
+        assert updater.planning_started.wait(timeout=1)
+
+        await pilot.press("escape")
+        updater.release_planning.set()
+        await pilot.pause()
+
+        assert not app.screen.query("#core-update-plan")
+
+
+async def test_stable_review_shows_frozen_digest_trust_and_mutability_warning() -> None:
+    updater = RecordingCoreUpdater()
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await open_core_form(pilot)
+        await pilot.click("#core-version")
+        await pilot.press(*STABLE_VERSION)
+        await pilot.click("#preview-core-update")
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
+            f"制品 SHA-256：{STABLE_SHA256}"
+        )
+        assert app.screen.query_one("#core-update-plan-trust", Static).content == (
+            "信任方式：Stable 摘要冻结"
+        )
+        assert app.screen.query_one("#core-update-warning-0", Static).content == (
+            "上游 Stable release 可变；本次操作只接受上方已冻结的 SHA-256。"  # noqa: RUF001
+        )
+        assert updater.executions == []
+
+        await pilot.click("#confirm-core-update")
+        await pilot.pause()
+
+        assert updater.executions[0][1] is True
 
 
 async def test_unexpected_core_update_planning_failure_is_safe_and_not_disclosed() -> None:

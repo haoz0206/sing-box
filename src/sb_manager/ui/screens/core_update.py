@@ -15,17 +15,13 @@ from sb_manager.application.core_update import (
     CoreUpdatePlan,
     CoreUpdater,
     CoreUpdateResult,
-    CoreUpdateWarning,
     PlanCoreUpdateRequest,
 )
 from sb_manager.seams.artifact_source import ArtifactArchitecture
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.ui.confirmed_operation import ConfirmedOperationScreen
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
-
-WARNING_COPY: dict[CoreUpdateWarning, UiText] = {
-    CoreUpdateWarning.PRERELEASE_COMPATIBILITY_RISK: (UiText.CORE_UPDATE_PLAN_WARNING_PRERELEASE)
-}
+from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
 
 
 class CoreUpdateResultScreen(Screen[None]):
@@ -172,7 +168,7 @@ class CoreUpdatePlanningErrorScreen(Screen[None]):
 
 
 class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
-    """Show an immutable artifact plan and require explicit host-mutation consent."""
+    """Show frozen artifact evidence and require explicit host-mutation consent."""
 
     def __init__(
         self,
@@ -214,6 +210,22 @@ class _CoreUpdatePlanScreen(ConfirmedOperationScreen[None]):
                     asset=self.plan.asset_name,
                 ),
                 id="core-update-plan-asset",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.CORE_UPDATE_PLAN_SHA256,
+                    sha256=self.plan.artifact.sha256,
+                ),
+                id="core-update-plan-sha256",
+                markup=False,
+            )
+            yield Static(
+                self.copy.text(
+                    UiText.CORE_UPDATE_PLAN_TRUST,
+                    trust=self.copy.text(TRUST_COPY[self.plan.artifact.trust_mode]),
+                ),
+                id="core-update-plan-trust",
                 markup=False,
             )
             yield Static(
@@ -308,6 +320,7 @@ class CoreUpdateFormScreen(Screen[None]):
         super().__init__()
         self.core_updater = core_updater
         self.copy = copy_catalog
+        self._planning_generation = 0
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -378,21 +391,61 @@ class CoreUpdateFormScreen(Screen[None]):
         if not isinstance(architecture, ArtifactArchitecture):
             error.update(self.copy.text(UiText.CORE_UPDATE_FORM_ERROR_ARCHITECTURE))
             return
+        request = PlanCoreUpdateRequest(
+            version=version,
+            architecture=architecture,
+            allow_prerelease=self.query_one("#allow-prerelease", Checkbox).value,
+        )
+        self._planning_generation += 1
+        generation = self._planning_generation
+        self.query_one("#preview-core-update", Button).disabled = True
+        error.update(self.copy.text(UiText.CORE_UPDATE_FORM_PLANNING))
+        self.plan_core_update(request, generation)
+
+    @work(thread=True, exclusive=True)
+    def plan_core_update(self, request: PlanCoreUpdateRequest, generation: int) -> None:
         try:
-            plan = self.core_updater.plan(
-                PlanCoreUpdateRequest(
-                    version=version,
-                    architecture=architecture,
-                    allow_prerelease=self.query_one("#allow-prerelease", Checkbox).value,
-                )
-            )
+            plan = self.core_updater.plan(request)
         except ValueError:
-            error.update(self.copy.text(UiText.CORE_UPDATE_FORM_ERROR_INVALID_VERSION))
+            self.app.call_from_thread(
+                self._show_planning_validation,
+                generation,
+                UiText.CORE_UPDATE_FORM_ERROR_INVALID_VERSION,
+            )
             return
         except CorePrereleaseConsentRequiredError:
-            error.update(self.copy.text(UiText.CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT))
+            self.app.call_from_thread(
+                self._show_planning_validation,
+                generation,
+                UiText.CORE_UPDATE_FORM_ERROR_PRERELEASE_CONSENT,
+            )
             return
         except Exception:
-            self.app.push_screen(CoreUpdatePlanningErrorScreen(self.copy))
+            self.app.call_from_thread(self._show_planning_error, generation)
             return
+        self.app.call_from_thread(self._show_plan, generation, plan)
+
+    def _planning_is_current(self, generation: int) -> bool:
+        return generation == self._planning_generation and self.app.screen is self
+
+    def _finish_current_planning(self, generation: int) -> bool:
+        if not self._planning_is_current(generation):
+            return False
+        self.query_one("#preview-core-update", Button).disabled = False
+        return True
+
+    def _show_planning_validation(self, generation: int, message: UiText) -> None:
+        if not self._finish_current_planning(generation):
+            return
+        self.query_one("#core-update-form-error", Static).update(self.copy.text(message))
+
+    def _show_planning_error(self, generation: int) -> None:
+        if not self._finish_current_planning(generation):
+            return
+        self.app.push_screen(CoreUpdatePlanningErrorScreen(self.copy))
+
+    def _show_plan(self, generation: int, plan: CoreUpdatePlan) -> None:
+        if not self._finish_current_planning(generation):
+            return
+        self.query_one("#core-update-form-error", Static).update("")
         self.app.push_screen(_CoreUpdatePlanScreen(self.core_updater, plan, self.copy))
