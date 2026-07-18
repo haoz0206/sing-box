@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -21,6 +22,7 @@ from sb_manager.seams.artifact_source import (
 from sb_manager.seams.core_activator import CoreActivationError
 from sb_manager.ui.app import ManagerApp, ManagerAppInterfaceTools
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
+from sb_manager.ui.core_artifact_copy import TRUST_COPY, WARNING_COPY
 
 VERSION = "1.14.0-alpha.45"
 STABLE_VERSION = "1.13.14"
@@ -149,17 +151,29 @@ class BlockingPlanningCoreUpdater(RecordingCoreUpdater):
         super().__init__()
         self.planning_started = Event()
         self.release_planning = Event()
+        self.planning_returned = Event()
 
     def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
         self.planning_started.set()
         if not self.release_planning.wait(timeout=2):
             raise RuntimeError("planning test release timed out")
-        return super().plan(request)
+        plan = super().plan(request)
+        self.planning_returned.set()
+        return plan
+
+
+async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
+    assert await asyncio.to_thread(event.wait, timeout)
 
 
 async def open_core_form(pilot: Pilot[None]) -> None:
     await pilot.click("#open-operations")
     await pilot.click("#manage-core")
+
+
+def test_core_artifact_copy_mappings_are_exhaustive() -> None:
+    assert set(WARNING_COPY) == set(CoreUpdateWarning)
+    assert set(TRUST_COPY) == set(CoreArtifactTrustMode)
 
 
 async def open_core_plan(
@@ -348,13 +362,14 @@ async def test_exact_version_planning_is_non_blocking_and_shows_full_digest() ->
         await pilot.click("#preview-core-update")
         await pilot.pause()
 
-        assert updater.planning_started.wait(timeout=1)
+        await wait_for_thread_event(updater.planning_started)
         assert app.screen.query_one("#preview-core-update", Button).disabled
         assert app.screen.query_one("#core-update-form-error", Static).content == (
             "目录正在冻结制品摘要"
         )
 
         updater.release_planning.set()
+        await wait_for_thread_event(updater.planning_returned)
         await app.workers.wait_for_complete()
         await pilot.pause()
 
@@ -374,14 +389,45 @@ async def test_leaving_exact_version_form_discards_stale_planning_completion() -
         await pilot.click("#allow-prerelease")
         await pilot.click("#preview-core-update")
         await pilot.pause()
-        assert updater.planning_started.wait(timeout=1)
+        await wait_for_thread_event(updater.planning_started)
 
         await pilot.press("escape")
         updater.release_planning.set()
-        await app.workers.wait_for_complete()
+        await wait_for_thread_event(updater.planning_returned)
         await pilot.pause()
 
         assert not app.screen.query("#core-update-plan")
+
+
+async def test_planning_completion_waits_for_keyboard_help_to_close() -> None:
+    updater = BlockingPlanningCoreUpdater()
+    app = ManagerApp(core_updater=updater)
+
+    async with app.run_test() as pilot:
+        await open_core_form(pilot)
+        await pilot.click("#core-version")
+        await pilot.press(*VERSION)
+        await pilot.click("#allow-prerelease")
+        await pilot.click("#preview-core-update")
+        await wait_for_thread_event(updater.planning_started)
+
+        await pilot.press("f1")
+        assert app.screen.query_one("#keyboard-help")
+
+        updater.release_planning.set()
+        await wait_for_thread_event(updater.planning_returned)
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+
+        assert app.screen.query_one("#keyboard-help")
+        assert not app.screen.query("#core-update-plan")
+
+        await pilot.press("escape")
+        await pilot.pause()
+
+        assert app.screen.query_one("#core-update-plan-sha256", Static).content == (
+            f"制品 SHA-256：{PREVIEW_SHA256}"
+        )
 
 
 async def test_stable_review_shows_frozen_digest_trust_and_mutability_warning() -> None:
