@@ -8,7 +8,7 @@ from sb_manager.domain.installation import (
     ProtocolKind,
 )
 from sb_manager.domain.protocol_material import RealityMaterial
-from sb_manager.protocols.catalog import ProtocolCatalog, RealityHandler
+from sb_manager.protocols.catalog import ConnectionPayloadKind, ProtocolCatalog, RealityHandler
 
 LISTEN_PORT = 4433
 
@@ -55,7 +55,8 @@ def test_applied_profile_details_rebuild_connection_information_from_desired_sta
     assert details.connection_info is not None
     assert details.connection_info.server_address == "vpn.example.com"
     assert details.connection_info.server_port == LISTEN_PORT
-    assert details.connection_info.share_uri == (
+    assert details.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert details.connection_info.payload.content == (
         "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
         "?encryption=none&flow=xtls-rprx-vision&security=reality"
         "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"

@@ -20,6 +20,8 @@ from sb_manager.domain.installation import (
 )
 from sb_manager.domain.protocol_material import Hysteria2Material
 from sb_manager.protocols.catalog import (
+    ConnectionPayload,
+    ConnectionPayloadKind,
     Hysteria2Handler,
     ProfileConnectionInfo,
     ProtocolCatalog,
@@ -167,11 +169,14 @@ def test_confirmed_reality_draft_is_applied_and_committed_to_desired_state() -> 
     assert result.connection_info == ProfileConnectionInfo(
         server_address="vpn.example.com",
         server_port=FIXED_LISTEN_PORT,
-        share_uri=(
-            "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
-            "?encryption=none&flow=xtls-rprx-vision&security=reality"
-            "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
-            "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
+        payload=ConnectionPayload(
+            kind=ConnectionPayloadKind.URI,
+            content=(
+                "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
+                "?encryption=none&flow=xtls-rprx-vision&security=reality"
+                "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
+                "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
+            ),
         ),
     )
     assert applier.document == {

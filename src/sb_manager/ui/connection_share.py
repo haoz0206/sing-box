@@ -1,16 +1,16 @@
-"""Explicit, one-page disclosure of credential-bearing connection links."""
+"""Explicit, one-page disclosure of credential-bearing connection payloads."""
 
 from textual import on
 from textual.app import ComposeResult
 from textual.widget import Widget
 from textual.widgets import Button, Label, Static, TextArea
 
-from sb_manager.protocols.catalog import ProfileConnectionInfo
+from sb_manager.protocols.catalog import ConnectionPayloadKind, ProfileConnectionInfo
 from sb_manager.ui.copy_catalog import SIMPLIFIED_CHINESE, CopyCatalog, UiText
 
 
 class ConnectionSharePanel(Widget):
-    """Keep one complete connection URI hidden until the operator reveals it."""
+    """Keep one complete connection payload hidden until the operator reveals it."""
 
     def __init__(
         self,
@@ -43,7 +43,7 @@ class ConnectionSharePanel(Widget):
         )
 
     @on(Button.Pressed, "#reveal-connection-share")
-    async def reveal_share_uri(self, event: Button.Pressed) -> None:
+    async def reveal_payload(self, event: Button.Pressed) -> None:
         if self._revealed:
             return
         self._revealed = True
@@ -51,9 +51,9 @@ class ConnectionSharePanel(Widget):
             self.copy.text(UiText.CONNECTION_SHARE_WARNING_REVEALED)
         )
         await event.button.remove()
-        share_uri = TextArea(
-            self._connection_info.share_uri,
-            id="connection-share-uri",
+        payload = TextArea(
+            self._connection_info.payload.content,
+            id="connection-share-payload",
             read_only=True,
             soft_wrap=True,
         )
@@ -63,19 +63,24 @@ class ConnectionSharePanel(Widget):
         )
         await self.mount(
             Label(
-                self.copy.text(UiText.CONNECTION_SHARE_LABEL),
+                self.copy.text(self._payload_label_key()),
                 id="connection-share-label",
             ),
-            share_uri,
+            payload,
             hide,
         )
-        share_uri.focus()
+        payload.focus()
 
     @on(Button.Pressed, "#hide-connection-share")
-    async def hide_share_uri(self, event: Button.Pressed) -> None:
+    async def hide_payload(self, event: Button.Pressed) -> None:
         await self.query_one("#connection-share-label").remove()
-        await self.query_one("#connection-share-uri").remove()
+        await self.query_one("#connection-share-payload").remove()
         await event.button.remove()
         self.query_one("#connection-share-warning", Static).update(
             self.copy.text(UiText.CONNECTION_SHARE_WARNING_HIDDEN_AFTER)
         )
+
+    def _payload_label_key(self) -> UiText:
+        if self._connection_info.payload.kind is ConnectionPayloadKind.URI:
+            return UiText.CONNECTION_SHARE_LABEL_URI
+        return UiText.CONNECTION_SHARE_LABEL_SURGE_POLICY

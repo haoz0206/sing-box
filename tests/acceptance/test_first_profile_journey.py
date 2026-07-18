@@ -47,7 +47,11 @@ from sb_manager.domain.installation import (
     ProfileStatus,
     ProtocolKind,
 )
-from sb_manager.protocols.catalog import ProfileConnectionInfo
+from sb_manager.protocols.catalog import (
+    ConnectionPayload,
+    ConnectionPayloadKind,
+    ProfileConnectionInfo,
+)
 from sb_manager.seams.config_validator import ConfigValidationResult
 from sb_manager.seams.configuration_applier import ConfigurationApplyError
 from sb_manager.seams.runtime import RuntimePostcondition, RuntimeRefreshResult
@@ -227,11 +231,14 @@ class RecordingProfileApplier:
             connection_info=ProfileConnectionInfo(
                 server_address="vpn.example.com",
                 server_port=4433,
-                share_uri=(
-                    "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
-                    "?encryption=none&flow=xtls-rprx-vision&security=reality"
-                    "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
-                    "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=(
+                        "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
+                        "?encryption=none&flow=xtls-rprx-vision&security=reality"
+                        "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
+                        "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
+                    ),
                 ),
             ),
         )
@@ -529,7 +536,10 @@ class FixedProfileDetailsReader:
             connection_info=ProfileConnectionInfo(
                 server_address="vpn.example.com",
                 server_port=4433,
-                share_uri="vless://saved-connection-link",
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content="vless://saved-connection-link",
+                ),
             ),
         )
 
@@ -1528,7 +1538,7 @@ async def test_operator_explicitly_reveals_a_persisted_profile_share_uri_once() 
         assert app.screen.query_one("#connection-share-endpoint", Static).content == (
             "服务器：vpn.example.com:4433"
         )
-        assert len(app.screen.query("#connection-share-uri")) == 0
+        assert len(app.screen.query("#connection-share-payload")) == 0
         assert app.screen.query_one("#connection-share-warning", Static).content == (
             "连接链接包含完整访问凭据，默认隐藏。仅在私密终端中显示。"
         )
@@ -1538,10 +1548,10 @@ async def test_operator_explicitly_reveals_a_persisted_profile_share_uri_once() 
 
         await pilot.click("#reveal-connection-share")
 
-        assert app.screen.query_one("#connection-share-uri", TextArea).text == (
+        assert app.screen.query_one("#connection-share-payload", TextArea).text == (
             "vless://saved-connection-link"
         )
-        assert app.screen.query_one("#connection-share-uri", TextArea).read_only is True
+        assert app.screen.query_one("#connection-share-payload", TextArea).read_only is True
         assert len(app.screen.query("#reveal-connection-share")) == 0
         assert str(app.screen.query_one("#hide-connection-share", Button).label) == (
             "立即隐藏连接链接"
@@ -1549,7 +1559,7 @@ async def test_operator_explicitly_reveals_a_persisted_profile_share_uri_once() 
 
         await pilot.click("#hide-connection-share")
 
-        assert len(app.screen.query("#connection-share-uri")) == 0
+        assert len(app.screen.query("#connection-share-payload")) == 0
         assert len(app.screen.query("#reveal-connection-share")) == 0
         assert len(app.screen.query("#hide-connection-share")) == 0
         assert app.screen.query_one("#connection-share-warning", Static).content == (
@@ -1810,7 +1820,7 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
 
         await pilot.click("#reveal-connection-share")
 
-        assert app.screen.query_one("#connection-share-uri", TextArea).text == (
+        assert app.screen.query_one("#connection-share-payload", TextArea).text == (
             "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
             "?encryption=none&flow=xtls-rprx-vision&security=reality"
             "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"

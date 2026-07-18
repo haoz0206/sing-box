@@ -888,7 +888,8 @@ class UiText(str, Enum):
     CONNECTION_SHARE_REVEAL = "connection_share.reveal"
     CONNECTION_SHARE_WARNING_REVEALED = "connection_share.warning.revealed"
     CONNECTION_SHARE_HIDE = "connection_share.hide"
-    CONNECTION_SHARE_LABEL = "connection_share.label"
+    CONNECTION_SHARE_LABEL_URI = "connection_share.label.uri"
+    CONNECTION_SHARE_LABEL_SURGE_POLICY = "connection_share.label.surge_policy"
     CONNECTION_SHARE_WARNING_HIDDEN_AFTER = "connection_share.warning.hidden_after"
     SETTINGS_TITLE = "settings.title"
     SETTINGS_BINDING = "settings.binding"
@@ -1049,6 +1050,8 @@ _EXPECTED_FIELDS.update(
         UiText.APPLY_HISTORY_ENTRY_REDACTED: frozenset({"count"}),
         UiText.APPLY_HISTORY_UNAVAILABLE: frozenset({"diagnostics"}),
         UiText.CONNECTION_SHARE_ENDPOINT: frozenset({"address", "port"}),
+        UiText.CONNECTION_SHARE_LABEL_URI: frozenset(),
+        UiText.CONNECTION_SHARE_LABEL_SURGE_POLICY: frozenset(),
         UiText.SETTINGS_APPEARANCE: frozenset({"label"}),
         UiText.SETTINGS_TOGGLE_APPEARANCE: frozenset({"target"}),
         UiText.SETTINGS_PERSISTENCE_SAVED: frozenset({"label"}),
@@ -2105,7 +2108,8 @@ SIMPLIFIED_CHINESE = CopyCatalog(
             "连接链接仅在本次页面中可见，离开后将重新隐藏。"
         ),
         UiText.CONNECTION_SHARE_HIDE: "立即隐藏连接链接",
-        UiText.CONNECTION_SHARE_LABEL: "连接链接 - 本次页面可见",
+        UiText.CONNECTION_SHARE_LABEL_URI: "连接 URI",
+        UiText.CONNECTION_SHARE_LABEL_SURGE_POLICY: "Surge 策略",
         UiText.CONNECTION_SHARE_WARNING_HIDDEN_AFTER: (
             "连接链接已重新隐藏，本页面不会再次显示。返回详情后可重新选择显示。"
         ),

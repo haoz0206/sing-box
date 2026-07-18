@@ -148,7 +148,7 @@ ConnectionSharePanel {
     height: auto;
 }
 
-#connection-share-uri {
+#connection-share-payload {
     height: 4;
 }
 

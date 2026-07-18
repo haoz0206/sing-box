@@ -1,3 +1,5 @@
+import pytest
+
 from sb_manager.domain.installation import (
     ManagedProfile,
     PortSelection,
@@ -16,8 +18,9 @@ from sb_manager.domain.protocol_material import (
 )
 from sb_manager.protocols.catalog import (
     AnyTlsHandler,
+    ConnectionPayload,
+    ConnectionPayloadKind,
     Hysteria2Handler,
-    ProfileConnectionInfo,
     ProtocolCatalog,
     RealityHandler,
     ShadowsocksHandler,
@@ -79,6 +82,14 @@ class FixedVmessMaterialSource:
         return VmessMaterial(user_uuid="bf000d23-0752-40b4-affe-68f7707a9661")
 
 
+def test_connection_payload_rejects_empty_content() -> None:
+    with pytest.raises(ValueError, match="Connection payload cannot be empty"):
+        ConnectionPayload(
+            kind=ConnectionPayloadKind.URI,
+            content="",
+        )
+
+
 def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
     catalog = ProtocolCatalog(
         (ShadowsocksHandler(material_source=FixedShadowsocksMaterialSource()),)
@@ -115,13 +126,11 @@ def test_catalog_materializes_a_complete_shadowsocks_profile() -> None:
         "password": "8JCsPssfgS8tiRwiMlhARg==",
         "multiplex": {"enabled": True},
     }
-    assert materialized.connection_info == ProfileConnectionInfo(
-        server_address="vpn.example.com",
-        server_port=8443,
-        share_uri=(
-            "ss://MjAyMi1ibGFrZTMtYWVzLTEyOC1nY206OEpDc1Bzc2ZnUzh0aVJ3aU1saEFSZz09"
-            "@vpn.example.com:8443#%E5%A4%87%E7%94%A8"
-        ),
+    assert materialized.connection_info is not None
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
+        "ss://MjAyMi1ibGFrZTMtYWVzLTEyOC1nY206OEpDc1Bzc2ZnUzh0aVJ3aU1saEFSZz09"
+        "@vpn.example.com:8443#%E5%A4%87%E7%94%A8"
     )
 
 
@@ -143,17 +152,15 @@ def test_catalog_materializes_a_complete_reality_profile() -> None:
     assert materialized.profile.status is ProfileStatus.APPLIED
     assert materialized.inbound["type"] == "vless"
     assert materialized.inbound["tag"] == "profile-1"
-    assert materialized.connection_info == ProfileConnectionInfo(
-        server_address="vpn.example.com",
-        server_port=4433,
-        share_uri=(
-            "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
-            "?encryption=none&flow=xtls-rprx-vision&security=reality"
-            "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
-            "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
-        ),
+    assert materialized.connection_info is not None
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
+        "vless://bf000d23-0752-40b4-affe-68f7707a9661@vpn.example.com:4433"
+        "?encryption=none&flow=xtls-rprx-vision&security=reality"
+        "&sni=www.cloudflare.com&fp=chrome&pbk=public-key-value"
+        "&sid=0123456789abcdef&type=tcp#%E6%89%8B%E6%9C%BA"
     )
-    assert "private-key-value" not in materialized.connection_info.share_uri
+    assert "private-key-value" not in materialized.connection_info.payload.content
 
 
 def test_catalog_materializes_hysteria2_with_inline_acme(tmp_path) -> None:
@@ -191,7 +198,8 @@ def test_catalog_materializes_hysteria2_with_inline_acme(tmp_path) -> None:
     }
     assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
-    assert materialized.connection_info.share_uri == (
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
         "hysteria2://hy2-password@vpn.example.com:8443/"
         "?sni=vpn.example.com&insecure=0#%E7%A7%BB%E5%8A%A8%E7%BD%91%E7%BB%9C"
     )
@@ -224,7 +232,8 @@ def test_catalog_materializes_trojan_with_inline_acme(tmp_path) -> None:
     assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
     assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
-    assert materialized.connection_info.share_uri == (
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
         "trojan://trojan-password@vpn.example.com:443/"
         "?sni=vpn.example.com#%E5%85%BC%E5%AE%B9%E7%BD%91%E7%BB%9C"
     )
@@ -257,7 +266,8 @@ def test_catalog_materializes_anytls_with_inline_acme(tmp_path) -> None:
     assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
     assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
-    assert materialized.connection_info.share_uri == (
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
         "anytls://anytls-password@vpn.example.com:443/"
         "?sni=vpn.example.com&insecure=0#%E6%8A%97%E5%B9%B2%E6%89%B0"
     )
@@ -294,7 +304,12 @@ def test_catalog_materializes_tuic_with_inline_acme(tmp_path) -> None:
     assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
     assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
-    assert materialized.connection_info.share_uri.startswith("tuic://")
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
+        "tuic://2dd61d93-75d8-4da4-ac0e-6aece7eac365:tuic-password"
+        "@vpn.example.com:443/?congestion_control=cubic&udp_relay_mode=native"
+        "&sni=vpn.example.com&allow_insecure=0#%E4%BD%8E%E5%BB%B6%E8%BF%9F"
+    )
 
 
 def test_catalog_materializes_vless_tls_websocket_across_deep_catalogs(tmp_path) -> None:
@@ -331,7 +346,12 @@ def test_catalog_materializes_vless_tls_websocket_across_deep_catalogs(tmp_path)
     assert materialized.inbound["tls"]["acme"]["domain"] == ["vpn.example.com"]
     assert materialized.certificate_providers == ()
     assert materialized.connection_info is not None
-    assert "type=ws" in materialized.connection_info.share_uri
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
+        "vless://bf000d23-0752-40b4-affe-68f7707a9661@edge.example.com:443"
+        "?encryption=none&security=tls&sni=vpn.example.com&type=ws"
+        "&host=vpn.example.com&path=%2Fproxy#CDN%20%E5%85%BC%E5%AE%B9"
+    )
 
 
 def test_catalog_materializes_vmess_tls_websocket_across_deep_catalogs(tmp_path) -> None:
@@ -364,4 +384,11 @@ def test_catalog_materializes_vmess_tls_websocket_across_deep_catalogs(tmp_path)
     assert materialized.inbound["users"][0]["alterId"] == 0
     assert materialized.inbound["transport"] == {"type": "ws", "path": "/vmess"}
     assert materialized.connection_info is not None
-    assert materialized.connection_info.share_uri.startswith("vmess://")
+    assert materialized.connection_info.payload.kind is ConnectionPayloadKind.URI
+    assert materialized.connection_info.payload.content == (
+        "vmess://eyJ2IjoiMiIsInBzIjoi5pen5a6i5oi356uv5YW85a65IiwiYWRkIjoiZWRnZS5leGFt"
+        "cGxlLmNvbSIsInBvcnQiOiI0NDMiLCJpZCI6ImJmMDAwZDIzLTA3NTItNDBiNC1hZmZlLTY4Zjc3MDdh"
+        "OTY2MSIsImFpZCI6IjAiLCJzY3kiOiJhdXRvIiwibmV0Ijoid3MiLCJ0eXBlIjoibm9uZSIsImhvc3Qi"
+        "OiJ2cG4uZXhhbXBsZS5jb20iLCJwYXRoIjoiL3ZtZXNzIiwidGxzIjoidGxzIiwic25pIjoidnBuLmV4"
+        "YW1wbGUuY29tIn0="
+    )

@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from enum import Enum
 from typing import Protocol
 
 from sb_manager.domain.installation import ManagedProfile, ProfileStatus, ProtocolKind
@@ -75,13 +76,28 @@ class IncompleteAppliedProfileError(ValueError):
     """An applied profile is missing material required to rebuild its inbound."""
 
 
+class ConnectionPayloadKind(str, Enum):
+    URI = "uri"
+    SURGE_POLICY = "surge-policy"
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectionPayload:
+    kind: ConnectionPayloadKind
+    content: str
+
+    def __post_init__(self) -> None:
+        if not self.content:
+            raise ValueError("Connection payload cannot be empty")
+
+
 @dataclass(frozen=True, slots=True)
 class ProfileConnectionInfo:
     """Protocol-neutral connection information consumed by application and UI."""
 
     server_address: str
     server_port: int
-    share_uri: str
+    payload: ConnectionPayload
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,7 +183,10 @@ class RealityHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -235,7 +254,10 @@ class Hysteria2Handler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -304,7 +326,10 @@ class TrojanHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -373,7 +398,10 @@ class AnyTlsHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -439,7 +467,10 @@ class TuicHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -513,7 +544,10 @@ class VlessTlsHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -584,7 +618,10 @@ class VmessTlsHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,
@@ -638,7 +675,10 @@ class ShadowsocksHandler:
             connection_info = ProfileConnectionInfo(
                 server_address=specific.server_address,
                 server_port=specific.server_port,
-                share_uri=specific.share_uri,
+                payload=ConnectionPayload(
+                    kind=ConnectionPayloadKind.URI,
+                    content=specific.share_uri,
+                ),
             )
         return MaterializedProfile(
             profile=applied_profile,

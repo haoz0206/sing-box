@@ -719,7 +719,7 @@ def test_cli_composes_a_complete_shadowsocks_apply_path(tmp_path: Path) -> None:
 
     assert result.committed_revision == EXPECTED_APPLIED_REVISION
     assert result.connection_info is not None
-    assert result.connection_info.share_uri.startswith("ss://")
+    assert result.connection_info.payload.content.startswith("ss://")
     profile = JsonFileStateStore(state_path).load().profiles[0]
     assert isinstance(profile.protocol_material, ShadowsocksMaterial)
     inbound = json.loads(config_path.read_text(encoding="utf-8"))["inbounds"][0]
@@ -766,7 +766,7 @@ def test_cli_composes_a_complete_hysteria2_acme_apply_path(tmp_path: Path) -> No
 
     assert result.committed_revision == EXPECTED_APPLIED_REVISION
     assert result.connection_info is not None
-    assert result.connection_info.share_uri.startswith("hysteria2://")
+    assert result.connection_info.payload.content.startswith("hysteria2://")
     document = json.loads(config_path.read_text(encoding="utf-8"))
     assert document["inbounds"][0]["type"] == "hysteria2"
     assert "certificate_providers" not in document
@@ -805,7 +805,7 @@ def test_cli_composes_a_complete_trojan_acme_apply_path(tmp_path: Path) -> None:
 
     assert result.committed_revision == EXPECTED_APPLIED_REVISION
     assert result.connection_info is not None
-    assert result.connection_info.share_uri.startswith("trojan://")
+    assert result.connection_info.payload.content.startswith("trojan://")
     profile = JsonFileStateStore(state_path).load().profiles[0]
     assert isinstance(profile.protocol_material, TrojanMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
@@ -841,7 +841,7 @@ def test_cli_composes_a_complete_anytls_acme_apply_path(tmp_path: Path) -> None:
 
     assert result.committed_revision == EXPECTED_APPLIED_REVISION
     assert result.connection_info is not None
-    assert result.connection_info.share_uri.startswith("anytls://")
+    assert result.connection_info.payload.content.startswith("anytls://")
     profile = JsonFileStateStore(state_path).load().profiles[0]
     assert isinstance(profile.protocol_material, AnyTlsMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
@@ -877,7 +877,7 @@ def test_cli_composes_a_complete_tuic_acme_apply_path(tmp_path: Path) -> None:
 
     assert result.committed_revision == EXPECTED_APPLIED_REVISION
     assert result.connection_info is not None
-    assert result.connection_info.share_uri.startswith("tuic://")
+    assert result.connection_info.payload.content.startswith("tuic://")
     profile = JsonFileStateStore(state_path).load().profiles[0]
     assert isinstance(profile.protocol_material, TuicMaterial)
     document = json.loads(config_path.read_text(encoding="utf-8"))
