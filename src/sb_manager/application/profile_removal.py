@@ -105,6 +105,19 @@ class ProfileRemovalService:
         expected_core_version: str | None = None,
     ) -> ProfileRemovalPlan:
         installation = self._state_store.load()
+        return self._plan_removal_from_installation(
+            installation,
+            profile_id,
+            expected_core_version=expected_core_version,
+        )
+
+    def _plan_removal_from_installation(
+        self,
+        installation: ManagedInstallation,
+        profile_id: str,
+        *,
+        expected_core_version: str | None = None,
+    ) -> ProfileRemovalPlan:
         try:
             profile = next(
                 profile for profile in installation.profiles if profile.profile_id == profile_id
@@ -147,18 +160,19 @@ class ProfileRemovalService:
                 "Profile removal requires explicit confirmation"
             )
         with self._apply_lock.acquire():
-            current_plan = self._plan_removal(
+            installation = self._state_store.load()
+            if installation.revision != plan.expected_revision:
+                raise StateRevisionConflictError(
+                    expected=plan.expected_revision,
+                    actual=installation.revision,
+                )
+            current_plan = self._plan_removal_from_installation(
+                installation,
                 plan.profile_id,
                 expected_core_version=plan.observed_core_version,
             )
-            if current_plan.expected_revision != plan.expected_revision:
-                raise StateRevisionConflictError(
-                    expected=plan.expected_revision,
-                    actual=current_plan.expected_revision,
-                )
             if current_plan != plan:
                 raise RuntimeError("Profile removal plan no longer matches desired state")
-            installation = self._state_store.load()
             remaining = tuple(
                 profile
                 for profile in installation.profiles

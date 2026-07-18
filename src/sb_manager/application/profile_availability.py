@@ -6,11 +6,15 @@ from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
 from sb_manager.application.manager import StateRevisionConflictError
-from sb_manager.application.protocol_compatibility import ActiveCoreProtocolCompatibility
+from sb_manager.application.protocol_compatibility import (
+    ActiveCoreProtocolCompatibility,
+    CoreVersionUnknown,
+)
 from sb_manager.domain.installation import (
     ManagedInstallation,
     PortSelection,
     ProfileStatus,
+    ProtocolKind,
 )
 from sb_manager.protocols.catalog import ProtocolCatalog
 from sb_manager.seams.apply_lock import ApplyLock
@@ -248,10 +252,12 @@ class ProfileAvailabilityService:
                 else profile
                 for profile in installation.profiles
             )
-            self._core_compatibility.require_profiles(
+            current_core_version = self._core_compatibility.require_profiles(
                 compatibility_profiles,
                 expected_version=plan.observed_core_version,
             )
+            if current_core_version is not None and plan.observed_core_version is None:
+                raise CoreVersionUnknown(protocol=ProtocolKind.SNELL_V6)
             if (
                 plan.target is ProfileAvailability.ACTIVE
                 and current_profile.port_selection is PortSelection.FIXED

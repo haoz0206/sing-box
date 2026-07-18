@@ -268,6 +268,34 @@ def test_snell_retaining_removal_rejects_supported_preview_version_race() -> Non
     assert state_store.load() == initial
 
 
+def test_removal_revision_conflict_precedes_core_recheck() -> None:
+    snell = snell_profile()
+    reality = reality_profile()
+    initial = ManagedInstallation(schema_version=1, revision=7, profiles=(snell, reality))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47")
+    remover = ProfileRemovalService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog(()),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = remover.plan_removal(reality.profile_id)
+    changed = ManagedInstallation(
+        schema_version=initial.schema_version,
+        revision=initial.revision + 1,
+        profiles=initial.profiles,
+    )
+    state_store.save(changed)
+
+    with pytest.raises(StateRevisionConflictError):
+        remover.remove_profile(plan, confirmed=True)
+
+    assert inspector.calls == 1
+    assert state_store.load() == changed
+
+
 def test_draft_profile_removal_plan_is_read_only_and_desired_state_only() -> None:
     draft = ManagedProfile(
         profile_id="profile-1",

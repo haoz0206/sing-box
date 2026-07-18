@@ -13,6 +13,7 @@ from sb_manager.application.profile_availability import (
     ProfileAvailabilityDraftError,
     ProfileAvailabilityNoChangeError,
     ProfileAvailabilityNotFoundError,
+    ProfileAvailabilityPlan,
     ProfileAvailabilityPlanChangedError,
     ProfileAvailabilityService,
     ProfileResumePortUnavailableError,
@@ -20,6 +21,7 @@ from sb_manager.application.profile_availability import (
 from sb_manager.application.protocol_compatibility import (
     ActiveCoreProtocolCompatibility,
     CoreVersionChanged,
+    CoreVersionUnknown,
     ProtocolUnsupportedByCore,
 )
 from sb_manager.domain.installation import (
@@ -377,6 +379,40 @@ def test_snell_resume_rejects_supported_preview_version_race_before_apply() -> N
 
     with pytest.raises(CoreVersionChanged):
         service.apply_change(plan, confirmed=True)
+
+
+def test_snell_resume_rejects_forged_plan_without_core_version_evidence() -> None:
+    profile = snell_profile(enabled=False)
+    initial = ManagedInstallation(schema_version=1, revision=4, profiles=(profile,))
+    state_store = MemoryStateStore(initial)
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47")
+    service = ProfileAvailabilityService(
+        state_store=state_store,
+        protocol_catalog=snell_catalog(),
+        port_source=ExplodingPortSource(),
+        applier=ExplodingApplier(),
+        apply_lock=TrackingLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    forged_plan = ProfileAvailabilityPlan(
+        profile_id=profile.profile_id,
+        profile_name=profile.profile_name,
+        current=ProfileAvailability.PAUSED,
+        target=ProfileAvailability.ACTIVE,
+        expected_revision=initial.revision,
+        remaining_active_profile_count=1,
+        port_selection=profile.port_selection,
+        recorded_listen_port=profile.listen_port,
+        port_may_change=False,
+        requires_live_apply=True,
+        observed_core_version=None,
+    )
+
+    with pytest.raises(CoreVersionUnknown):
+        service.apply_change(forged_plan, confirmed=True)
+
+    assert inspector.calls == 1
+    assert state_store.load() == initial
 
 
 def test_reality_resume_freezes_version_when_active_snell_is_retained() -> None:

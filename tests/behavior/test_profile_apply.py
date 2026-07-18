@@ -94,6 +94,15 @@ class RecordingSnellV6MaterialSource:
         return SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
 
 
+class RecordingRealityMaterialSource:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def generate(self) -> RealityMaterial:
+        self.calls += 1
+        return FixedRealityMaterialSource().generate()
+
+
 class SequenceCoreStatusInspector:
     def __init__(self, *versions: str) -> None:
         self._versions = iter(versions)
@@ -144,6 +153,31 @@ def snell_draft() -> ManagedProfile:
         profile_id="profile-7",
         profile_name="Snell preview",
         protocol=ProtocolKind.SNELL_V6,
+        listen_port=None,
+        port_selection=PortSelection.AUTOMATIC,
+        status=ProfileStatus.DRAFT,
+        server_address="proxy.example.com",
+    )
+
+
+def active_snell_profile() -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-snell",
+        profile_name="Active Snell preview",
+        protocol=ProtocolKind.SNELL_V6,
+        listen_port=18443,
+        port_selection=PortSelection.FIXED,
+        status=ProfileStatus.APPLIED,
+        enabled=True,
+        protocol_material=SnellV6Material(psk="AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8"),
+    )
+
+
+def reality_draft() -> ManagedProfile:
+    return ManagedProfile(
+        profile_id="profile-reality",
+        profile_name="Reality draft",
+        protocol=ProtocolKind.VLESS_REALITY,
         listen_port=None,
         port_selection=PortSelection.AUTOMATIC,
         status=ProfileStatus.DRAFT,
@@ -338,6 +372,103 @@ def test_snell_apply_requires_planned_core_version_evidence() -> None:
         )
 
     assert inspector.calls == 0
+    assert material_source.calls == 0
+    assert state_store.load() == initial
+
+
+def test_reality_apply_plan_rejects_stable_core_when_active_snell_is_retained() -> None:
+    draft = reality_draft()
+    initial = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(active_snell_profile(), draft),
+    )
+    state_store = MemoryStateStore(initial)
+    material_source = RecordingRealityMaterialSource()
+    inspector = SequenceCoreStatusInspector("1.13.14")
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RealityHandler(material_source=material_source),)),
+        port_source=PortSourceThatMustNotBeCalled(),
+        applier=ApplierThatMustNotBeCalled(),
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        service.plan_profile(draft.profile_id)
+
+    assert inspector.calls == 1
+    assert material_source.calls == 0
+    assert state_store.load() == initial
+
+
+def test_reality_apply_rechecks_retained_snell_before_material_or_host_mutation() -> None:
+    draft = reality_draft()
+    initial = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(active_snell_profile(), draft),
+    )
+    state_store = MemoryStateStore(initial)
+    material_source = RecordingRealityMaterialSource()
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.13.14")
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RealityHandler(material_source=material_source),)),
+        port_source=PortSourceThatMustNotBeCalled(),
+        applier=ApplierThatMustNotBeCalled(),
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = service.plan_profile(draft.profile_id)
+
+    with pytest.raises(ProtocolUnsupportedByCore):
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id=plan.profile_id,
+                expected_revision=plan.expected_revision,
+                confirmed=True,
+                expected_core_version=plan.observed_core_version,
+            )
+        )
+
+    assert inspector.calls == EXPECTED_CORE_INSPECTIONS
+    assert material_source.calls == 0
+    assert state_store.load() == initial
+
+
+def test_reality_apply_rejects_retained_snell_supported_version_race() -> None:
+    draft = reality_draft()
+    initial = ManagedInstallation(
+        schema_version=1,
+        revision=1,
+        profiles=(active_snell_profile(), draft),
+    )
+    state_store = MemoryStateStore(initial)
+    material_source = RecordingRealityMaterialSource()
+    inspector = SequenceCoreStatusInspector("1.14.0-alpha.47", "1.14.0-alpha.48")
+    service = ProfileApplyService(
+        state_store=state_store,
+        protocol_catalog=ProtocolCatalog((RealityHandler(material_source=material_source),)),
+        port_source=PortSourceThatMustNotBeCalled(),
+        applier=ApplierThatMustNotBeCalled(),
+        apply_lock=TrackingApplyLock(),
+        core_compatibility=ActiveCoreProtocolCompatibility(inspector=inspector),
+    )
+    plan = service.plan_profile(draft.profile_id)
+
+    with pytest.raises(CoreVersionChanged):
+        service.apply_profile(
+            ApplyProfileRequest(
+                profile_id=plan.profile_id,
+                expected_revision=plan.expected_revision,
+                confirmed=True,
+                expected_core_version=plan.observed_core_version,
+            )
+        )
+
+    assert inspector.calls == EXPECTED_CORE_INSPECTIONS
     assert material_source.calls == 0
     assert state_store.load() == initial
 

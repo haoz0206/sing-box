@@ -1,6 +1,6 @@
 """Application use case for applying one managed proxy profile."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from sb_manager.application.configuration_projection import ManagedConfigurationProjector
@@ -12,6 +12,7 @@ from sb_manager.application.protocol_compatibility import (
 from sb_manager.domain.installation import (
     ManagedInstallation,
     ManagedProfile,
+    ProfileStatus,
     ProtocolKind,
 )
 from sb_manager.protocols.catalog import MaterializedProfile, ProfileConnectionInfo, ProtocolCatalog
@@ -107,7 +108,13 @@ class ProfileApplyService:
     def plan_profile(self, profile_id: str) -> ProfileApplyPlan:
         installation = self._state_store.load()
         profile = self._find_profile(installation, profile_id)
-        observed_core_version = self._core_compatibility.require_protocol(profile.protocol)
+        compatibility_profiles = tuple(
+            replace(existing, status=ProfileStatus.APPLIED, enabled=True)
+            if existing.profile_id == profile.profile_id
+            else existing
+            for existing in installation.profiles
+        )
+        observed_core_version = self._core_compatibility.require_profiles(compatibility_profiles)
         if profile.protocol is ProtocolKind.SNELL_V6 and observed_core_version is None:
             raise CoreVersionUnknown(protocol=profile.protocol)
         return ProfileApplyPlan(
@@ -131,14 +138,26 @@ class ProfileApplyService:
                 actual=installation.revision,
             )
         profile = self._find_profile(installation, request.profile_id)
-        if profile.protocol is ProtocolKind.SNELL_V6 and request.expected_core_version is None:
-            raise CoreVersionUnknown(protocol=profile.protocol)
-        current_version = self._core_compatibility.require_protocol(
-            profile.protocol,
+        compatibility_profiles = tuple(
+            replace(existing, status=ProfileStatus.APPLIED, enabled=True)
+            if existing.profile_id == profile.profile_id
+            else existing
+            for existing in installation.profiles
+        )
+        retains_active_snell = any(
+            existing.status is ProfileStatus.APPLIED
+            and existing.enabled
+            and existing.protocol is ProtocolKind.SNELL_V6
+            for existing in compatibility_profiles
+        )
+        if retains_active_snell and request.expected_core_version is None:
+            raise CoreVersionUnknown(protocol=ProtocolKind.SNELL_V6)
+        current_version = self._core_compatibility.require_profiles(
+            compatibility_profiles,
             expected_version=request.expected_core_version,
         )
-        if profile.protocol is ProtocolKind.SNELL_V6 and current_version is None:
-            raise CoreVersionUnknown(protocol=profile.protocol)
+        if retains_active_snell and current_version is None:
+            raise CoreVersionUnknown(protocol=ProtocolKind.SNELL_V6)
         listen_port = profile.listen_port
         if listen_port is None:
             listen_port = self._port_source.choose_available()
