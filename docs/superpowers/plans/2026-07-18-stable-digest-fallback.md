@@ -417,7 +417,7 @@ def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
     )
 ```
 
-Refactor `_release_metadata` to accept `require_immutable: bool = True` so the existing `acquire(CoreArtifactRequest)` path remains immutable-only in this commit. Validate exact tag, published state, Boolean immutable/prerelease fields, metadata prerelease classification against `"-" in request.version`, and consent before returning. Change `_sha256` to raise `ArtifactDigestUnavailableError` for missing or malformed digests.
+Refactor `_release_metadata` to accept `require_immutable: bool = True` so the existing `acquire(CoreArtifactRequest)` path remains immutable-only in this commit. Validate exact tag, published state, Boolean immutable/prerelease fields, metadata prerelease classification from the portion before build metadata (`"-" in request.version.partition("+")[0]`), and consent before returning. Change `_sha256` to raise `ArtifactDigestUnavailableError` for missing or malformed digests.
 
 Use this complete validation body:
 
@@ -442,7 +442,7 @@ def _release_metadata(
         raise ArtifactTrustError("Release immutable metadata is invalid")
     if not isinstance(prerelease, bool):
         raise ArtifactTrustError("Release prerelease metadata is invalid")
-    if prerelease != ("-" in request.version):
+    if prerelease != ("-" in request.version.partition("+")[0]):
         raise ArtifactTrustError("Release prerelease classification is inconsistent")
     if prerelease and not request.allow_prerelease:
         raise ArtifactTrustError("Prerelease requires explicit permission")
@@ -516,6 +516,7 @@ class RecordingArtifactSource:
 
     def inspect(self, request: CoreArtifactRequest) -> PlannedCoreArtifact:
         self.inspect_requests.append(request)
+        requested_prerelease = "-" in request.version.partition("+")[0]
         return replace(
             self.inspected_artifact,
             version=request.version,
@@ -528,13 +529,13 @@ class RecordingArtifactSource:
                 f"v{request.version}/sing-box-{request.version}-linux-"
                 f"{request.architecture.value}.tar.gz"
             ),
-            prerelease="-" in request.version,
+            prerelease=requested_prerelease,
             trust_mode=(
                 CoreArtifactTrustMode.IMMUTABLE_RELEASE
-                if "-" in request.version
+                if requested_prerelease
                 else CoreArtifactTrustMode.DIGEST_PINNED_STABLE
             ),
-            release_immutable="-" in request.version,
+            release_immutable=requested_prerelease,
         )
 
     def acquire(
@@ -729,7 +730,7 @@ def plan(self, request: PlanCoreUpdateRequest) -> CoreUpdatePlan:
         architecture=request.architecture,
         allow_prerelease=request.allow_prerelease,
     )
-    requested_prerelease = "-" in artifact_request.version
+    requested_prerelease = "-" in artifact_request.version.partition("+")[0]
     if requested_prerelease and not artifact_request.allow_prerelease:
         raise CorePrereleaseConsentRequiredError(
             f"Core version {artifact_request.version} is a prerelease"
