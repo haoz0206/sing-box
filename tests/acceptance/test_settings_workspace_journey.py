@@ -277,6 +277,8 @@ async def test_operator_confirms_reset_and_the_default_is_restored_next_time(
 
         await pilot.click("#review-preference-reset")
         await pilot.click("#confirm-preference-reset")
+        await app.workers.wait_for_complete()
+        await pilot.pause()
 
         assert app.screen.query_one("#settings-title", Static).content == "设置"
         assert app.current_theme.dark
