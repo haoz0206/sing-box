@@ -1,0 +1,61 @@
+name: Bug report
+description: Report a reproducible defect without including credentials or private host data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Remove passwords, private keys, tokens, domains, IP addresses, and unredacted logs before submitting.
+  - type: input
+    id: manager-version
+    attributes:
+      label: Sing-box Manager version
+      placeholder: 0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: core-version
+    attributes:
+      label: sing-box core version
+      placeholder: 1.13.14 or 1.14.0-alpha.47
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Distribution, Python version, CPU architecture, and init system.
+      placeholder: Debian 12, Python 3.11, amd64, systemd
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest repeatable sequence and relevant non-secret configuration intent.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and sanitized evidence
+      description: Paste only bounded, redacted output. Do not upload state files or credentials.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I removed secrets, private host data, and unredacted connection material.
+          required: true
+        - label: I checked existing issues and the latest release notes.
+          required: true
