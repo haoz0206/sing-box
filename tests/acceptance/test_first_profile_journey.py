@@ -832,13 +832,19 @@ class RejectedPlanningConfigAdopter(RecordingConfigAdopter):
 
 
 class SlowConfigAdopter(RecordingConfigAdopter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = Event()
+        self.release = Event()
+
     def adopt(
         self,
         plan: ConfigAdoptionPlan,
         *,
         confirmed: bool,
     ) -> ConfigAdoptionResult:
-        time.sleep(0.2)
+        self.started.set()
+        assert self.release.wait(timeout=1)
         return super().adopt(plan, confirmed=confirmed)
 
 
@@ -1009,18 +1015,22 @@ async def test_confirmed_config_adoption_exposes_non_returning_progress() -> Non
         await pilot.click("#adopt-existing-config")
         await pilot.pause()
         await pilot.click("#confirm-config-adoption")
-        await pilot.pause(0.05)
+        await wait_for_thread_event(adopter.started)
+        await pilot.pause()
 
-        assert app.screen.query_one("#config-adoption-safety", Static).content == (
-            "目录正在记录指纹"
-        )
-        assert app.screen.query_one("#confirm-config-adoption", Button).disabled is True
-        await pilot.press("escape")
-        assert app.screen.query_one("#config-adoption-safety", Static).content == (
-            "目录正在记录指纹"
-        )
-
-        await pilot.pause(0.25)
+        try:
+            assert app.screen.query_one("#config-adoption-safety", Static).content == (
+                "目录正在记录指纹"
+            )
+            assert app.screen.query_one("#confirm-config-adoption", Button).disabled is True
+            await pilot.press("escape")
+            assert app.screen.query_one("#config-adoption-safety", Static).content == (
+                "目录正在记录指纹"
+            )
+        finally:
+            adopter.release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
 
 
 async def test_unexpected_config_adoption_failure_is_unknown_and_not_disclosed() -> None:
