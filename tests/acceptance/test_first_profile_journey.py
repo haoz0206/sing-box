@@ -1,5 +1,4 @@
 import asyncio
-import time
 from pathlib import Path
 from threading import Event
 from typing import cast
@@ -581,8 +580,14 @@ class UnexpectedProfileApplier(FixedProfileApplyPlanner):
 
 
 class SlowProfileApplier(RecordingProfileApplier):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = Event()
+        self.release = Event()
+
     def apply_profile(self, request: ApplyProfileRequest) -> ApplyProfileResult:
-        time.sleep(0.2)
+        self.started.set()
+        assert self.release.wait(timeout=5)
         return super().apply_profile(request)
 
 
@@ -2510,7 +2515,8 @@ async def test_operator_confirms_apply_then_explicitly_reveals_the_share_uri() -
 
 
 async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation() -> None:
-    app = ManagerApp(profile_applier=SlowProfileApplier())
+    applier = SlowProfileApplier()
+    app = ManagerApp(profile_applier=applier)
 
     async with app.run_test() as pilot:
         await pilot.click("#dashboard-primary-action")
@@ -2522,16 +2528,24 @@ async def test_slow_apply_runs_in_background_and_prevents_duplicate_confirmation
         await pilot.click("#save-draft")
         await pilot.click("#apply-draft")
         await pilot.click("#confirm-apply")
+        await wait_for_thread_event(applier.started)
+        await pilot.pause()
 
-        assert app.screen.query_one("#apply-progress", Static).content == (
-            "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
-        )
-        assert app.screen.query_one("#confirm-apply", Button).disabled is True
-        assert app.screen.check_action("return_from_confirmation", ()) is None
-        await pilot.press("escape")
+        try:
+            assert app.screen.query_one("#apply-progress", Static).content == (
+                "操作已确认，正在校验、提交并检查服务健康状态。完成前无法返回。"
+            )
+            assert app.screen.query_one("#confirm-apply", Button).disabled is True
+            assert app.screen.check_action("return_from_confirmation", ()) is None
+            await pilot.press("escape")
 
-        assert app.screen.query_one("#apply-confirm-title", Static).content == ("即将修改服务器")
-        await pilot.pause(0.3)
+            assert app.screen.query_one("#apply-confirm-title", Static).content == (
+                "即将修改服务器"
+            )
+        finally:
+            applier.release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
 
         assert app.screen.query_one("#apply-result-title", Static).content == "应用成功"
         await pilot.press("escape")
