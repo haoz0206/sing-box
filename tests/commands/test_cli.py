@@ -53,7 +53,12 @@ from sb_manager.domain.protocol_material import (
     VmessMaterial,
 )
 from sb_manager.protocols.catalog import ConnectionPayloadKind
-from sb_manager.seams.artifact_source import ArtifactArchitecture
+from sb_manager.seams.artifact_source import (
+    ArtifactArchitecture,
+    CoreArtifactRequest,
+    CoreArtifactTrustMode,
+    PlannedCoreArtifact,
+)
 from sb_manager.seams.core_status import CoreStatusObservation
 from sb_manager.tls.catalog import AcmeTlsIntent
 from sb_manager.transactions.apply import ApplyOutcome
@@ -410,7 +415,24 @@ def test_cli_composes_systemd_and_openrc_service_log_drill_down(tmp_path: Path) 
     assert openrc_arguments.read_text(encoding="utf-8") == ""
 
 
-def test_cli_composes_core_lifecycle_paths() -> None:
+def test_cli_composes_core_lifecycle_paths(monkeypatch: MonkeyPatch) -> None:
+    def inspect_without_network(
+        _source: object,
+        request: CoreArtifactRequest,
+    ) -> PlannedCoreArtifact:
+        asset_name = f"sing-box-{request.version}-linux-{request.architecture.value}.tar.gz"
+        return PlannedCoreArtifact(
+            version=request.version,
+            architecture=request.architecture,
+            asset_name=asset_name,
+            download_url=f"https://example.invalid/{asset_name}",
+            sha256="a" * 64,
+            trust_mode=CoreArtifactTrustMode.IMMUTABLE_RELEASE,
+            release_immutable=True,
+            prerelease=True,
+        )
+
+    monkeypatch.setattr(cli_module.GitHubArtifactSource, "inspect", inspect_without_network)
     app = create_app([])
 
     assert app.core_updater is not None

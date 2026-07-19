@@ -3,6 +3,11 @@
 Status: pre-release support contract  
 Last updated: 2026-07-18
 
+For setup questions and design discussion, use
+[GitHub Discussions](https://github.com/haoz0206/sing-box/discussions). Reproducible defects
+belong in the issue tracker after credentials and private host data have been removed. Suspected
+vulnerabilities must follow the private process in [`SECURITY.md`](../SECURITY.md).
+
 ## Python
 
 The supported interpreter matrix is CPython 3.10 through 3.14. Every push and

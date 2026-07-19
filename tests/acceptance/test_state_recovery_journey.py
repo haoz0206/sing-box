@@ -1,5 +1,6 @@
-import time
+import asyncio
 from pathlib import Path
+from threading import Event
 from typing import cast
 
 from textual.widgets import Button, Static
@@ -130,14 +131,24 @@ class UnknownDurabilityStateRecoveryManager(RecordingStateRecoveryManager):
 
 
 class SlowStateRecoveryManager(RecordingStateRecoveryManager):
+    def __init__(self, report: StateRecoveryReport) -> None:
+        super().__init__(report)
+        self.started = Event()
+        self.release = Event()
+
     def recover(
         self,
         plan: StateRecoveryPlan,
         *,
         confirmed: bool,
     ) -> StateRecoveryCommit:
-        time.sleep(0.2)
+        self.started.set()
+        assert self.release.wait(timeout=1)
         return super().recover(plan, confirmed=confirmed)
+
+
+async def wait_for_thread_event(event: Event, *, timeout: float = 1) -> None:
+    assert await asyncio.to_thread(event.wait, timeout)
 
 
 class UnexpectedInspectionStateRecoveryManager:
@@ -358,18 +369,22 @@ async def test_confirmed_state_recovery_exposes_non_returning_progress() -> None
     async with app.run_test() as pilot:
         await pilot.click("#review-state-recovery")
         await pilot.click("#confirm-state-recovery")
-        await pilot.pause(0.05)
+        await wait_for_thread_event(recovery.started)
+        await pilot.pause()
 
-        assert app.screen.query_one("#state-recovery-confirm-safety", Static).content == (
-            "目录正在恢复"
-        )
-        assert app.screen.query_one("#confirm-state-recovery", Button).disabled is True
-        await pilot.press("escape")
-        assert app.screen.query_one("#state-recovery-confirm-safety", Static).content == (
-            "目录正在恢复"
-        )
-
-        await pilot.pause(0.25)
+        try:
+            assert app.screen.query_one("#state-recovery-confirm-safety", Static).content == (
+                "目录正在恢复"
+            )
+            assert app.screen.query_one("#confirm-state-recovery", Button).disabled is True
+            await pilot.press("escape")
+            assert app.screen.query_one("#state-recovery-confirm-safety", Static).content == (
+                "目录正在恢复"
+            )
+        finally:
+            recovery.release.set()
+            await app.workers.wait_for_complete()
+            await pilot.pause()
 
 
 async def test_newer_state_schema_is_never_offered_as_corruption_recovery() -> None:

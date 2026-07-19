@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and operator support
+    url: https://github.com/haoz0206/sing-box/discussions
+    about: Use Discussions for setup questions, design ideas, and non-bug support.
+  - name: Private security report
+    url: https://github.com/haoz0206/sing-box/security/advisories/new
+    about: Report suspected vulnerabilities privately; do not open a public issue.
